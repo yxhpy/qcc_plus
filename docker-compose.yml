@@ -1,0 +1,39 @@
+version: "3.9"
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: example
+      MYSQL_DATABASE: qcc_proxy
+      MYSQL_USER: qcc
+      MYSQL_PASSWORD: example
+    command: ["--default-authentication-plugin=mysql_native_password", "--max_connections=200"]
+    ports:
+      - "${MYSQL_PORT:-3307}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "qcc", "-pexample"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  proxy:
+    build: .
+    environment:
+      UPSTREAM_BASE_URL: https://api.anthropic.com
+      UPSTREAM_API_KEY: changeme
+      UPSTREAM_NAME: default
+      LISTEN_ADDR: :8000
+      PROXY_RETRY_MAX: 3
+      PROXY_FAIL_THRESHOLD: 3
+      PROXY_HEALTH_INTERVAL_SEC: 30
+      PROXY_MYSQL_DSN: qcc:example@tcp(mysql:3306)/qcc_proxy?parseTime=true
+    ports:
+      - "8000:8000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+volumes:
+  mysql_data:

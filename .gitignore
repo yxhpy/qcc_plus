@@ -1,0 +1,65 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Compiled binaries
+cccli_bin
+/cmd/cccli/cccli
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Go build cache
+.cache/
+.gocache/
+.gomodcache/
+
+# Environment files (keep .env.example and .env.test)
+.env
+.env.local
+
+# Temporary files
+*.tmp
+.codex_*.txt
+.codex_*.md
+
+# IDE and editor files
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.swp
+*.swo
+*~
+
+# Frontend build artifacts (redundant with frontend/.gitignore but explicit)
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/*.local
+frontend/test.txt
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS files
+Thumbs.db
+
+# Docker volumes
+.docker/data/

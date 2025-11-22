@@ -1,0 +1,229 @@
+--- internal/proxy/proxy.go	2025-11-22 19:44:31
++++ internal/proxy/proxy.go	2025-11-22 19:44:54
+@@ -1221,31 +1221,75 @@
+ 	return nil
+ }
+ 
+-func (p *Server) handler() http.Handler {
+-	mux := http.NewServeMux()
+-	mux.HandleFunc("/login", p.handleLogin)
+-	mux.HandleFunc("/logout", p.handleLogout)
++func spaFileExists(fsys fs.FS, name string) bool {
++	name = strings.TrimPrefix(name, "/")
++	if name == "" {
++		name = "index.html"
++	}
++	info, err := fs.Stat(fsys, name)
++	return err == nil && !info.IsDir()
++}
+ 
+-	mux.HandleFunc("/admin", p.requireSession(p.handleDashboardRedirect))
+-	mux.HandleFunc("/admin/", p.requireSession(p.handleDashboardRedirect))
+-	mux.HandleFunc("/admin/dashboard", p.requireSession(p.handleDashboardPage))
+-	mux.HandleFunc("/admin/accounts", p.requireSession(p.handleAccountsPage))
+-	mux.HandleFunc("/admin/nodes", p.requireSession(p.handleNodesPage))
+-	mux.HandleFunc("/admin/settings", p.requireSession(p.handleSettingsPage))
++func spaHandler(fsys fs.FS) http.HandlerFunc {
++	fileServer := http.FileServer(http.FS(fsys))
++	return func(w http.ResponseWriter, r *http.Request) {
++		path := strings.TrimPrefix(r.URL.Path, "/")
++		if path == "" {
++			path = "index.html"
++		}
++		if spaFileExists(fsys, path) {
++			req := r.Clone(r.Context())
++			req.URL.Path = "/" + path
++			fileServer.ServeHTTP(w, req)
++			return
++		}
++		if !spaFileExists(fsys, "index.html") {
++			http.Error(w, "index not found", http.StatusNotFound)
++			return
++		}
++		req := r.Clone(r.Context())
++		req.URL.Path = "/index.html"
++		fileServer.ServeHTTP(w, req)
++	}
++}
+ 
+-	mux.HandleFunc("/admin/api/accounts", p.requireSession(p.handleAccounts))
+-	mux.HandleFunc("/admin/api/nodes", p.requireSession(p.handleNodes))
+-	mux.HandleFunc("/admin/api/config", p.requireSession(p.handleConfig))
+-	mux.HandleFunc("/admin/api/nodes/activate", p.requireSession(p.handleActivate))
+-	mux.HandleFunc("/admin/api/nodes/disable", p.requireSession(p.handleDisable))
+-	mux.HandleFunc("/admin/api/nodes/enable", p.requireSession(p.handleEnable))
++func (p *Server) handler() http.Handler {
++	spaFS, err := fs.Sub(web.DistFS, "dist")
++	if err != nil {
++		panic(fmt.Sprintf("web assets missing: %v", err))
++	}
++	spa := spaHandler(spaFS)
+ 
++	apiMux := http.NewServeMux()
++	apiMux.HandleFunc("/login", p.handleLogin)
++	apiMux.HandleFunc("/logout", p.handleLogout)
++	apiMux.HandleFunc("/admin/api/accounts", p.requireSession(p.handleAccounts))
++	apiMux.HandleFunc("/admin/api/nodes", p.requireSession(p.handleNodes))
++	apiMux.HandleFunc("/admin/api/config", p.requireSession(p.handleConfig))
++	apiMux.HandleFunc("/admin/api/nodes/activate", p.requireSession(p.handleActivate))
++	apiMux.HandleFunc("/admin/api/nodes/disable", p.requireSession(p.handleDisable))
++	apiMux.HandleFunc("/admin/api/nodes/enable", p.requireSession(p.handleEnable))
++
+ 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+-		if strings.HasPrefix(r.URL.Path, "/admin") || r.URL.Path == "/login" || r.URL.Path == "/logout" {
+-			mux.ServeHTTP(w, r)
++		path := r.URL.Path
++
++		// API and auth endpoints
++		if strings.HasPrefix(path, "/admin/api/") ||
++			(path == "/login" && r.Method == http.MethodPost) ||
++			path == "/logout" {
++			apiMux.ServeHTTP(w, r)
+ 			return
+ 		}
+ 
++		// SPA routes (admin UI and assets)
++		if path == "/" || path == "/login" || path == "/admin" ||
++			strings.HasPrefix(path, "/admin/") || strings.HasPrefix(path, "/assets/") ||
++			path == "/vite.svg" {
++			spa(w, r)
++			return
++		}
++
++		// Proxy endpoints (unchanged)
+ 		proxyKey := extractAPIKey(r)
+ 		account := p.getAccountByProxyKey(proxyKey)
+ 		if account == nil {
+@@ -1319,66 +1363,50 @@
+ }
+ 
+ func (p *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
+-	if r.Method == http.MethodGet {
+-		// 已登录则直接跳转到仪表盘。
+-		if cookie, err := r.Cookie("session_token"); err == nil {
+-			if p.sessionMgr.Validate(cookie.Value) {
+-				http.Redirect(w, r, "/admin/dashboard", http.StatusFound)
+-				return
+-			}
+-		}
+-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+-		w.Write([]byte(renderLoginPage("")))
++	if r.Method != http.MethodPost {
++		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+ 		return
+ 	}
+ 
+-	if r.Method == http.MethodPost {
+-		username := strings.TrimSpace(r.FormValue("username"))
+-		password := strings.TrimSpace(r.FormValue("password"))
++	username := strings.TrimSpace(r.FormValue("username"))
++	password := strings.TrimSpace(r.FormValue("password"))
+ 
+-		if username == "" || password == "" {
+-			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+-			w.Write([]byte(renderLoginPage("账号名称和密码不能为空")))
+-			return
+-		}
++	if username == "" || password == "" {
++		writeJSON(w, http.StatusOK, map[string]string{"error": "账号名称和密码不能为空"})
++		return
++	}
+ 
+-		// 查找账号
+-		p.mu.RLock()
+-		var account *Account
+-		for _, acc := range p.accountByID {
+-			if acc.Name == username {
+-				account = acc
+-				break
+-			}
++	p.mu.RLock()
++	var account *Account
++	for _, acc := range p.accountByID {
++		if acc.Name == username {
++			account = acc
++			break
+ 		}
+-		p.mu.RUnlock()
++	}
++	p.mu.RUnlock()
+ 
+-		if account == nil || account.Password != password {
+-			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+-			w.Write([]byte(renderLoginPage("账号名称或密码错误")))
+-			return
+-		}
++	if account == nil || account.Password != password {
++		writeJSON(w, http.StatusOK, map[string]string{"error": "账号名称或密码错误"})
++		return
++	}
+ 
+-		sess := p.sessionMgr.Create(account.ID, account.IsAdmin)
+-		if sess == nil {
+-			http.Error(w, "session creation failed", http.StatusInternalServerError)
+-			return
+-		}
+-
+-		http.SetCookie(w, &http.Cookie{
+-			Name:     "session_token",
+-			Value:    sess.Token,
+-			Path:     "/",
+-			MaxAge:   86400,
+-			HttpOnly: true,
+-			SameSite: http.SameSiteLaxMode,
+-		})
+-
+-		http.Redirect(w, r, "/admin/dashboard", http.StatusFound)
++	sess := p.sessionMgr.Create(account.ID, account.IsAdmin)
++	if sess == nil {
++		http.Error(w, "session creation failed", http.StatusInternalServerError)
+ 		return
+ 	}
+ 
+-	http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
++	http.SetCookie(w, &http.Cookie{
++		Name:     "session_token",
++		Value:    sess.Token,
++		Path:     "/",
++		MaxAge:   86400,
++		HttpOnly: true,
++		SameSite: http.SameSiteLaxMode,
++	})
++
++	http.Redirect(w, r, "/admin/dashboard", http.StatusFound)
+ }
+ 
+ func (p *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
+@@ -1400,32 +1428,8 @@
+ 
+ func (p *Server) handleDashboardRedirect(w http.ResponseWriter, r *http.Request) {
+ 	http.Redirect(w, r, "/admin/dashboard", http.StatusFound)
+-}
+-
+-func (p *Server) handleDashboardPage(w http.ResponseWriter, r *http.Request) {
+-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+-	_, _ = w.Write([]byte(renderDashboardPage()))
+ }
+ 
+-func (p *Server) handleAccountsPage(w http.ResponseWriter, r *http.Request) {
+-	if !isAdmin(r.Context()) {
+-		http.Error(w, "forbidden", http.StatusForbidden)
+-		return
+-	}
+-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+-	_, _ = w.Write([]byte(renderAccountsPage()))
+-}
+-
+-func (p *Server) handleNodesPage(w http.ResponseWriter, r *http.Request) {
+-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+-	_, _ = w.Write([]byte(renderNodesPage()))
+-}
+-
+-func (p *Server) handleSettingsPage(w http.ResponseWriter, r *http.Request) {
+-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+-	_, _ = w.Write([]byte(renderSettingsPage()))
+-}
+-
+ // extractAPIKey 从请求中提取代理 API Key。
+ func extractAPIKey(r *http.Request) string {
+ 	if r == nil {

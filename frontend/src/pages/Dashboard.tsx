@@ -13,6 +13,7 @@ import Card from '../components/Card'
 import Toast from '../components/Toast'
 import api from '../services/api'
 import type { Account, Node } from '../types'
+import './Dashboard.css'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend)
 

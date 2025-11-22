@@ -6,6 +6,7 @@ import useDialog from '../hooks/useDialog'
 import usePrompt from '../hooks/usePrompt'
 import api from '../services/api'
 import type { Account, Node } from '../types'
+import './Nodes.css'
 
 interface EditForm {
   name: string
@@ -245,9 +246,11 @@ export default function Nodes() {
   }
 
   return (
-    <div>
-      <h1>节点管理</h1>
-      <p className="sub">新增 / 编辑 / 切换节点，并查看健康状态与统计。</p>
+    <div className="nodes-page">
+      <div className="nodes-header">
+        <h1>节点管理</h1>
+        <p className="sub">新增 / 编辑 / 切换节点，并查看健康状态与统计。</p>
+      </div>
 
       <Card>
         <div className="toolbar">

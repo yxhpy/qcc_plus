@@ -5,6 +5,7 @@ import Toast from '../components/Toast'
 import useDialog from '../hooks/useDialog'
 import api from '../services/api'
 import type { Account } from '../types'
+import './Accounts.css'
 
 export default function Accounts() {
   const [accounts, setAccounts] = useState<Account[]>([])
@@ -114,12 +115,14 @@ export default function Accounts() {
   }
 
   return (
-    <div>
-      <h1>账号管理</h1>
-      <p className="sub">仅管理员可见：管理租户账号、后台登录密码与代理密钥。</p>
+    <div className="accounts-page">
+      <div className="accounts-header">
+        <h1>账号管理</h1>
+        <p className="sub">仅管理员可见：管理租户账号、后台登录密码与代理密钥。</p>
+      </div>
 
       <Card title={editingId ? `编辑账号: ${name || '未命名'}` : '新增账号'}>
-        <form className="inline" onSubmit={onSubmit} autoComplete="off" ref={formRef}>
+        <form className="inline-form" onSubmit={onSubmit} autoComplete="off" ref={formRef}>
           <input type="hidden" value={editingId} />
           <label>
             账号名称
@@ -167,14 +170,14 @@ export default function Accounts() {
             </button>
           </div>
         </form>
-        <small className="muted">
+        <small className="muted" style={{ display: 'block', marginTop: 16, color: 'rgba(255,255,255,0.5)' }}>
           {editingId ? `正在编辑账号 ${name || '当前账号'}，密码留空则不修改` : '新账号请设置 6 位及以上密码'}
         </small>
       </Card>
 
       <Card
         title="账号列表"
-        extra={<small className="muted">账号密码用于后台登录，Proxy API Key 仍用于 API 调用。</small>}
+        extra={<small className="muted" style={{ color: 'rgba(255,255,255,0.5)' }}>账号密码用于后台登录，Proxy API Key 仍用于 API 调用。</small>}
       >
         <div className="toolbar">
           <button
@@ -188,7 +191,7 @@ export default function Accounts() {
             ➕ 新增账号
           </button>
         </div>
-        <table>
+        <table className="accounts-table">
           <thead>
             <tr>
               <th>名称</th>
@@ -200,7 +203,9 @@ export default function Accounts() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={4}>加载中...</td>
+                <td colSpan={4}>
+                  <div className="skeleton" style={{ height: 20, background: 'rgba(255,255,255,0.1)', borderRadius: 4 }}></div>
+                </td>
               </tr>
             ) : accounts.length === 0 ? (
               <tr>
@@ -226,13 +231,12 @@ export default function Accounts() {
                   <tr
                     key={acc.id}
                     className={isEditing ? 'editing' : undefined}
-                    style={isEditing ? { backgroundColor: '#fff7e6' } : undefined}
                   >
                     <td>{acc.name}</td>
                     <td>
                       <code>{displayKey}</code>
                       {acc.proxy_api_key ? (
-                        <button className="btn ghost" type="button" onClick={copyKey} style={{ marginLeft: 8 }}>
+                        <button className="btn ghost" type="button" onClick={copyKey} style={{ marginLeft: 8, padding: '2px 8px', fontSize: 12 }}>
                           复制
                         </button>
                       ) : null}

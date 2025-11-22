@@ -4,6 +4,7 @@ import Card from '../components/Card'
 import Toast from '../components/Toast'
 import api from '../services/api'
 import type { Account } from '../types'
+import './Settings.css'
 
 export default function Settings() {
   const [accounts, setAccounts] = useState<Account[]>([])
@@ -70,9 +71,11 @@ export default function Settings() {
   }
 
   return (
-    <div>
-      <h1>系统配置</h1>
-      <p className="sub">调整重试、失败阈值和健康检查频率。</p>
+    <div className="settings-page">
+      <div className="settings-header">
+        <h1>系统配置</h1>
+        <p className="sub">调整重试、失败阈值和健康检查频率。</p>
+      </div>
 
       <Card>
         <div className="toolbar">
@@ -92,7 +95,7 @@ export default function Settings() {
             刷新
           </button>
         </div>
-        <form className="inline" onSubmit={handleSubmit}>
+        <form className="settings-form" onSubmit={handleSubmit}>
           <label>
             重试次数
             <input
@@ -133,7 +136,7 @@ export default function Settings() {
             保存配置
           </button>
         </form>
-        <div className="notice" style={{ marginTop: 12 }}>
+        <div className="notice" style={{ marginTop: 24 }}>
           范围提示：重试 1-10，失败阈值 1-10，健康检查 5-300 秒。
         </div>
       </Card>

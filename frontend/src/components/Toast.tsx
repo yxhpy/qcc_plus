@@ -1,3 +1,5 @@
+import './Toast.css'
+
 interface ToastProps {
   message?: string
   type?: 'success' | 'error'

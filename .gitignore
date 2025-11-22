@@ -63,3 +63,4 @@ Thumbs.db
 
 # Docker volumes
 .docker/data/
+.docker/buildx/

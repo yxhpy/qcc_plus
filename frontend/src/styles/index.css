@@ -606,47 +606,7 @@ div.table-actions {
   color: var(--muted);
 }
 
-.login-page {
-  max-width: 520px;
-  margin: 0 auto;
-  padding: 24px 0 32px;
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.login-title h1 {
-  text-align: center;
-  font-size: 24px;
-  margin-bottom: 6px;
-}
-
-.login-title p {
-  text-align: center;
-  color: var(--muted);
-}
-
-.login-form {
-  display: grid;
-  gap: 12px;
-  margin-top: 16px;
-}
-
-.error-box {
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: #fef2f2;
-  color: #b91c1c;
-  font-weight: 700;
-  margin: 10px 0;
-}
-
-.form-actions {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-}
+/* 登录页面样式已移至 Login.css */
 
 /* 节点管理相关样式 */
 .url-cell {

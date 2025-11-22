@@ -1,9 +1,13 @@
 import type { FormEvent } from 'react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import Card from '../components/Card'
+
 import Toast from '../components/Toast'
 import { useAuth } from '../hooks/useAuth'
+
+import './Login.css'
+
+import loginIcon from '../assets/login-icon.png'
 
 export default function Login() {
   const navigate = useNavigate()
@@ -37,16 +41,22 @@ export default function Login() {
 
   return (
     <div className="login-page">
-      <Card>
-        <div className="login-title">
-          <h1>登录 Claude Proxy</h1>
-          <p className="sub">使用账号名称和密码登录管理后台</p>
+      <div className="login-container">
+        <div className="login-header">
+          <img src={loginIcon} alt="Logo" className="login-icon" />
+          <div className="login-title">
+            <h1>Welcome back</h1>
+            <p className="sub">登录 Claude Proxy 管理后台</p>
+          </div>
         </div>
-        {error && <div className="error-box">{error}</div>}
+
+        {error && <div className="error-message">{error}</div>}
+
         <form className="login-form" onSubmit={handleSubmit}>
-          <label>
-            账号名称
+          <div className="form-group">
+            <label className="form-label">账号名称</label>
             <input
+              className="form-input"
               name="username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
@@ -54,10 +64,12 @@ export default function Login() {
               autoComplete="username"
               required
             />
-          </label>
-          <label>
-            密码
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">密码</label>
             <input
+              className="form-input"
               name="password"
               type="password"
               value={password}
@@ -66,13 +78,17 @@ export default function Login() {
               autoComplete="current-password"
               required
             />
-          </label>
-          <button className="btn primary" type="submit" disabled={loading}>
-            {loading ? '登录中...' : '登录'}
+          </div>
+
+          <button className="btn-submit" type="submit" disabled={loading}>
+            {loading ? '登录中...' : '继续'}
           </button>
         </form>
-        <small className="muted">登录后 24 小时内保持会话，记得使用退出按钮主动登出。</small>
-      </Card>
+
+        <div className="login-footer">
+          登录后 24 小时内保持会话，记得使用退出按钮主动登出。
+        </div>
+      </div>
       <Toast message={toast?.message} type={toast?.type} />
     </div>
   )

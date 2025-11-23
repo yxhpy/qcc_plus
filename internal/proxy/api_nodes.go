@@ -49,10 +49,10 @@ func (p *Server) handleNodes(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var req struct {
-			BaseURL string `json:"base_url"`
-			APIKey  string `json:"api_key"`
-			Name    string `json:"name"`
-			Weight  int    `json:"weight"`
+			BaseURL string  `json:"base_url"`
+			APIKey  *string `json:"api_key"`
+			Name    string  `json:"name"`
+			Weight  int     `json:"weight"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json"})

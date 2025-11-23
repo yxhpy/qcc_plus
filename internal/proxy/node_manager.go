@@ -61,7 +61,7 @@ func (p *Server) addNodeToAccount(acc *Account, name, rawURL, apiKey string, wei
 	return node, nil
 }
 
-func (p *Server) updateNode(id, name, rawURL, apiKey string, weight int) error {
+func (p *Server) updateNode(id, name, rawURL string, apiKey *string, weight int) error {
 	if rawURL == "" {
 		return errors.New("base_url required")
 	}
@@ -83,7 +83,9 @@ func (p *Server) updateNode(id, name, rawURL, apiKey string, weight int) error {
 		n.Name = name
 	}
 	n.URL = u
-	n.APIKey = apiKey
+	if apiKey != nil {
+		n.APIKey = *apiKey
+	}
 	n.Weight = weight
 	acc := p.nodeAccount[id]
 	p.mu.Unlock()

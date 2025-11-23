@@ -326,7 +326,7 @@ func TestGetActiveSwitchesToLowerWeight(t *testing.T) {
 	if primary == nil {
 		t.Fatalf("default node missing")
 	}
-	if err := srv.updateNode("default", primary.Name, primary.URL.String(), primary.APIKey, 10); err != nil {
+	if err := srv.updateNode("default", primary.Name, primary.URL.String(), &primary.APIKey, 10); err != nil {
 		t.Fatalf("update default weight: %v", err)
 	}
 
@@ -370,7 +370,7 @@ func TestDisableActiveTriggersImmediateSwitch(t *testing.T) {
 	if def == nil {
 		t.Fatalf("default node missing")
 	}
-	if err := srv.updateNode("default", def.Name, def.URL.String(), def.APIKey, 2); err != nil {
+	if err := srv.updateNode("default", def.Name, def.URL.String(), &def.APIKey, 2); err != nil {
 		t.Fatalf("update default weight: %v", err)
 	}
 
@@ -410,7 +410,7 @@ func TestEnableNodeAutoSwitchesByPriority(t *testing.T) {
 	if primary == nil {
 		t.Fatalf("default node missing")
 	}
-	if err := srv.updateNode("default", primary.Name, primary.URL.String(), primary.APIKey, 5); err != nil {
+	if err := srv.updateNode("default", primary.Name, primary.URL.String(), &primary.APIKey, 5); err != nil {
 		t.Fatalf("update default weight: %v", err)
 	}
 

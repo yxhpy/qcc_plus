@@ -15,7 +15,7 @@ qcc_plus 实现了自动故障检测和恢复机制，通过监控节点的请�
 ```
 
 #### 触发条件
-- **检测点**：每次代理请求完成后（`internal/proxy/proxy.go:612-619`）
+- **检测点**：每次代理请求完成后（见 `internal/proxy/handler.go` 记录 metrics 后的失败处理）
 - **失败判定**：HTTP 状态码 ≠ 200
 - **阈值**：连续失败次数 ≥ `PROXY_FAIL_THRESHOLD`（默认 3 次）
 
@@ -33,7 +33,7 @@ if node.Metrics.FailStreak >= failLimit {
 }
 ```
 
-**代码位置**：`internal/proxy/proxy.go:958-979` (`handleFailure` 方法)
+**代码位置**：`internal/proxy/health.go` 中 `handleFailure` 方法
 
 ### 2. 探活恢复（主动）
 
@@ -91,9 +91,9 @@ if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 ```
 
 **代码位置**：
-- 定时循环：`internal/proxy/proxy.go:983-991` (`healthLoop` 方法)
-- 探活逻辑：`internal/proxy/proxy.go:1010-1038` (`checkNodeHealth` 方法)
-- 自动切换：`internal/proxy/proxy.go:1040-1054` (`maybePromoteRecovered` 方法)
+- 定时循环：`internal/proxy/health.go` (`healthLoop` 方法)
+- 探活逻辑：`internal/proxy/health.go` (`checkNodeHealth` 方法)
+- 自动切换：`internal/proxy/health.go` (`maybePromoteRecovered` 方法)
 
 ### 3. 手动 Ping（已下线）
 
@@ -173,7 +173,7 @@ if recoveredNode.Weight < currentActiveNode.Weight {
 }
 ```
 
-**代码位置**：`internal/proxy/proxy.go:1040-1054` (`maybePromoteRecovered` 方法)
+**代码位置**：`internal/proxy/health.go` (`maybePromoteRecovered` 方法)
 
 ## 配置参数
 
@@ -255,8 +255,7 @@ A: 修改环境变量：
 
 ## 相关代码
 
-- 失败检测：`internal/proxy/proxy.go:958-979`
-- 探活循环：`internal/proxy/proxy.go:983-991`
-- 健康检查：`internal/proxy/proxy.go:1010-1038`
-- 自动切换：`internal/proxy/proxy.go:520-540`
-- 手动 Ping：`internal/proxy/proxy.go:759-804`
+- 失败检测：`internal/proxy/health.go` `handleFailure`
+- 探活循环：`internal/proxy/health.go` `healthLoop`
+- 健康检查：`internal/proxy/health.go` `checkNodeHealth`
+- 自动切换：`internal/proxy/health.go` `maybePromoteRecovered`

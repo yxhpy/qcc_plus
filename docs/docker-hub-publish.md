@@ -24,7 +24,7 @@ docker login
 
 ```bash
 # 用法: ./scripts/publish-docker.sh <dockerhub-username> <version>
-./scripts/publish-docker.sh yourusername v3.1.0
+./scripts/publish-docker.sh yourusername v1.0.0
 ```
 
 脚本会自动完成以下操作：
@@ -39,13 +39,13 @@ docker login
 
 ```bash
 # 1. 构建镜像
-docker build -t yourusername/qcc_plus:v3.1.0 .
+docker build -t yourusername/qcc_plus:v1.0.0 .
 
 # 2. 添加 latest 标签
-docker tag yourusername/qcc_plus:v3.1.0 yourusername/qcc_plus:latest
+docker tag yourusername/qcc_plus:v1.0.0 yourusername/qcc_plus:latest
 
 # 3. 推送到 Docker Hub
-docker push yourusername/qcc_plus:v3.1.0
+docker push yourusername/qcc_plus:v1.0.0
 docker push yourusername/qcc_plus:latest
 ```
 
@@ -67,8 +67,8 @@ docker run -d \
   -e ADMIN_API_KEY=test-admin-key \
   qcc_plus:test
 
-# 测试连接
-curl http://localhost:8000/health
+# 测试登录页可访问
+curl -I http://localhost:8000/login
 
 # 停止并删除测试容器
 docker stop $(docker ps -q --filter ancestor=qcc_plus:test)
@@ -96,12 +96,10 @@ docker run -d -p 8000:8000 \
 ## 版本规范
 
 建议使用语义化版本号：
-- `v3.0.0` - 主版本
-- `v3.1.0` - 次版本（新功能）
-- `v3.1.1` - 补丁版本（Bug 修复）
+- `v1.0.0` - 首个正式版本
 
 每次发布同时打上：
-- 具体版本标签（如 `v3.1.0`）
+- 具体版本标签（如 `v1.0.0`）
 - `latest` 标签（指向最新稳定版本）
 
 ## 镜像大小优化

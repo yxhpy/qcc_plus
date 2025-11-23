@@ -88,11 +88,10 @@ qcc_plus 多租户系统支持按账号隔离配置和节点，实现以下功�
 ### 账号管理
 
 ```
-POST   /admin/api/accounts           # 创建账号
-GET    /admin/api/accounts           # 列出账号
+POST   /admin/api/accounts           # 创建账号（需已登录且为管理员）
+GET    /admin/api/accounts           # 列出账号（管理员可见全部，普通账号仅见自己）
 PUT    /admin/api/accounts?id=xxx    # 更新账号
 DELETE /admin/api/accounts?id=xxx    # 删除账号
-GET    /admin/api/accounts/current   # 获取当前账号信息
 ```
 
 ### 节点管理（支持账号过滤）
@@ -111,13 +110,15 @@ GET    /admin/api/config?account_id=xxx  # 获取指定账号配置
 PUT    /admin/api/config?account_id=xxx  # 更新账号配置
 ```
 
+> 管理 API 认证：先通过 `/login` 表单登录（`username`/`password`），获得 `session_token` Cookie 后再访问以上接口；不再使用 `x-admin-key` 头。
+
 ## 环境变量
 
 | 变量名 | 说明 | 默认值 |
 |--------|------|--------|
 | ADMIN_API_KEY | 管理员访问密钥 | - |
 | DEFAULT_ACCOUNT_NAME | 默认账号名称 | default |
-| DEFAULT_PROXY_API_KEY | 默认代理 API Key | - |
+| DEFAULT_PROXY_API_KEY | 默认代理 API Key（仅内存模式自动创建时使用） | - |
 
 ## 使用示例
 
@@ -135,11 +136,13 @@ export DEFAULT_PROXY_API_KEY=proxy-key-123
 go run ./cmd/cccli proxy
 ```
 
-### 2. 创建新账号
+### 2. 创建新账号（先登录获取 Cookie）
 
 ```bash
-curl -X POST http://localhost:8000/admin/api/accounts \
-  -H "x-admin-key: your-admin-secret" \
+auth_cookie=cookies.txt
+curl -c "$auth_cookie" -X POST -d "username=admin&password=admin123" http://localhost:8000/login
+
+curl -b "$auth_cookie" -X POST http://localhost:8000/admin/api/accounts \
   -H "Content-Type: application/json" \
   -d '{
     "name": "team-a",
@@ -151,8 +154,7 @@ curl -X POST http://localhost:8000/admin/api/accounts \
 ### 3. 为账号添加节点
 
 ```bash
-curl -X POST http://localhost:8000/admin/api/nodes \
-  -H "x-api-key: team-a-proxy-key" \
+curl -b "$auth_cookie" -X POST "http://localhost:8000/admin/api/nodes?account_id=<team-a-id>" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "team-a-node-1",
@@ -178,10 +180,12 @@ curl http://localhost:8000/v1/messages \
 
 ## 向后兼容性
 
-如果未配置多账号系统：
+如果未配置多账号系统且未启用持久化（内存模式）：
 1. 系统自动创建名为 "default" 的账号
 2. 所有现有节点归属到 default 账号
 3. 系统行为与单租户模式一致
+
+启用持久化（设置 `PROXY_MYSQL_DSN`）时不会自动创建默认账号，需要登录后手动创建。
 
 ## 安全考虑
 
@@ -191,8 +195,8 @@ curl http://localhost:8000/v1/messages \
    - 两者完全隔离，互不影响
 
 2. **权限验证**：
-   - 所有管理 API 需要 x-admin-key 或有效的账号凭证
-   - 普通账号只能访问自己的资源
+   - 管理界面与管理 API 通过登录会话（`session_token` Cookie）鉴权
+   - 管理员登录后可管理所有账号；普通账号登录后仅能访问自身资源
 
 3. **数据隔离**：
    - 所有数据库查询都基于 account_id 过滤
@@ -232,7 +236,7 @@ curl http://localhost:8000/v1/messages \
 
 5. **验证迁移**：
    - 访问 /admin 页面
-   - 检查默认账号是否创建成功
+   - 如果未配置 default 账号，请在登录后手动创建目标账号
    - 验证现有节点是否正常工作
 
 ## 故障排查
@@ -248,12 +252,12 @@ curl http://localhost:8000/v1/messages \
 
 ### 权限拒绝
 
-**问题**：管理 API 返回 403 Forbidden
+**问题**：管理 API 返回 403 Forbidden / 401 Unauthorized
 
 **解决**：
-1. 检查 x-admin-key 是否设置
-2. 验证 ADMIN_API_KEY 环境变量是否配置
-3. 确认账号是否有相应权限
+1. 确认已通过 `/login` 登录并携带 `session_token` Cookie（使用 `-c/-b` 保存与发送）
+2. 检查登录账号是否为管理员（访问多账号资源时需管理员）
+3. 确认目标账号存在且未被删除
 
 ### 节点无法访问
 

@@ -3,9 +3,10 @@
 ## 概述
 
 - 系统默认启用多租户，无需额外开关。
-- 默认管理员密钥：`admin`（环境变量 `ADMIN_API_KEY`），用于访问 `/admin`。
-- 默认普通账号：名称 `default`，`proxy_api_key` 为 `default-proxy-key`。
-- 以上默认凭证仅供本地试用，**首次启动后请立即修改** `ADMIN_API_KEY` 与 `DEFAULT_PROXY_API_KEY`。
+- 默认登录账号（仅内存模式自动创建）：管理员 `admin/admin123`，普通账号 `default/default123`。
+- 配置了 `PROXY_MYSQL_DSN`（持久化模式）时不会自动创建默认账号，请登录后手动创建第一个账号和节点。
+- 以上默认凭证仅供本地试用，生产环境请尽快修改密码与密钥。
+- 登录方式：`POST /login`（表单 `username`、`password`），成功后获得 `session_token` Cookie，用于访问 `/admin` 与 `/admin/api/*`。
 
 ## 快速开始
 
@@ -18,14 +19,15 @@ UPSTREAM_BASE_URL=https://api.anthropic.com \
 UPSTREAM_API_KEY=sk-ant-your-key \
 go run ./cmd/cccli proxy
 
-# 日志会打印：
-# - Admin API Key: admin
-# - Account 'default': proxy_api_key=default-proxy-key
+# 日志会打印（内存模式）：
+# - 管理员登录：username=admin password=admin123
+# - 默认账号：username=default password=default123
+# 提示：配置 PROXY_MYSQL_DSN 时不会自动创建默认账号，需要登录后手动创建。
 
-# 2) 访问管理界面（默认管理员密钥）
-open "http://localhost:8000/admin?admin_key=admin"
+# 2) 访问管理界面（登录页）
+open "http://localhost:8000/admin"
 
-# 3) 使用默认账号调用代理
+# 3) 使用默认账号调用代理（仅在存在默认账号且 proxy_api_key 为 default-proxy-key 时）
 curl http://localhost:8000/v1/messages \
   -H "x-api-key: default-proxy-key" \
   -H "Content-Type: application/json" \
@@ -52,31 +54,36 @@ export PROXY_MYSQL_DSN=user:pass@tcp(localhost:3306)/qcc_plus?parseTime=true
 
 # 启动
 go run ./cmd/cccli proxy
+
+# 提示：启用 PROXY_MYSQL_DSN 时不会自动创建默认账号，登录后请在管理界面创建账号与节点。
 ```
 
 > 提醒：若首次启动时仍使用默认凭证，请在验证通过后立刻更新 `ADMIN_API_KEY` 与 `DEFAULT_PROXY_API_KEY` 并重启。
 
 ## 账号管理操作
 
+> 先登录并保存 Cookie（管理员）：
+> ```bash
+> auth_cookie=cookies.txt
+> curl -c "$auth_cookie" -X POST -d "username=admin&password=admin123" http://localhost:8000/login
+> ```
+
 ### 列出所有账号
 
 ```bash
-curl http://localhost:8000/admin/api/accounts \
-  -H "x-admin-key: my-secure-admin-key"
+curl -b "$auth_cookie" http://localhost:8000/admin/api/accounts
 ```
 
 ### 查看账号的节点
 
 ```bash
-curl "http://localhost:8000/admin/api/nodes?account_id=<account-id>" \
-  -H "x-admin-key: my-secure-admin-key"
+curl -b "$auth_cookie" "http://localhost:8000/admin/api/nodes?account_id=<account-id>"
 ```
 
 ### 更新账号信息
 
 ```bash
-curl -X PUT "http://localhost:8000/admin/api/accounts?id=<account-id>" \
-  -H "x-admin-key: my-secure-admin-key" \
+curl -b "$auth_cookie" -X PUT "http://localhost:8000/admin/api/accounts?id=<account-id>" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "new-name",
@@ -87,17 +94,17 @@ curl -X PUT "http://localhost:8000/admin/api/accounts?id=<account-id>" \
 ### 删除账号
 
 ```bash
-curl -X DELETE "http://localhost:8000/admin/api/accounts?id=<account-id>" \
-  -H "x-admin-key: my-secure-admin-key"
+curl -b "$auth_cookie" -X DELETE "http://localhost:8000/admin/api/accounts?id=<account-id>"
 ```
 
 ## 节点管理操作
 
-### 添加节点（到当前账号）
+> 使用登录获得的 Cookie；如需操作指定账号，管理员可通过 `account_id` 查询参数指定目标账号。
+
+### 添加节点（到指定账号）
 
 ```bash
-curl -X POST http://localhost:8000/admin/api/nodes \
-  -H "x-api-key: <your-proxy-key>" \
+curl -b "$auth_cookie" -X POST "http://localhost:8000/admin/api/nodes?account_id=<account-id>" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "new-node",
@@ -110,8 +117,7 @@ curl -X POST http://localhost:8000/admin/api/nodes \
 ### 更新节点
 
 ```bash
-curl -X PUT "http://localhost:8000/admin/api/nodes?id=<node-id>" \
-  -H "x-api-key: <your-proxy-key>" \
+curl -b "$auth_cookie" -X PUT "http://localhost:8000/admin/api/nodes?id=<node-id>" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "updated-node",
@@ -124,15 +130,13 @@ curl -X PUT "http://localhost:8000/admin/api/nodes?id=<node-id>" \
 ### 删除节点
 
 ```bash
-curl -X DELETE "http://localhost:8000/admin/api/nodes?id=<node-id>" \
-  -H "x-api-key: <your-proxy-key>"
+curl -b "$auth_cookie" -X DELETE "http://localhost:8000/admin/api/nodes?id=<node-id>"
 ```
 
 ### 激活节点
 
 ```bash
-curl -X POST http://localhost:8000/admin/api/nodes/activate \
-  -H "x-api-key: <your-proxy-key>" \
+curl -b "$auth_cookie" -X POST http://localhost:8000/admin/api/nodes/activate \
   -H "Content-Type: application/json" \
   -d '{"id": "<node-id>"}'
 ```
@@ -141,14 +145,12 @@ curl -X POST http://localhost:8000/admin/api/nodes/activate \
 
 ```bash
 # 禁用
-curl -X POST http://localhost:8000/admin/api/nodes/disable \
-  -H "x-api-key: <your-proxy-key>" \
+curl -b "$auth_cookie" -X POST http://localhost:8000/admin/api/nodes/disable \
   -H "Content-Type: application/json" \
   -d '{"id": "<node-id>"}'
 
 # 启用
-curl -X POST http://localhost:8000/admin/api/nodes/enable \
-  -H "x-api-key: <your-proxy-key>" \
+curl -b "$auth_cookie" -X POST http://localhost:8000/admin/api/nodes/enable \
   -H "Content-Type: application/json" \
   -d '{"id": "<node-id>"}'
 ```
@@ -205,7 +207,7 @@ docker-compose up -d
 
 ### 1. 老版本单租户如何升级？
 
-现在已默认启用多租户。升级后系统会在数据库为空时自动创建管理员账号与默认账号，并将历史默认节点挂载到 `default` 账号下，无需额外开关。建议同时配置新的 `ADMIN_API_KEY` 与 `DEFAULT_PROXY_API_KEY` 后再重启。
+现在已默认启用多租户。升级后如果启用持久化（设置 `PROXY_MYSQL_DSN`），系统只会创建管理员账号，不再自动创建默认账号；请登录后手动创建账号与节点，并将历史节点迁移到目标账号。建议同时配置新的 `ADMIN_API_KEY` 与 `DEFAULT_PROXY_API_KEY` 后再重启。
 
 ### 2. 如何重置管理员密钥？
 

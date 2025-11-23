@@ -17,10 +17,10 @@
 - **主要功能**:
   - Claude Code CLI 请求复刻
   - 反向代理服务器（端口转发）
-  - **多租户账号隔离**（v3.0 新增）
-  - **工具定义自动清理**（v3.0.1 新增）
-  - **React SPA 管理界面**（v3.1 新增）
-  - **事件驱动节点切换**（v3.1.0 新增，显著提升性能）
+  - 多租户账号隔离
+  - 工具定义自动清理
+  - React SPA 管理界面
+  - 事件驱动节点切换（仅在节点状态变化时重选）
   - 多节点管理（Web 管理页面）
   - 自动故障切换和探活
   - MySQL 持久化配置
@@ -32,8 +32,8 @@ qcc_plus/
 ├── internal/
 │   ├── client/         # 请求构造、预热、SSE 流读取等核心逻辑
 │   ├── proxy/          # Builder 模式的反向代理服务器（SPA 服务器）
-│   └── store/          # 数据存储层
-├── frontend/           # React 前端源码（开发）
+│   └── store/          # 数据存储层（MySQL）
+├── frontend/           # React 前端源码（React 18 + TypeScript + Vite）
 │   ├── src/            # TypeScript/React 源码
 │   ├── dist/           # 构建输出（Git 忽略）
 │   └── package.json
@@ -41,9 +41,10 @@ qcc_plus/
 │   ├── embed.go        # Embed 声明
 │   └── dist/           # 前端构建产物（从 frontend/dist 复制）
 ├── cccli/              # 系统 prompt 模板和工具定义（embed）
-├── scripts/            # 部署脚本（包括前端构建脚本）
-├── .docker/            # Docker 相关配置
-└── docs/               # 项目文档（包括前端技术栈说明）
+├── scripts/            # 部署脚本（包括前端构建、Docker 发布）
+├── docs/               # 项目文档（包括前端技术栈说明）
+├── docker-compose.yml  # Docker Compose 配置
+└── Dockerfile          # Docker 镜像构建文件
 ```
 
 ## 快速启动
@@ -56,15 +57,18 @@ UPSTREAM_BASE_URL=https://api.anthropic.com \
 UPSTREAM_API_KEY=sk-ant-your-key \
 go run ./cmd/cccli proxy
 
-# 启动时会输出：
-# - Admin API Key: admin
-# - Account 'default': proxy_api_key=default-proxy-key
-# - 管理界面: http://localhost:8000/admin?admin_key=admin
+# 启动时会输出（内存模式）：
+# - 管理员登录：username=admin password=admin123
+# - 默认账号：username=default password=default123
+# - 管理界面: http://localhost:8000/admin
+# 持久化模式（配置 PROXY_MYSQL_DSN）不会自动创建默认账号，请登录后手动创建。
 
 # 使用默认账号测试
 curl http://localhost:8000/v1/messages \
   -H "x-api-key: default-proxy-key" \
   -d '{"model":"claude-sonnet-4-5-20250929","messages":[{"role":"user","content":"hi"}],"max_tokens":100}'
+
+# 仅在存在默认账号且 proxy_api_key 为 default-proxy-key 时可用；持久化模式需登录后自行创建账号与节点。
 
 # Docker 部署
 docker compose up -d
@@ -73,42 +77,56 @@ docker compose up -d
 ## 环境变量
 | 变量名 | 说明 | 默认值 |
 |--------|------|--------|
-| ANTHROPIC_AUTH_TOKEN | API Token（必须） | - |
-| ANTHROPIC_BASE_URL | API 地址 | https://api.anthropic.com |
+| ANTHROPIC_AUTH_TOKEN | API Token（CLI 消息模式） | - |
+| ANTHROPIC_BASE_URL | API 地址（CLI 消息模式） | https://api.anthropic.com |
 | MODEL | 主模型 | claude-sonnet-4-5-20250929 |
 | WARMUP_MODEL | 预热模型 | claude-haiku-4-5-20251001 |
 | NO_WARMUP | 跳过预热 | 0 |
 | MINIMAL_SYSTEM | 使用精简系统提示 | 1 |
-| PROXY_RETRY_MAX | 重试次数 | 3 |
-| PROXY_MYSQL_DSN | MySQL 连接 | - |
-| **ADMIN_API_KEY** | 管理员密钥（多租户） | - |
-| **DEFAULT_ACCOUNT_NAME** | 默认账号名称 | default |
-| **DEFAULT_PROXY_API_KEY** | 默认代理 API Key | - |
+| **LISTEN_ADDR** | 代理监听地址 | :8000 |
+| **UPSTREAM_BASE_URL** | 上游 API 地址 | https://api.anthropic.com |
+| **UPSTREAM_API_KEY** | 默认上游 API Key | - |
+| **UPSTREAM_NAME** | 默认节点名称 | default |
+| **PROXY_RETRY_MAX** | 重试次数 | 3 |
+| **PROXY_FAIL_THRESHOLD** | 失败阈值（连续失败多少次标记失败） | 3 |
+| **PROXY_HEALTH_INTERVAL_SEC** | 探活间隔（秒） | 30 |
+| **PROXY_MYSQL_DSN** | MySQL 连接 | - |
+| **ADMIN_API_KEY** | 管理员密钥（服务端配置，非登录口令） | admin ⚠️ |
+| **DEFAULT_ACCOUNT_NAME** | 默认账号名称（仅内存模式自动创建） | default |
+| **DEFAULT_PROXY_API_KEY** | 默认代理 API Key（仅内存模式自动创建） | default-proxy-key ⚠️ |
+| **CF_API_TOKEN** | Cloudflare API Token（隧道功能） | - |
+| **TUNNEL_SUBDOMAIN** | 隧道子域名 | - |
+| **TUNNEL_ZONE** | Cloudflare Zone（域名） | - |
+| **TUNNEL_ENABLED** | 启用隧道功能 | false |
+
+⚠️ **安全警告**：生产环境必须修改 `ADMIN_API_KEY` 和 `DEFAULT_PROXY_API_KEY`！
+
+管理界面与管理 API 通过 `/login` 登录获得的 `session_token` Cookie 认证，不再使用 `x-admin-key` 头。
 
 ## 多租户架构（默认启用）
 系统默认以多租户模式运行：
 - **账号隔离**：每个账号拥有独立的节点池和配置
 - **路由逻辑**：根据请求头 `x-api-key` 自动路由到对应账号的节点
 - **权限控制**：管理员可管理所有账号，普通账号只能管理自己的资源
-- **默认凭证**：
-  - 管理员密钥：`admin`（环境变量 `ADMIN_API_KEY`）
-  - 默认账号：`default`，proxy_api_key 为 `default-proxy-key`
-  - **⚠️ 生产环境必须修改默认凭证！**
+- **默认凭证（仅内存模式自动创建）**：
+  - 管理员登录：username `admin` / password `admin123`
+  - 默认账号：username `default` / password `default123`
+  - 持久化模式不会自动创建默认账号，请登录后手动创建
+  - **⚠️ 生产环境必须修改默认密码与密钥！**
 
 详细文档：`docs/multi-tenant-architecture.md`、`docs/quick-start-multi-tenant.md`
 
-## 文档导航索引
-<navigation description="快速定位所需章节">
-    <章节索引>
-        <section name="Codex Skill 强制使用规则" tag="codex_mandatory">**重要**：所有代码任务必须使用 Codex Skill</section>
-        <section name="任务启动通用流程" tag="task_startup_flow">接收任何任务时的标准启动流程</section>
-        <section name="基本执行流程" tag="steps">标准任务执行流程</section>
-        <section name="编码规范" tag="coding_standards">Go 语言编码规则</section>
-        <section name="版本控制" tag="version_control">Git 工作流和提交规范</section>
-        <section name="版本发布规范" tag="release_process">**重要**：GitHub Release 和 Docker Hub 发布流程</section>
-        <section name="质量保证" tag="quality_assurance">代码审查和测试要求</section>
-    </章节索引>
-</navigation>
+## 文档导航
+
+- **[README.md](README.md)** - 项目主页，快速开始和环境变量配置
+- **[docs/README.md](docs/README.md)** - 完整文档索引和导航
+- **[docs/multi-tenant-architecture.md](docs/multi-tenant-architecture.md)** - 多租户架构设计
+- **[docs/quick-start-multi-tenant.md](docs/quick-start-multi-tenant.md)** - 多租户快速开始
+- **[docs/cloudflare-tunnel.md](docs/cloudflare-tunnel.md)** - Cloudflare Tunnel 集成指南
+- **[docs/frontend-tech-stack.md](docs/frontend-tech-stack.md)** - 前端技术栈和开发流程
+- **[docs/health_check_mechanism.md](docs/health_check_mechanism.md)** - 健康检查机制
+- **[docs/docker-hub-publish.md](docs/docker-hub-publish.md)** - Docker Hub 发布流程
+- **[frontend/README.md](frontend/README.md)** - 前端开发指南
 
 ## 任务启动通用流程
 <task_startup_flow description="接收到任何任务时的标准启动流程">

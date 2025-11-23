@@ -4,12 +4,12 @@ set -e
 
 # Docker Hub 发布脚本
 # 用法: ./scripts/publish-docker.sh <username> <version>
-# 示例: ./scripts/publish-docker.sh myusername v3.1.0
+# 示例: ./scripts/publish-docker.sh myusername v1.0.0
 
 # 检查参数
 if [ $# -ne 2 ]; then
     echo "用法: $0 <dockerhub-username> <version>"
-    echo "示例: $0 myusername v3.1.0"
+    echo "示例: $0 myusername v1.0.0"
     exit 1
 fi
 

@@ -37,7 +37,10 @@ func (s *Store) migrate(ctx context.Context) error {
 	if err := s.ensureNodesTable(ctx); err != nil {
 		return err
 	}
-	return s.ensureConfigTable(ctx)
+	if err := s.ensureConfigTable(ctx); err != nil {
+		return err
+	}
+	return s.ensureTunnelConfigTable(ctx)
 }
 
 func (s *Store) Close() error {

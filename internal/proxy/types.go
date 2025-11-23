@@ -60,5 +60,16 @@ type Account struct {
 	FailedSet   map[string]struct{}
 }
 
+// TunnelStatus 返回给前端的隧道状态视图。
+type TunnelStatus struct {
+	APITokenSet bool   `json:"api_token_set"`
+	Subdomain   string `json:"subdomain"`
+	Zone        string `json:"zone"`
+	Enabled     bool   `json:"enabled"`
+	PublicURL   string `json:"public_url"`
+	Status      string `json:"status"`
+	LastError   string `json:"last_error"`
+}
+
 // 用于在上下文中传递 usage。
 type usageContextKey struct{}

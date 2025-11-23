@@ -40,6 +40,11 @@ export default function Layout({ children }: LayoutProps) {
           <NavLink to="/admin/settings" className={linkClass}>
             系统配置
           </NavLink>
+          {user?.is_admin && (
+            <NavLink to="/admin/tunnel" className={linkClass}>
+              隧道设置
+            </NavLink>
+          )}
         </div>
         <div className="layout-actions">
           {user && (

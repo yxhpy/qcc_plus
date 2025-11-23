@@ -126,6 +126,24 @@ func (s *Store) ensureConfigTable(ctx context.Context) error {
 	return nil
 }
 
+func (s *Store) ensureTunnelConfigTable(ctx context.Context) error {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+	stmt := `CREATE TABLE IF NOT EXISTS tunnel_config (
+		id VARCHAR(64) PRIMARY KEY,
+		api_token VARCHAR(512),
+		subdomain VARCHAR(128),
+		zone VARCHAR(256),
+		enabled TINYINT(1) DEFAULT 0,
+		public_url VARCHAR(512),
+		status VARCHAR(32),
+		last_error TEXT,
+		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+	)`
+	_, err := s.db.ExecContext(ctx, stmt)
+	return err
+}
+
 func (s *Store) recreateConfigTable() error {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()

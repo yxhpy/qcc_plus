@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard'
 import Accounts from './pages/Accounts'
 import Nodes from './pages/Nodes'
 import Settings from './pages/Settings'
+import TunnelSettings from './pages/TunnelSettings'
 import { useAuth } from './hooks/useAuth'
 
 function ProtectedRoute({ children, adminOnly = false }: { children: ReactElement; adminOnly?: boolean }) {
@@ -71,6 +72,16 @@ export default function App() {
             <ProtectedRoute>
               <Layout>
                 <Settings />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/tunnel"
+          element={
+            <ProtectedRoute adminOnly>
+              <Layout>
+                <TunnelSettings />
               </Layout>
             </ProtectedRoute>
           }

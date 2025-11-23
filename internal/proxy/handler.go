@@ -68,6 +68,10 @@ func (p *Server) handler() http.Handler {
 	apiMux.HandleFunc("/admin/api/nodes/activate", p.requireSession(p.handleActivate))
 	apiMux.HandleFunc("/admin/api/nodes/disable", p.requireSession(p.handleDisable))
 	apiMux.HandleFunc("/admin/api/nodes/enable", p.requireSession(p.handleEnable))
+	apiMux.HandleFunc("/admin/api/tunnel", p.requireSession(p.handleTunnelConfig))
+	apiMux.HandleFunc("/admin/api/tunnel/start", p.requireSession(p.handleTunnelStart))
+	apiMux.HandleFunc("/admin/api/tunnel/stop", p.requireSession(p.handleTunnelStop))
+	apiMux.HandleFunc("/admin/api/tunnel/zones", p.requireSession(p.handleTunnelZones))
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path

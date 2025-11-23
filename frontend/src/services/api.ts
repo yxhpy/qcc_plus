@@ -1,4 +1,4 @@
-import type { Account, Node, Config } from '../types'
+import type { Account, Node, Config, TunnelState } from '../types'
 
 const defaultHeaders = { 'Content-Type': 'application/json' }
 
@@ -162,6 +162,42 @@ async function updateConfig(payload: Config, accountId?: string): Promise<void> 
   })
 }
 
+async function getTunnel(): Promise<TunnelState> {
+  return request<TunnelState>('/admin/api/tunnel')
+}
+
+async function saveTunnel(payload: {
+  api_token?: string
+  subdomain?: string
+  zone?: string
+  enabled?: boolean
+}): Promise<TunnelState> {
+  return request<TunnelState>('/admin/api/tunnel', {
+    method: 'PUT',
+    headers: defaultHeaders,
+    body: JSON.stringify(payload),
+  })
+}
+
+async function startTunnel(): Promise<TunnelState> {
+  return request<TunnelState>('/admin/api/tunnel/start', {
+    method: 'POST',
+    headers: defaultHeaders,
+  })
+}
+
+async function stopTunnel(): Promise<TunnelState> {
+  return request<TunnelState>('/admin/api/tunnel/stop', {
+    method: 'POST',
+    headers: defaultHeaders,
+  })
+}
+
+async function listZones(): Promise<string[]> {
+  const res = await request<{ zones: string[] }>('/admin/api/tunnel/zones')
+  return res.zones || []
+}
+
 export default {
   login,
   logout,
@@ -177,4 +213,9 @@ export default {
   toggleNode,
   getConfig,
   updateConfig,
+  getTunnel,
+  saveTunnel,
+  startTunnel,
+  stopTunnel,
+  listZones,
 }

@@ -1,13 +1,16 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"qcc_plus/internal/client"
 	"qcc_plus/internal/proxy"
+	"qcc_plus/internal/store"
 )
 
 func firstNonEmpty(vals ...string) string {
@@ -24,6 +27,20 @@ func getenvDefault(k, def string) string {
 		return v
 	}
 	return def
+}
+
+func buildLocalURL(listenAddr string) string {
+	if strings.HasPrefix(listenAddr, "http://") || strings.HasPrefix(listenAddr, "https://") {
+		return listenAddr
+	}
+	host := listenAddr
+	if strings.HasPrefix(host, ":") {
+		host = "127.0.0.1" + host
+	}
+	if !strings.Contains(host, "://") {
+		host = "http://" + host
+	}
+	return host
 }
 
 func main() {
@@ -80,6 +97,29 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+
+		cfToken := os.Getenv("CF_API_TOKEN")
+		tunnelSubdomain := os.Getenv("TUNNEL_SUBDOMAIN")
+		tunnelZone := os.Getenv("TUNNEL_ZONE")
+		tunnelEnabled := os.Getenv("TUNNEL_ENABLED") == "1" || strings.EqualFold(os.Getenv("TUNNEL_ENABLED"), "true")
+
+		if tunnelEnabled && cfToken != "" && tunnelSubdomain != "" {
+			if err := srv.SaveTunnelConfig(context.Background(), store.TunnelConfig{
+				ID:        "default",
+				APIToken:  cfToken,
+				Subdomain: tunnelSubdomain,
+				Zone:      tunnelZone,
+				Enabled:   true,
+			}); err != nil {
+				log.Printf("保存隧道配置失败: %v", err)
+			}
+			if err := srv.StartTunnel(); err != nil {
+				log.Printf("启动 Cloudflare Tunnel 失败: %v", err)
+			} else {
+				log.Printf("Cloudflare Tunnel 已开启，公网地址: %s", srv.GetTunnelStatus().PublicURL)
+			}
+		}
+
 		if err := srv.Start(); err != nil {
 			log.Fatal(err)
 		}

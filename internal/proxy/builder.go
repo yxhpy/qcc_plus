@@ -311,5 +311,18 @@ func (b *Builder) Build() (*Server, error) {
 		}
 	}
 
+	if srv.store != nil {
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			cfg, err := srv.store.GetTunnelConfig(ctx)
+			cancel()
+			if err == nil && cfg != nil && cfg.Enabled {
+				if err := srv.StartTunnel(); err != nil {
+					srv.logger.Printf("auto start tunnel failed: %v", err)
+				}
+			}
+		}()
+	}
+
 	return srv, nil
 }

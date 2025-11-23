@@ -6,10 +6,12 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
 	"qcc_plus/internal/store"
+	"qcc_plus/internal/tunnel"
 )
 
 // Server 负责在多个上游节点间切换并提供管理页面。
@@ -37,6 +39,9 @@ type Server struct {
 	healthRT    http.RoundTripper
 	store       *store.Store
 	adminKey    string
+
+	tunnelMgr *tunnel.Manager
+	tunnelMu  sync.Mutex
 }
 
 // Start 运行反向代理并阻塞直到关闭。
@@ -266,4 +271,168 @@ func (p *Server) getAccountByID(id string) *Account {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return p.accountByID[id]
+}
+
+// StartTunnel 根据存储配置启动 Cloudflare Tunnel。
+func (p *Server) StartTunnel() error {
+	if p.store == nil {
+		return errors.New("未启用存储，无法读取隧道配置")
+	}
+
+	p.tunnelMu.Lock()
+	if p.tunnelMgr != nil {
+		p.tunnelMu.Unlock()
+		return errors.New("隧道已运行")
+	}
+	p.tunnelMu.Unlock()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+
+	cfg, err := p.store.GetTunnelConfig(ctx)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			return errors.New("尚未保存隧道配置")
+		}
+		return err
+	}
+	if cfg.APIToken == "" || cfg.Subdomain == "" {
+		return errors.New("api_token 与 subdomain 不能为空")
+	}
+
+	mgr, err := tunnel.NewManager(tunnel.TunnelConfig{
+		APIToken:  cfg.APIToken,
+		Subdomain: cfg.Subdomain,
+		LocalAddr: buildLocalURL(p.listenAddr),
+		Zone:      cfg.Zone,
+	})
+	if err != nil {
+		_ = p.updateTunnelStatus(ctx, cfg, "error", errString(err), cfg.PublicURL, cfg.Enabled)
+		return err
+	}
+
+	localURL := buildLocalURL(p.listenAddr)
+	if err := mgr.Start(context.Background(), localURL); err != nil {
+		_ = p.updateTunnelStatus(ctx, cfg, "error", errString(err), cfg.PublicURL, cfg.Enabled)
+		return err
+	}
+
+	cfg.PublicURL = mgr.GetPublicURL()
+	cfg.Status = "running"
+	cfg.LastError = ""
+	cfg.Enabled = true
+	if err := p.store.SaveTunnelConfig(ctx, *cfg); err != nil {
+		_ = mgr.Stop()
+		return err
+	}
+
+	p.tunnelMu.Lock()
+	p.tunnelMgr = mgr
+	p.tunnelMu.Unlock()
+	return nil
+}
+
+// StopTunnel 停止隧道并更新状态。
+func (p *Server) StopTunnel() error {
+	p.tunnelMu.Lock()
+	mgr := p.tunnelMgr
+	p.tunnelMgr = nil
+	p.tunnelMu.Unlock()
+
+	var stopErr error
+	if mgr != nil {
+		stopErr = mgr.Stop()
+	}
+
+	if p.store != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		cfg, err := p.store.GetTunnelConfig(ctx)
+		if err != nil && !errors.Is(err, store.ErrNotFound) {
+			return err
+		}
+		if cfg == nil {
+			cfg = &store.TunnelConfig{ID: "default"}
+		}
+		cfg.Status = "stopped"
+		cfg.PublicURL = ""
+		cfg.Enabled = false
+		cfg.LastError = errString(stopErr)
+		_ = p.store.SaveTunnelConfig(ctx, *cfg)
+	}
+
+	return stopErr
+}
+
+// GetTunnelStatus 汇总持久化与运行时状态。
+func (p *Server) GetTunnelStatus() TunnelStatus {
+	status := TunnelStatus{Status: "stopped"}
+	if p.store != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		cfg, err := p.store.GetTunnelConfig(ctx)
+		cancel()
+		if err == nil && cfg != nil {
+			status.APITokenSet = cfg.APIToken != ""
+			status.Subdomain = cfg.Subdomain
+			status.Zone = cfg.Zone
+			status.Enabled = cfg.Enabled
+			status.PublicURL = cfg.PublicURL
+			status.Status = chooseNonEmpty(cfg.Status, status.Status)
+			status.LastError = cfg.LastError
+		}
+	}
+
+	p.tunnelMu.Lock()
+	running := p.tunnelMgr != nil
+	public := ""
+	if p.tunnelMgr != nil {
+		public = p.tunnelMgr.GetPublicURL()
+	}
+	p.tunnelMu.Unlock()
+
+	if running {
+		status.Status = "running"
+		status.Enabled = true
+		if public != "" {
+			status.PublicURL = public
+		}
+		status.LastError = ""
+	}
+	return status
+}
+
+// SaveTunnelConfig 便于启动时写入隧道配置。
+func (p *Server) SaveTunnelConfig(ctx context.Context, cfg store.TunnelConfig) error {
+	if p.store == nil {
+		return errors.New("未启用存储")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return p.store.SaveTunnelConfig(ctx, cfg)
+}
+
+func (p *Server) updateTunnelStatus(ctx context.Context, cfg *store.TunnelConfig, status, lastErr, publicURL string, enabled bool) error {
+	if p.store == nil || cfg == nil {
+		return nil
+	}
+	cfg.Status = status
+	cfg.LastError = lastErr
+	cfg.PublicURL = publicURL
+	cfg.Enabled = enabled
+	return p.store.SaveTunnelConfig(ctx, *cfg)
+}
+
+func buildLocalURL(listenAddr string) string {
+	if strings.HasPrefix(listenAddr, "http://") || strings.HasPrefix(listenAddr, "https://") {
+		return listenAddr
+	}
+	host := listenAddr
+	if strings.HasPrefix(host, ":") {
+		host = "127.0.0.1" + host
+	}
+	if !strings.Contains(host, "://") {
+		host = "http://" + host
+	}
+	return host
 }

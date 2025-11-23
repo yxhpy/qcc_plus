@@ -29,3 +29,13 @@ export interface Config {
   fail_limit: number;
   health_interval_sec: number;
 }
+
+export interface TunnelState {
+  api_token_set: boolean;
+  subdomain: string;
+  zone: string;
+  enabled: boolean;
+  public_url: string;
+  status: string;
+  last_error: string;
+}

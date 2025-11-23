@@ -70,7 +70,19 @@ git checkout "$BRANCH"
 git pull --rebase origin "$BRANCH"
 
 log "installing frontend dependencies (npm ci)"
-(cd frontend && npm ci --no-progress)
+(
+  cd frontend
+
+  # 如果 node_modules 存在但有问题，完全清理
+  if [ -d "node_modules" ] && ! npm ci --no-progress 2>/dev/null; then
+    log "npm ci failed, cleaning node_modules and retrying..."
+    rm -rf node_modules
+    npm cache clean --force 2>/dev/null || true
+  fi
+
+  # 执行干净安装
+  npm ci --no-progress
+)
 
 log "building frontend bundle"
 bash scripts/build-frontend.sh

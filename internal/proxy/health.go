@@ -128,10 +128,16 @@ func (p *Server) checkNodeHealth(acc *Account, id string) {
 	nodeCopy := *node
 	p.mu.RUnlock()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
+	// 根据健康检查方式设置超时时间
 	method := normalizeHealthCheckMethod(nodeCopy.HealthCheckMethod)
+	timeout := 5 * time.Second
+	if method == HealthCheckMethodCLI {
+		// CLI 方式需要启动容器和执行 CLI，需要更长的超时时间
+		timeout = 15 * time.Second
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
 	var (
 		ok      bool

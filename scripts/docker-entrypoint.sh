@@ -22,12 +22,14 @@ if [ -S /var/run/docker.sock ]; then
                 # 构建镜像
                 if [ -f /app/claude-cli/Dockerfile ]; then
                     cd /app/claude-cli
-                    docker build -f Dockerfile -t claude-code-cli-verify . 2>&1 | head -20
+                    # 使用 PIPESTATUS 获取 docker build 的真实退出码
+                    docker build -f Dockerfile -t claude-code-cli-verify . 2>&1 | head -30
+                    build_result=${PIPESTATUS[0]}
 
-                    if [ $? -eq 0 ]; then
+                    if [ $build_result -eq 0 ]; then
                         echo "✓ Claude CLI verify image built successfully"
                     else
-                        echo "✗ Failed to build Claude CLI verify image"
+                        echo "✗ Failed to build Claude CLI verify image (exit code: $build_result)"
                         echo "  CLI health check will not be available"
                     fi
                 else

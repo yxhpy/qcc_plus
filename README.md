@@ -1,6 +1,6 @@
 # qcc_plus - Claude Code CLI 多租户代理服务器
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/yxhpy/qcc_plus/releases/tag/v1.0.0)
+[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)](https://github.com/yxhpy/qcc_plus/releases/tag/v1.1.0)
 [![Go](https://img.shields.io/badge/Go-1.21+-00ADD8?logo=go)](https://go.dev/)
 [![Docker](https://img.shields.io/badge/docker-yxhpy520%2Fqcc__plus-blue?logo=docker)](https://hub.docker.com/r/yxhpy520/qcc_plus)
 

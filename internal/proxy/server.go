@@ -223,6 +223,10 @@ func (p *Server) loadAccountsFromStore(defaultUpstream *url.URL, defaultCfg stor
 					},
 				}
 				acc.Nodes[n.ID] = n
+				// 重启后恢复失败节点到 FailedSet，确保健康检查能够探活这些节点
+				if n.Failed {
+					acc.FailedSet[n.ID] = struct{}{}
+				}
 			}
 		}
 		p.registerAccount(acc)

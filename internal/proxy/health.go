@@ -339,7 +339,9 @@ func defaultCLIRunner(ctx context.Context, image string, env map[string]string, 
 	// image 参数保留以兼容旧接口（当前直接调用本地 claude CLI）。
 	_ = image
 
-	args := []string{"-p", prompt, "--non-interactive", "--timeout", "10s"}
+	// 使用 -p/--print 来获取非交互式输出
+	// 超时通过 context 控制（在 healthCheckViaCLI 中设置）
+	args := []string{"-p", prompt}
 	cmd := exec.CommandContext(ctx, "claude", args...)
 
 	cmdEnv := os.Environ()

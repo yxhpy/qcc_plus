@@ -4,14 +4,23 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"os/exec"
 	"strings"
 	"time"
 
 	"qcc_plus/internal/notify"
 	"qcc_plus/internal/store"
+)
+
+const (
+	HealthCheckMethodAPI  = "api"  // POST /v1/messages
+	HealthCheckMethodHEAD = "head" // HEAD 请求
+	HealthCheckMethodCLI  = "cli"  // Claude Code CLI 无头模式
 )
 
 // 处理失败：计数、记录错误、熔断并尝试切换。
@@ -116,56 +125,34 @@ func (p *Server) checkNodeHealth(acc *Account, id string) {
 		p.mu.RUnlock()
 		return
 	}
-	apiKey := node.APIKey
-	nodeURL := node.URL.String()
+	nodeCopy := *node
 	p.mu.RUnlock()
 
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	method := normalizeHealthCheckMethod(nodeCopy.HealthCheckMethod)
+
 	var (
-		ok      bool
-		pingErr string
+		ok       bool
+		pingErr  string
+		latency  time.Duration
+		fallback bool
 	)
 
-	if apiKey != "" {
-		payload := map[string]interface{}{
-			"model":      "claude-3-5-haiku-20241022",
-			"max_tokens": 1,
-			"messages": []map[string]string{
-				{"role": "user", "content": "hi"},
-			},
+	switch method {
+	case HealthCheckMethodAPI:
+		ok, pingErr, latency = p.healthCheckViaAPI(ctx, nodeCopy)
+	case HealthCheckMethodHEAD:
+		ok, pingErr, latency = p.healthCheckViaHEAD(ctx, nodeCopy)
+	case HealthCheckMethodCLI:
+		ok, pingErr, latency, fallback = p.healthCheckViaCLI(ctx, nodeCopy)
+		if !ok && fallback && nodeCopy.APIKey != "" {
+			p.logger.Printf("cli health check failed for node %s, fallback to api: %s", nodeCopy.Name, pingErr)
+			ok, pingErr, latency = p.healthCheckViaAPI(ctx, nodeCopy)
 		}
-		bodyBytes, _ := json.Marshal(payload)
-		apiURL := strings.TrimSuffix(nodeURL, "/") + "/v1/messages"
-		req, _ := http.NewRequest(http.MethodPost, apiURL, bytes.NewReader(bodyBytes))
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("anthropic-version", "2023-06-01")
-		req.Header.Set("x-api-key", apiKey)
-		req.Header.Set("Authorization", "Bearer "+apiKey)
-
-		client := &http.Client{Transport: p.healthRT, Timeout: 5 * time.Second}
-		resp, err := client.Do(req)
-		if err != nil {
-			pingErr = err.Error()
-		} else {
-			defer resp.Body.Close()
-			ok = resp.StatusCode >= 200 && resp.StatusCode < 300
-			if !ok {
-				body, _ := io.ReadAll(io.LimitReader(resp.Body, 500))
-				pingErr = fmt.Sprintf("status %d: %s", resp.StatusCode, string(body))
-			}
-		}
-	} else {
-		client := &http.Client{Transport: p.healthRT, Timeout: 5 * time.Second}
-		req, _ := http.NewRequest(http.MethodHead, nodeURL, nil)
-		resp, err := client.Do(req)
-		if err != nil {
-			pingErr = err.Error()
-		} else {
-			defer resp.Body.Close()
-			ok = resp.StatusCode == http.StatusOK
-			if !ok {
-				pingErr = fmt.Sprintf("status %d", resp.StatusCode)
-			}
-		}
+	default:
+		ok, pingErr, latency = p.healthCheckViaAPI(ctx, nodeCopy)
 	}
 
 	var (
@@ -178,6 +165,9 @@ func (p *Server) checkNodeHealth(acc *Account, id string) {
 	if n != nil {
 		acc := p.nodeAccount[id]
 		n.Metrics.LastHealthCheckAt = now
+		if latency > 0 {
+			n.Metrics.LastPingMS = latency.Milliseconds()
+		}
 		if ok {
 			n.Failed = false
 			n.LastError = ""
@@ -240,4 +230,138 @@ func (p *Server) maybePromoteRecovered(n *Node) {
 	if best.ID != prevActive {
 		p.logger.Printf("auto-switch to recovered node %s (weight %d)", best.Name, best.Weight)
 	}
+}
+
+func normalizeHealthCheckMethod(method string) string {
+	switch strings.ToLower(method) {
+	case HealthCheckMethodAPI:
+		return HealthCheckMethodAPI
+	case HealthCheckMethodHEAD:
+		return HealthCheckMethodHEAD
+	case HealthCheckMethodCLI:
+		return HealthCheckMethodCLI
+	default:
+		return HealthCheckMethodAPI
+	}
+}
+
+func healthMethodRequiresAPIKey(method string) bool {
+	m := normalizeHealthCheckMethod(method)
+	return m == HealthCheckMethodAPI || m == HealthCheckMethodCLI
+}
+
+func (p *Server) healthCheckViaAPI(ctx context.Context, node Node) (bool, string, time.Duration) {
+	if node.APIKey == "" {
+		return false, "api health check requires api key", 0
+	}
+	prompt := map[string]interface{}{
+		"model":      "claude-3-5-haiku-20241022",
+		"max_tokens": 1,
+		"messages": []map[string]string{
+			{"role": "user", "content": "hi"},
+		},
+	}
+	bodyBytes, _ := json.Marshal(prompt)
+	apiURL := strings.TrimSuffix(node.URL.String(), "/") + "/v1/messages"
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, bytes.NewReader(bodyBytes))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("anthropic-version", "2023-06-01")
+	req.Header.Set("x-api-key", node.APIKey)
+	req.Header.Set("Authorization", "Bearer "+node.APIKey)
+
+	client := &http.Client{Transport: p.healthRT, Timeout: 5 * time.Second}
+	start := time.Now()
+	resp, err := client.Do(req)
+	latency := time.Since(start)
+	if err != nil {
+		return false, err.Error(), latency
+	}
+	defer resp.Body.Close()
+	ok := resp.StatusCode >= 200 && resp.StatusCode < 300
+	if ok {
+		return true, "", latency
+	}
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 500))
+	return false, fmt.Sprintf("status %d: %s", resp.StatusCode, string(body)), latency
+}
+
+func (p *Server) healthCheckViaHEAD(ctx context.Context, node Node) (bool, string, time.Duration) {
+	client := &http.Client{Transport: p.healthRT, Timeout: 5 * time.Second}
+	req, _ := http.NewRequestWithContext(ctx, http.MethodHead, node.URL.String(), nil)
+	start := time.Now()
+	resp, err := client.Do(req)
+	latency := time.Since(start)
+	if err != nil {
+		return false, err.Error(), latency
+	}
+	defer resp.Body.Close()
+	ok := resp.StatusCode == http.StatusOK
+	if ok {
+		return true, "", latency
+	}
+	return false, fmt.Sprintf("status %d", resp.StatusCode), latency
+}
+
+func (p *Server) healthCheckViaCLI(ctx context.Context, node Node) (bool, string, time.Duration, bool) {
+	runner := p.cliRunner
+	if runner == nil {
+		runner = defaultCLIRunner
+	}
+	if node.APIKey == "" {
+		return false, "cli health check requires api key", 0, false
+	}
+	if node.URL == nil {
+		return false, "cli health check requires valid base url", 0, false
+	}
+	env := map[string]string{
+		"ANTHROPIC_API_KEY":    node.APIKey,
+		"ANTHROPIC_AUTH_TOKEN": chooseNonEmpty(os.Getenv("ANTHROPIC_AUTH_TOKEN"), node.APIKey),
+		"ANTHROPIC_BASE_URL":   node.URL.String(),
+	}
+
+	start := time.Now()
+	out, err := runner(ctx, "claude-code-cli-verify", env, "hi")
+	latency := time.Since(start)
+	if err != nil {
+		return false, err.Error(), latency, isDockerUnavailable(err)
+	}
+	if strings.TrimSpace(out) == "" {
+		return false, "cli health check returned empty output", latency, false
+	}
+	return true, "", latency, false
+}
+
+type CliRunner func(ctx context.Context, image string, env map[string]string, prompt string) (string, error)
+
+func defaultCLIRunner(ctx context.Context, image string, env map[string]string, prompt string) (string, error) {
+	args := []string{"run", "--rm"}
+	for k, v := range env {
+		args = append(args, "-e", fmt.Sprintf("%s=%s", k, v))
+	}
+	args = append(args, image, "-p", prompt)
+
+	cmd := exec.CommandContext(ctx, "docker", args...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("%w: stdout=%s stderr=%s", err, strings.TrimSpace(stdout.String()), strings.TrimSpace(stderr.String()))
+	}
+	return stdout.String(), nil
+}
+
+func isDockerUnavailable(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, exec.ErrNotFound) {
+		return true
+	}
+	var execErr *exec.Error
+	if errors.As(err, &execErr) {
+		return true
+	}
+	lower := strings.ToLower(err.Error())
+	return strings.Contains(lower, "docker daemon") || strings.Contains(lower, "cannot connect to the docker daemon") || strings.Contains(lower, "permission denied while trying to connect to the docker daemon")
 }

@@ -25,22 +25,23 @@ func main() {
 
 	// 第一次插入：创建节点并设置统计数据
 	initialRecord := store.NodeRecord{
-		ID:          nodeID,
-		Name:        "Test Node",
-		BaseURL:     "https://api.example.com",
-		APIKey:      "sk-test-key-1",
-		AccountID:   store.DefaultAccountID,
-		Weight:      10,
-		CreatedAt:   time.Now(),
-		Requests:    100,
-		FailCount:   5,
-		FailStreak:  2,
-		TotalBytes:  10000,
-		TotalInput:  5000,
-		TotalOutput: 3000,
-		StreamDurMs: 500,
-		FirstByteMs: 50,
-		LastPingMs:  10,
+		ID:                nodeID,
+		Name:              "Test Node",
+		BaseURL:           "https://api.example.com",
+		APIKey:            "sk-test-key-1",
+		HealthCheckMethod: "api",
+		AccountID:         store.DefaultAccountID,
+		Weight:            10,
+		CreatedAt:         time.Now(),
+		Requests:          100,
+		FailCount:         5,
+		FailStreak:        2,
+		TotalBytes:        10000,
+		TotalInput:        5000,
+		TotalOutput:       3000,
+		StreamDurMs:       500,
+		FirstByteMs:       50,
+		LastPingMs:        10,
 	}
 
 	if err := st.UpsertNode(ctx, initialRecord); err != nil {
@@ -51,13 +52,14 @@ func main() {
 
 	// 第二次更新：只更新配置字段
 	updateRecord := store.NodeRecord{
-		ID:        nodeID,
-		Name:      "Updated Node Name",
-		BaseURL:   "https://api.updated.com",
-		APIKey:    "sk-test-key-2",
-		AccountID: store.DefaultAccountID,
-		Weight:    20,
-		CreatedAt: time.Now(), // 新的时间
+		ID:                nodeID,
+		Name:              "Updated Node Name",
+		BaseURL:           "https://api.updated.com",
+		APIKey:            "sk-test-key-2",
+		HealthCheckMethod: "api",
+		AccountID:         store.DefaultAccountID,
+		Weight:            20,
+		CreatedAt:         time.Now(), // 新的时间
 		// 统计字段都是零值
 		Requests:    0,
 		FailCount:   0,

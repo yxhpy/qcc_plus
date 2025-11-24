@@ -2,7 +2,11 @@
 
 ## 概述
 
-qcc_plus 实现了自动故障检测和恢复机制，通过监控节点的请求状态和定期探活来确保服务可用性。
+qcc_plus 实现了自动故障检测和恢复机制，通过监控节点的请求状态和定期探活来确保服务可用性。健康检查支持三种方式：
+
+- **API**（默认）：调用 `/v1/messages` 做真实写入检查。
+- **HEAD**：对 Base URL 发送 HEAD 请求，适合无密钥或只需连通性验证的场景。
+- **CLI**：通过 Docker 运行预构建镜像 `claude-code-cli-verify`，模拟 Claude Code CLI 无头模式；当 Docker 不可用时自动回退到 API 检查。
 
 ## 健康检查流程
 
@@ -40,15 +44,16 @@ if node.Metrics.FailStreak >= failLimit {
 系统会定期探活失败的节点，检测是否已恢复：
 
 ```
-定时器触发 → 遍历失败节点 → HEAD 请求探活 → 成功则恢复
+定时器触发 → 遍历失败节点 → 根据 health_check_method 选择探活方式 → 成功则恢复
 ```
 
 #### 探活配置
 - **间隔**：`PROXY_HEALTH_INTERVAL_SEC`（默认 30 秒）
 - **超时**：5 秒
-- **方法**：
-  - **有 API Key**：POST 请求到 `/v1/messages`（真实 API 端点）
-  - **无 API Key**：HTTP HEAD 请求到节点的 Base URL
+- **方法**（由 `health_check_method` 决定）：
+  - **api**：POST `/v1/messages`（需要 API Key）
+  - **head**：HTTP HEAD 到 Base URL
+  - **cli**：`docker run --rm claude-code-cli-verify -p "hi"`，注入 `ANTHROPIC_API_KEY/ANTHROPIC_AUTH_TOKEN/ANTHROPIC_BASE_URL`；如 Docker 不可用自动回退到 **api**
 
 #### 执行逻辑
 ```go
@@ -184,6 +189,15 @@ if recoveredNode.Weight < currentActiveNode.Weight {
 | `PROXY_FAIL_THRESHOLD` | 连续失败多少次标记为失败 | 3 |
 | `PROXY_HEALTH_INTERVAL_SEC` | 探活间隔（秒） | 30 |
 | `PROXY_RETRY_MAX` | 非 200 状态重试次数 | 3 |
+| `health_check_method` (节点字段) | `api` / `head` / `cli` | `api` |
+
+### 健康检查方式对比
+
+| 方式 | 依赖 | 优点 | 适用场景 |
+|------|------|------|-----------|
+| API | API Key，服务需开放 `/v1/messages` | 与真实请求一致，准确度最高 | 生产默认；需要验证上下游写入能力 |
+| HEAD | 无需密钥 | 开销最低，适合仅验证连通性 | 暂无密钥或只需要轻量心跳 |
+| CLI | Docker、API Key（可复用为 `ANTHROPIC_AUTH_TOKEN`） | 覆盖 Claude Code CLI 无头模式，贴近实际使用 | 需要验证 CLI 路径或 API 代理链路 |
 
 ### 示例配置
 
@@ -226,7 +240,22 @@ A: 连续 3 次（默认）请求返回非 200 状态，系统会自动标记为
 - 查看"最后错误"列的具体错误信息
 
 ### Q: 失败节点何时恢复？
-A: 系统每 30 秒（默认）探活一次失败节点，如果 HEAD 请求返回 200 OK，立即恢复。
+A: 系统每 30 秒（默认）探活一次失败节点，根据节点配置的 `health_check_method` 使用对应的探活方式，探活成功立即恢复。
+
+### Q: CLI 健康检查方式需要什么前置条件？
+A: CLI 方式需要：
+1. **Docker 环境**：服务器需要安装 Docker 并能正常运行容器
+2. **预构建镜像**：需要预先构建 `claude-code-cli-verify` 镜像（参考 `verify/claude_code_cli/Dockerfile.verify_pass`）
+3. **API Key**：节点必须配置有效的 API Key
+4. **环境变量**：系统会自动注入 `ANTHROPIC_API_KEY`、`ANTHROPIC_AUTH_TOKEN`、`ANTHROPIC_BASE_URL`
+
+如果 Docker 不可用，系统会自动降级到 API 方式进行健康检查。
+
+### Q: 如何选择健康检查方式？
+A: 选择建议：
+- **API（推荐）**：默认方式，验证完整的 API 调用链路，适合生产环境
+- **HEAD**：仅验证连通性，适合无 API Key 或需要轻量级心跳的场景
+- **CLI**：验证 Claude Code CLI 无头模式的兼容性，适合需要模拟真实 CLI 使用场景
 
 ### Q: 可以手动恢复失败节点吗？
 A: 失败节点会自动探活恢复，无需手动操作。如果需要强制使用，可以：

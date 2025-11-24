@@ -7,17 +7,18 @@ import (
 
 // Node 代表一个可切换的上游节点。
 type Node struct {
-	ID        string
-	Name      string
-	URL       *url.URL
-	APIKey    string
-	AccountID string
-	CreatedAt time.Time
-	Metrics   metrics
-	Weight    int
-	Failed    bool
-	Disabled  bool // 用户手动禁用
-	LastError string
+	ID                string
+	Name              string
+	URL               *url.URL
+	APIKey            string
+	HealthCheckMethod string
+	AccountID         string
+	CreatedAt         time.Time
+	Metrics           metrics
+	Weight            int
+	Failed            bool
+	Disabled          bool // 用户手动禁用
+	LastError         string
 }
 
 // metrics 记录节点请求与健康状况统计。

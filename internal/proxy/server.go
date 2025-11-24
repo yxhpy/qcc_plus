@@ -39,6 +39,7 @@ type Server struct {
 	failLimit   int
 	healthEvery time.Duration
 	healthRT    http.RoundTripper
+	cliRunner   CliRunner
 	store       *store.Store
 	adminKey    string
 	notifyMgr   *notify.Manager
@@ -96,13 +97,14 @@ func (p *Server) createDefaultAccount(defaultUpstream *url.URL, defaultCfg store
 		return errors.New("default upstream required for initial account")
 	}
 	node := &Node{
-		ID:        "default",
-		Name:      chooseNonEmpty(defaultUpstream.Host, "default"),
-		URL:       defaultUpstream,
-		APIKey:    upstreamKey,
-		AccountID: acc.ID,
-		CreatedAt: time.Now(),
-		Weight:    1,
+		ID:                "default",
+		Name:              chooseNonEmpty(defaultUpstream.Host, "default"),
+		URL:               defaultUpstream,
+		APIKey:            upstreamKey,
+		HealthCheckMethod: HealthCheckMethodAPI,
+		AccountID:         acc.ID,
+		CreatedAt:         time.Now(),
+		Weight:            1,
 	}
 	acc.Nodes[node.ID] = node
 	acc.ActiveID = node.ID
@@ -111,7 +113,7 @@ func (p *Server) createDefaultAccount(defaultUpstream *url.URL, defaultCfg store
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = p.store.CreateAccount(ctx, store.AccountRecord{ID: acc.ID, Name: acc.Name, Password: acc.Password, ProxyAPIKey: acc.ProxyAPIKey, IsAdmin: true, CreatedAt: node.CreatedAt, UpdatedAt: node.CreatedAt})
-		_ = p.store.UpsertNode(ctx, store.NodeRecord{ID: node.ID, Name: node.Name, BaseURL: node.URL.String(), APIKey: node.APIKey, AccountID: acc.ID, Weight: node.Weight, CreatedAt: node.CreatedAt})
+		_ = p.store.UpsertNode(ctx, store.NodeRecord{ID: node.ID, Name: node.Name, BaseURL: node.URL.String(), APIKey: node.APIKey, HealthCheckMethod: node.HealthCheckMethod, AccountID: acc.ID, Weight: node.Weight, CreatedAt: node.CreatedAt})
 		_ = p.store.SetActive(ctx, acc.ID, node.ID)
 		_ = p.store.UpdateConfig(ctx, acc.ID, defaultCfg, node.ID)
 	}
@@ -174,32 +176,38 @@ func (p *Server) loadAccountsFromStore(defaultUpstream *url.URL, defaultCfg stor
 		// 如果账号没有节点且是默认账号，创建一个默认节点以保证可用。
 		if len(recs) == 0 && a.ID == store.DefaultAccountID && defaultUpstream != nil {
 			node := &Node{
-				ID:        "default",
-				Name:      chooseNonEmpty(defaultUpstream.Host, "default"),
-				URL:       defaultUpstream,
-				APIKey:    defaultUpstreamKey,
-				AccountID: acc.ID,
-				CreatedAt: time.Now(),
-				Weight:    1,
+				ID:                "default",
+				Name:              chooseNonEmpty(defaultUpstream.Host, "default"),
+				URL:               defaultUpstream,
+				APIKey:            defaultUpstreamKey,
+				HealthCheckMethod: HealthCheckMethodAPI,
+				AccountID:         acc.ID,
+				CreatedAt:         time.Now(),
+				Weight:            1,
 			}
 			acc.Nodes[node.ID] = node
 			acc.ActiveID = node.ID
-			_ = p.store.UpsertNode(context.Background(), store.NodeRecord{ID: node.ID, Name: node.Name, BaseURL: node.URL.String(), AccountID: acc.ID, Weight: node.Weight, CreatedAt: node.CreatedAt})
+			_ = p.store.UpsertNode(context.Background(), store.NodeRecord{ID: node.ID, Name: node.Name, BaseURL: node.URL.String(), HealthCheckMethod: node.HealthCheckMethod, AccountID: acc.ID, Weight: node.Weight, CreatedAt: node.CreatedAt})
 			_ = p.store.SetActive(context.Background(), acc.ID, node.ID)
 		} else {
 			for _, r := range recs {
 				u, _ := url.Parse(r.BaseURL)
+				hcMethod := r.HealthCheckMethod
+				if hcMethod == "" {
+					hcMethod = HealthCheckMethodAPI
+				}
 				n := &Node{
-					ID:        r.ID,
-					Name:      r.Name,
-					URL:       u,
-					APIKey:    r.APIKey,
-					AccountID: r.AccountID,
-					CreatedAt: r.CreatedAt,
-					Weight:    r.Weight,
-					Failed:    r.Failed,
-					Disabled:  r.Disabled,
-					LastError: r.LastError,
+					ID:                r.ID,
+					Name:              r.Name,
+					URL:               u,
+					APIKey:            r.APIKey,
+					HealthCheckMethod: hcMethod,
+					AccountID:         r.AccountID,
+					CreatedAt:         r.CreatedAt,
+					Weight:            r.Weight,
+					Failed:            r.Failed,
+					Disabled:          r.Disabled,
+					LastError:         r.LastError,
 					Metrics: metrics{
 						Requests:          r.Requests,
 						FailCount:         r.FailCount,

@@ -27,6 +27,7 @@ type Builder struct {
 	adminKey           string
 	defaultAccountName string
 	defaultProxyKey    string
+	cliRunner          CliRunner
 }
 
 // NewBuilder 构建带默认监听地址和日志的 Builder。
@@ -72,6 +73,12 @@ func (b *Builder) WithListenAddr(addr string) *Builder {
 // WithTransport 注入自定义 RoundTripper；默认为 http.DefaultTransport。
 func (b *Builder) WithTransport(t http.RoundTripper) *Builder {
 	b.transport = t
+	return b
+}
+
+// WithCLIRunner 用于测试时覆盖 CLI 健康检查执行逻辑。
+func (b *Builder) WithCLIRunner(r CliRunner) *Builder {
+	b.cliRunner = r
 	return b
 }
 
@@ -176,6 +183,10 @@ func (b *Builder) Build() (*Server, error) {
 	if defaultProxyKey == "" {
 		defaultProxyKey = "default-proxy-key"
 	}
+	runner := defaultCLIRunner
+	if b.cliRunner != nil {
+		runner = b.cliRunner
+	}
 
 	srv := &Server{
 		accounts:       make(map[string]*Account),
@@ -185,6 +196,7 @@ func (b *Builder) Build() (*Server, error) {
 		listenAddr:     b.listenAddr,
 		transport:      transport,
 		healthRT:       healthRT,
+		cliRunner:      runner,
 		logger:         logger,
 		store:          st,
 		adminKey:       adminKey,

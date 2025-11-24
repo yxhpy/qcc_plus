@@ -10,6 +10,8 @@ export interface Node {
   name: string;
   base_url: string;
   weight: number;
+  health_check_method?: 'api' | 'head' | 'cli';
+  has_api_key?: boolean;
   active: boolean;
   failed: boolean;
   disabled: boolean;

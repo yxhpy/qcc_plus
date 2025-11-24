@@ -18,6 +18,7 @@ type NodeRecord struct {
 	Name              string
 	BaseURL           string
 	APIKey            string
+	HealthCheckMethod string
 	AccountID         string
 	Weight            int
 	Failed            bool

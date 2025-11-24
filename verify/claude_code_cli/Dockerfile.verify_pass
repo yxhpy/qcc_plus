@@ -1,0 +1,15 @@
+FROM node:20-slim
+
+# Install Claude Code CLI
+RUN npm install -g @anthropic-ai/claude-code@latest \
+    && claude --version
+
+# Default working directory
+WORKDIR /work
+
+# Use bash for convenience
+SHELL ["/bin/bash", "-c"]
+
+# The container will receive the claude command from docker run
+ENTRYPOINT ["claude"]
+CMD ["--help"]

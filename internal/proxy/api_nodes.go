@@ -49,16 +49,17 @@ func (p *Server) handleNodes(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var req struct {
-			BaseURL string  `json:"base_url"`
-			APIKey  *string `json:"api_key"`
-			Name    string  `json:"name"`
-			Weight  int     `json:"weight"`
+			BaseURL           string  `json:"base_url"`
+			APIKey            *string `json:"api_key"`
+			Name              string  `json:"name"`
+			Weight            int     `json:"weight"`
+			HealthCheckMethod *string `json:"health_check_method"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json"})
 			return
 		}
-		if err := p.updateNode(id, req.Name, req.BaseURL, req.APIKey, req.Weight); err != nil {
+		if err := p.updateNode(id, req.Name, req.BaseURL, req.APIKey, req.Weight, req.HealthCheckMethod); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return
 		}
@@ -85,16 +86,17 @@ func (p *Server) handleNodes(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"deleted": id})
 	case http.MethodPost:
 		var req struct {
-			BaseURL string `json:"base_url"`
-			APIKey  string `json:"api_key"`
-			Name    string `json:"name"`
-			Weight  int    `json:"weight"`
+			BaseURL           string `json:"base_url"`
+			APIKey            string `json:"api_key"`
+			Name              string `json:"name"`
+			Weight            int    `json:"weight"`
+			HealthCheckMethod string `json:"health_check_method"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json"})
 			return
 		}
-		node, err := p.addNodeToAccount(acc, req.Name, req.BaseURL, req.APIKey, req.Weight)
+		node, err := p.addNodeWithMethod(acc, req.Name, req.BaseURL, req.APIKey, req.Weight, req.HealthCheckMethod)
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return
@@ -114,6 +116,10 @@ func (p *Server) listNodes(acc *Account) []map[string]interface{} {
 	defer p.mu.RUnlock()
 	out := make([]map[string]interface{}, 0, len(acc.Nodes))
 	for id, n := range acc.Nodes {
+		healthMethod := n.HealthCheckMethod
+		if healthMethod == "" {
+			healthMethod = HealthCheckMethodAPI
+		}
 		avgPerToken := "-"
 		if n.Metrics.TotalOutputTokens > 0 {
 			avgPerToken = fmt.Sprintf("%.2f", float64(n.Metrics.StreamDur.Milliseconds())/float64(n.Metrics.TotalOutputTokens))
@@ -135,6 +141,7 @@ func (p *Server) listNodes(acc *Account) []map[string]interface{} {
 			"id":                    id,
 			"name":                  n.Name,
 			"base_url":              n.URL.String(),
+			"health_check_method":   healthMethod,
 			"active":                id == acc.ActiveID,
 			"has_api_key":           n.APIKey != "",
 			"created_at":            n.CreatedAt.Format(time.RFC3339),

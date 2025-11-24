@@ -118,23 +118,24 @@ async function getNodes(accountId?: string): Promise<Node[]> {
 }
 
 async function createNode(payload: {
-  name?: string
-  base_url: string
-  api_key?: string
-  weight?: number
+	name?: string
+	base_url: string
+	api_key?: string
+	weight?: number
+	health_check_method?: Node['health_check_method']
 }, accountId?: string): Promise<string> {
-  const data = await request<{ id: string }>(withAccount('/admin/api/nodes', accountId), {
-    method: 'POST',
-    headers: defaultHeaders,
-    body: JSON.stringify(payload),
-  })
-  return data.id
+	const data = await request<{ id: string }>(withAccount('/admin/api/nodes', accountId), {
+		method: 'POST',
+		headers: defaultHeaders,
+		body: JSON.stringify(payload),
+	})
+	return data.id
 }
 
-async function updateNode(id: string, payload: Partial<Pick<Node, 'name' | 'base_url' | 'weight'>> & { api_key?: string }): Promise<void> {
-  await request(`/admin/api/nodes?id=${encodeURIComponent(id)}`, {
-    method: 'PUT',
-    headers: defaultHeaders,
+async function updateNode(id: string, payload: Partial<Pick<Node, 'name' | 'base_url' | 'weight' | 'health_check_method'>> & { api_key?: string }): Promise<void> {
+	await request(`/admin/api/nodes?id=${encodeURIComponent(id)}`, {
+		method: 'PUT',
+		headers: defaultHeaders,
     body: JSON.stringify(payload),
   })
 }

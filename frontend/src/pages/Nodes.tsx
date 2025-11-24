@@ -13,7 +13,14 @@ interface EditForm {
   base_url: string
   weight: string
   api_key: string
+  health_check_method: 'api' | 'head' | 'cli'
 }
+
+const healthMethodOptions: { value: 'api' | 'head' | 'cli'; label: string }[] = [
+  { value: 'api', label: 'API 调用 (/v1/messages)' },
+  { value: 'head', label: 'HEAD 请求' },
+  { value: 'cli', label: 'Claude Code CLI (Docker)' },
+]
 
 export default function Nodes() {
   const [accounts, setAccounts] = useState<Account[]>([])
@@ -27,7 +34,7 @@ export default function Nodes() {
   const [filter, setFilter] = useState('all')
   const [detailNode, setDetailNode] = useState<Node | null>(null)
   const [editingNode, setEditingNode] = useState<Node | null>(null)
-  const [editForm, setEditForm] = useState<EditForm>({ name: '', base_url: '', weight: '1', api_key: '' })
+  const [editForm, setEditForm] = useState<EditForm>({ name: '', base_url: '', weight: '1', api_key: '', health_check_method: 'api' })
   const dialog = useDialog()
   const prompt = usePrompt()
 
@@ -76,6 +83,7 @@ export default function Nodes() {
       base_url: editingNode.base_url || '',
       weight: String(editingNode.weight || 1),
       api_key: '',
+      health_check_method: editingNode.health_check_method || 'api',
     })
   }, [editingNode])
 
@@ -108,6 +116,13 @@ export default function Nodes() {
         { name: 'base_url', label: 'Base URL', placeholder: 'https://api.anthropic.com', required: true },
         { name: 'api_key', label: 'API Key', placeholder: 'sk-...', type: 'password' },
         {
+          name: 'health_check_method',
+          label: '健康检查方式',
+          type: 'select',
+          defaultValue: 'api',
+          options: healthMethodOptions,
+        },
+        {
           name: 'weight',
           label: '权重（值越小优先级越高）',
           type: 'number',
@@ -123,13 +138,20 @@ export default function Nodes() {
     })
     if (!result) return
     const weight = parseInt(result.weight || '1', 10)
+    const healthMethod = (result.health_check_method as 'api' | 'head' | 'cli' | undefined) || 'api'
+    const apiKey = (result.api_key || '').trim()
+    if (requiresApiKey(healthMethod) && !apiKey) {
+      showToast('选择 API/CLI 健康检查时需填写 API Key', 'error')
+      return
+    }
     try {
       await api.createNode(
         {
           name: (result.name || '').trim(),
           base_url: (result.base_url || '').trim(),
-          api_key: (result.api_key || '').trim() || undefined,
+          api_key: apiKey || undefined,
           weight: Number.isNaN(weight) || weight <= 0 ? 1 : weight,
+          health_check_method: healthMethod,
         },
         accountId
       )
@@ -181,13 +203,21 @@ export default function Nodes() {
       showToast('权重需为正整数', 'error')
       return
     }
+    const healthMethod = editForm.health_check_method || 'api'
+    const apiKeyInput = editForm.api_key.trim()
+    const hasKey = editingNode.has_api_key
+    if (requiresApiKey(healthMethod) && !apiKeyInput && !hasKey) {
+      showToast('选择 API/CLI 健康检查时需填写 API Key', 'error')
+      return
+    }
     setSaving(true)
     try {
       await api.updateNode(editingNode.id, {
         name: editForm.name.trim(),
         base_url: editForm.base_url.trim(),
         weight,
-        api_key: editForm.api_key.trim() ? editForm.api_key.trim() : undefined,
+        api_key: apiKeyInput ? apiKeyInput : undefined,
+        health_check_method: healthMethod,
       })
       showToast('已保存')
       setEditingNode(null)
@@ -236,6 +266,14 @@ export default function Nodes() {
     if (Number.isNaN(date.getTime())) return '从未检查'
     return date.toLocaleString('zh-CN')
   }
+
+  const formatHealthMethod = (val?: 'api' | 'head' | 'cli') => {
+    if (val === 'head') return 'HEAD'
+    if (val === 'cli') return 'CLI'
+    return 'API'
+  }
+
+  const requiresApiKey = (method?: 'api' | 'head' | 'cli') => method === 'api' || method === 'cli'
 
   const renderStat = (label: string, value: string | number | undefined) => (
     <div className="stat-item">
@@ -418,6 +456,7 @@ export default function Nodes() {
             <div className="node-stats">
               {renderStat('名称', detailNode.name || '未命名')}
               {renderStat('Base URL', detailNode.base_url || '-')}
+              {renderStat('健康检查', formatHealthMethod(detailNode.health_check_method))}
               {renderStat('权重', detailNode.weight ?? '-')} {renderStat('状态', statusInfo(detailNode).label)}
             </div>
             <div className="node-stats">
@@ -500,6 +539,22 @@ export default function Nodes() {
                 <span className="weight-hint">值越小优先级越高</span>
               </label>
               <label>
+                健康检查方式
+                <select
+                  value={editForm.health_check_method}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({ ...prev, health_check_method: e.target.value as EditForm['health_check_method'] }))
+                  }
+                >
+                  {healthMethodOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="weight-hint">API/CLI 需要有效的 API Key，CLI 需 Docker</span>
+              </label>
+              <label>
                 API Key（留空不改）
                 <input
                   type="password"
@@ -508,6 +563,11 @@ export default function Nodes() {
                   placeholder="sk-..."
                   autoComplete="off"
                 />
+                {requiresApiKey(editForm.health_check_method) && !editForm.api_key.trim() && !editingNode.has_api_key && (
+                  <span className="weight-hint" style={{ color: 'var(--color-danger)' }}>
+                    当前方式需要 API Key，留空将导致健康检查失败
+                  </span>
+                )}
               </label>
             </div>
 

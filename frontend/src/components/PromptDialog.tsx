@@ -9,6 +9,7 @@ export interface PromptField {
   placeholder?: string
   required?: boolean
   validate?: (value: string) => string | null
+  options?: { label: string; value: string }[]
 }
 
 export interface PromptOptions {
@@ -43,7 +44,8 @@ export default function PromptDialog({ mode, open, options, onSubmit, onCancel }
     if (mode === 'form') {
       const fields = (options as PromptFormOptions).fields
       return fields.reduce<Record<string, string>>((acc, cur) => {
-        acc[cur.name] = cur.defaultValue ?? ''
+        const defaultVal = cur.defaultValue ?? (cur.type === 'select' ? cur.options?.[0]?.value ?? '' : '')
+        acc[cur.name] = defaultVal
         return acc
       }, {})
     }
@@ -60,7 +62,8 @@ export default function PromptDialog({ mode, open, options, onSubmit, onCancel }
       const fields = (options as PromptFormOptions).fields
       setFormValues(
         fields.reduce<Record<string, string>>((acc, cur) => {
-          acc[cur.name] = cur.defaultValue ?? ''
+          const defaultVal = cur.defaultValue ?? (cur.type === 'select' ? cur.options?.[0]?.value ?? '' : '')
+          acc[cur.name] = defaultVal
           return acc
         }, {})
       )
@@ -148,20 +151,41 @@ export default function PromptDialog({ mode, open, options, onSubmit, onCancel }
           {opts.fields.map((field, idx) => (
             <label key={field.name} className="prompt-field">
               <span>{field.label}</span>
-              <input
-                value={formValues[field.name] ?? ''}
-                type={field.type || 'text'}
-                placeholder={field.placeholder}
-                required={field.required}
-                data-autofocus={idx === 0 ? 'true' : undefined}
-                onChange={(e) => {
-                  setError('')
-                  setFormValues((prev) => ({
-                    ...prev,
-                    [field.name]: e.target.value,
-                  }))
-                }}
-              />
+              {field.type === 'select' && field.options?.length ? (
+                <select
+                  value={formValues[field.name] ?? ''}
+                  required={field.required}
+                  data-autofocus={idx === 0 ? 'true' : undefined}
+                  onChange={(e) => {
+                    setError('')
+                    setFormValues((prev) => ({
+                      ...prev,
+                      [field.name]: e.target.value,
+                    }))
+                  }}
+                >
+                  {field.options.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  value={formValues[field.name] ?? ''}
+                  type={field.type || 'text'}
+                  placeholder={field.placeholder}
+                  required={field.required}
+                  data-autofocus={idx === 0 ? 'true' : undefined}
+                  onChange={(e) => {
+                    setError('')
+                    setFormValues((prev) => ({
+                      ...prev,
+                      [field.name]: e.target.value,
+                    }))
+                  }}
+                />
+              )}
             </label>
           ))}
         </div>

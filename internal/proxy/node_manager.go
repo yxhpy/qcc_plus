@@ -13,11 +13,16 @@ import (
 
 // 添加新节点（默认账号）。
 func (p *Server) addNode(name, rawURL, apiKey string, weight int) (*Node, error) {
-	return p.addNodeToAccount(p.defaultAccount, name, rawURL, apiKey, weight)
+	return p.addNodeWithMethod(p.defaultAccount, name, rawURL, apiKey, weight, "")
 }
 
 // 添加指定账号的节点。
 func (p *Server) addNodeToAccount(acc *Account, name, rawURL, apiKey string, weight int) (*Node, error) {
+	return p.addNodeWithMethod(acc, name, rawURL, apiKey, weight, "")
+}
+
+// 添加指定账号的节点并自定义健康检查方式。
+func (p *Server) addNodeWithMethod(acc *Account, name, rawURL, apiKey string, weight int, healthMethod string) (*Node, error) {
 	if acc == nil {
 		return nil, errors.New("account required")
 	}
@@ -34,8 +39,12 @@ func (p *Server) addNodeToAccount(acc *Account, name, rawURL, apiKey string, wei
 	if weight <= 0 {
 		weight = 1
 	}
+	healthMethod = normalizeHealthCheckMethod(healthMethod)
+	if healthMethodRequiresAPIKey(healthMethod) && apiKey == "" {
+		return nil, errors.New("health_check_method requires api key")
+	}
 	id := fmt.Sprintf("n-%d", time.Now().UnixNano())
-	node := &Node{ID: id, Name: name, URL: u, APIKey: apiKey, AccountID: acc.ID, CreatedAt: time.Now(), Weight: weight}
+	node := &Node{ID: id, Name: name, URL: u, APIKey: apiKey, HealthCheckMethod: healthMethod, AccountID: acc.ID, CreatedAt: time.Now(), Weight: weight}
 
 	p.mu.Lock()
 	acc.Nodes[id] = node
@@ -46,7 +55,7 @@ func (p *Server) addNodeToAccount(acc *Account, name, rawURL, apiKey string, wei
 	needSwitch := cur == nil || curFailed || node.Weight < cur.Weight
 	var rec store.NodeRecord
 	if p.store != nil {
-		rec = store.NodeRecord{ID: id, Name: name, BaseURL: rawURL, APIKey: apiKey, AccountID: acc.ID, Weight: weight, CreatedAt: node.CreatedAt}
+		rec = store.NodeRecord{ID: id, Name: name, BaseURL: rawURL, APIKey: apiKey, HealthCheckMethod: healthMethod, AccountID: acc.ID, Weight: weight, CreatedAt: node.CreatedAt}
 	}
 	p.mu.Unlock()
 
@@ -73,7 +82,7 @@ func (p *Server) addNodeToAccount(acc *Account, name, rawURL, apiKey string, wei
 	return node, nil
 }
 
-func (p *Server) updateNode(id, name, rawURL string, apiKey *string, weight int) error {
+func (p *Server) updateNode(id, name, rawURL string, apiKey *string, weight int, healthMethod *string) error {
 	if rawURL == "" {
 		return errors.New("base_url required")
 	}
@@ -90,15 +99,27 @@ func (p *Server) updateNode(id, name, rawURL string, apiKey *string, weight int)
 		p.mu.Unlock()
 		return fmt.Errorf("node %s not found", id)
 	}
+	oldAPIKey := n.APIKey
+	newAPIKey := oldAPIKey
+	if apiKey != nil {
+		newAPIKey = *apiKey
+	}
+	desiredMethod := n.HealthCheckMethod
+	if healthMethod != nil {
+		desiredMethod = normalizeHealthCheckMethod(*healthMethod)
+	}
+	if healthMethodRequiresAPIKey(desiredMethod) && newAPIKey == "" {
+		p.mu.Unlock()
+		return errors.New("health_check_method requires api key")
+	}
 	oldWeight := n.Weight
 	if name != "" {
 		n.Name = name
 	}
 	n.URL = u
-	if apiKey != nil {
-		n.APIKey = *apiKey
-	}
+	n.APIKey = newAPIKey
 	n.Weight = weight
+	n.HealthCheckMethod = desiredMethod
 	acc := p.nodeAccount[id]
 	p.mu.Unlock()
 

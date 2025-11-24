@@ -2,9 +2,10 @@
 - 必须保证本文件简洁、准确，并且保证文件实时更新
 
 ## 最后更新
-- **更新日期**: 2025-11-23
+- **更新日期**: 2025-11-24
 - **更新人**: Claude Code
 - **当前版本**: v1.0.0
+- **最新功能**: 新增 CLI 健康检查方式（支持 Claude Code CLI 无头模式验证）
 - **GitHub**: https://github.com/yxhpy/qcc_plus
 - **Docker Hub**: https://hub.docker.com/r/yxhpy520/qcc_plus
 
@@ -22,7 +23,7 @@
   - React SPA 管理界面
   - 事件驱动节点切换（仅在节点状态变化时重选）
   - 多节点管理（Web 管理页面）
-  - 自动故障切换和探活
+  - 自动故障切换和探活（支持 API/HEAD/CLI 三种健康检查方式）⭐ 新增
   - MySQL 持久化配置
 
 ## 文件结构

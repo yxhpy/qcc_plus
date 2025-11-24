@@ -8,6 +8,7 @@ import Nodes from './pages/Nodes'
 import Settings from './pages/Settings'
 import TunnelSettings from './pages/TunnelSettings'
 import Notifications from './pages/Notifications'
+import ChangelogPage from './pages/ChangelogPage'
 import { useAuth } from './hooks/useAuth'
 
 function ProtectedRoute({ children, adminOnly = false }: { children: ReactElement; adminOnly?: boolean }) {
@@ -83,6 +84,16 @@ export default function App() {
             <ProtectedRoute>
               <Layout>
                 <Notifications />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/changelog"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <ChangelogPage />
               </Layout>
             </ProtectedRoute>
           }

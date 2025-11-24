@@ -6,6 +6,8 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -85,6 +87,16 @@ func (p *Server) handler() http.Handler {
 
 		if path == "/version" {
 			p.handleVersion(w, r)
+			return
+		}
+
+		if path == "/changelog" {
+			accept := r.Header.Get("Accept")
+			if r.Header.Get("Sec-Fetch-Dest") == "document" || strings.Contains(accept, "text/html") {
+				spa(w, r)
+				return
+			}
+			p.handleChangelog(w, r)
 			return
 		}
 
@@ -255,4 +267,34 @@ func (p *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, version.GetVersionInfo())
+}
+
+func (p *Server) handleChangelog(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	paths := []string{"CHANGELOG.md"}
+	if exe, err := os.Executable(); err == nil {
+		paths = append(paths, filepath.Join(filepath.Dir(exe), "CHANGELOG.md"))
+	}
+
+	var content []byte
+	var readErr error
+	for _, path := range paths {
+		content, readErr = os.ReadFile(path)
+		if readErr == nil {
+			break
+		}
+	}
+
+	if readErr != nil {
+		http.Error(w, "更新日志不存在，请确认仓库包含 CHANGELOG.md", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(content)
 }

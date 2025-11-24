@@ -66,6 +66,29 @@
     gap: 1.5rem;
 }
 
+.layout-version-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+}
+
+.layout-changelog {
+    color: #fff;
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 600;
+    padding: 0.35rem 0.75rem;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: linear-gradient(135deg, rgba(100, 108, 255, 0.18), rgba(83, 91, 242, 0.12));
+    transition: all 0.2s ease;
+}
+
+.layout-changelog:hover {
+    border-color: rgba(255, 255, 255, 0.35);
+    transform: translateY(-1px);
+}
+
 .layout-version {
     font-size: 0.8rem;
     color: rgba(255, 255, 255, 0.5);

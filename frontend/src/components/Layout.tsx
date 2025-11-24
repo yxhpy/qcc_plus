@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { NavLink, useNavigate } from 'react-router-dom'
+import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { useVersion } from '../hooks/useVersion'
 import './Layout.css'
@@ -67,8 +67,11 @@ export default function Layout({ children }: LayoutProps) {
           <button className="btn-logout" type="button" onClick={handleLogout}>
             退出登录
           </button>
-          <div className="layout-version" title={versionTitle}>
-            {versionLabel}
+          <div className="layout-version-wrap">
+            <Link to="/changelog" className="layout-changelog">更新日志</Link>
+            <div className="layout-version" title={versionTitle}>
+              {versionLabel}
+            </div>
           </div>
         </div>
       </nav>

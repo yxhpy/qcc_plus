@@ -215,6 +215,18 @@ async function getVersion(): Promise<VersionInfo> {
   return request<VersionInfo>('/version')
 }
 
+async function getChangelog(): Promise<string> {
+  const res = await fetch('/changelog', { credentials: 'include' })
+  const text = await res.text()
+  if (res.redirected || res.url.includes('/login')) {
+    throw new Error('unauthenticated')
+  }
+  if (!res.ok) {
+    throw new Error(text || '加载更新日志失败')
+  }
+  return text
+}
+
 async function getNotificationChannels(): Promise<NotificationChannel[]> {
   try {
     const result = await request<{ channels: NotificationChannel[] }>('/api/notification/channels')
@@ -321,6 +333,7 @@ export default {
   stopTunnel,
   listZones,
   getVersion,
+  getChangelog,
   getNotificationChannels,
   createNotificationChannel,
   updateNotificationChannel,

@@ -53,7 +53,8 @@ if node.Metrics.FailStreak >= failLimit {
 - **方法**（由 `health_check_method` 决定）：
   - **api**：POST `/v1/messages`（需要 API Key）
   - **head**：HTTP HEAD 到 Base URL
-  - **cli**：`docker run --rm claude-code-cli-verify -p "hi"`，注入 `ANTHROPIC_API_KEY/ANTHROPIC_AUTH_TOKEN/ANTHROPIC_BASE_URL`；如 Docker 不可用自动回退到 **api**
+  - **cli**：`docker run --rm claude-code-cli-verify -p "hi"`，注入 `ANTHROPIC_API_KEY/ANTHROPIC_AUTH_TOKEN/ANTHROPIC_BASE_URL`
+  - ⚠️ **注意**：CLI 方式失败时不会自动降级，保留真实错误信息便于调试
 
 #### 执行逻辑
 ```go
@@ -197,7 +198,7 @@ if recoveredNode.Weight < currentActiveNode.Weight {
 |------|------|------|-----------|
 | API | API Key，服务需开放 `/v1/messages` | 与真实请求一致，准确度最高 | 生产默认；需要验证上下游写入能力 |
 | HEAD | 无需密钥 | 开销最低，适合仅验证连通性 | 暂无密钥或只需要轻量心跳 |
-| CLI | Docker、API Key（可复用为 `ANTHROPIC_AUTH_TOKEN`） | 覆盖 Claude Code CLI 无头模式，贴近实际使用 | 需要验证 CLI 路径或 API 代理链路 |
+| CLI | Docker、API Key（可复用为 `ANTHROPIC_AUTH_TOKEN`） | 覆盖 Claude Code CLI 无头模式，贴近实际使用；**失败时不降级，保留真实错误** | 需要验证 CLI 路径或 API 代理链路；调试 CLI 问题 |
 
 ### 示例配置
 
@@ -249,7 +250,7 @@ A: CLI 方式需要：
 3. **API Key**：节点必须配置有效的 API Key
 4. **环境变量**：系统会自动注入 `ANTHROPIC_API_KEY`、`ANTHROPIC_AUTH_TOKEN`、`ANTHROPIC_BASE_URL`
 
-如果 Docker 不可用，系统会自动降级到 API 方式进行健康检查。
+⚠️ **重要**：CLI 方式失败时不会自动降级到 API 方式，会保留真实错误信息。这样可以准确诊断 CLI 调用问题（如 Docker 不可用、镜像缺失、环境变量错误等）。
 
 ### Q: 如何选择健康检查方式？
 A: 选择建议：

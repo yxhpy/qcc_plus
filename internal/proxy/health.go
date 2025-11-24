@@ -134,10 +134,9 @@ func (p *Server) checkNodeHealth(acc *Account, id string) {
 	method := normalizeHealthCheckMethod(nodeCopy.HealthCheckMethod)
 
 	var (
-		ok       bool
-		pingErr  string
-		latency  time.Duration
-		fallback bool
+		ok      bool
+		pingErr string
+		latency time.Duration
 	)
 
 	switch method {
@@ -146,11 +145,8 @@ func (p *Server) checkNodeHealth(acc *Account, id string) {
 	case HealthCheckMethodHEAD:
 		ok, pingErr, latency = p.healthCheckViaHEAD(ctx, nodeCopy)
 	case HealthCheckMethodCLI:
-		ok, pingErr, latency, fallback = p.healthCheckViaCLI(ctx, nodeCopy)
-		if !ok && fallback && nodeCopy.APIKey != "" {
-			p.logger.Printf("cli health check failed for node %s, fallback to api: %s", nodeCopy.Name, pingErr)
-			ok, pingErr, latency = p.healthCheckViaAPI(ctx, nodeCopy)
-		}
+		ok, pingErr, latency = p.healthCheckViaCLI(ctx, nodeCopy)
+		// 不再自动降级，保留 CLI 失败的真实错误信息，便于调试
 	default:
 		ok, pingErr, latency = p.healthCheckViaAPI(ctx, nodeCopy)
 	}
@@ -302,16 +298,16 @@ func (p *Server) healthCheckViaHEAD(ctx context.Context, node Node) (bool, strin
 	return false, fmt.Sprintf("status %d", resp.StatusCode), latency
 }
 
-func (p *Server) healthCheckViaCLI(ctx context.Context, node Node) (bool, string, time.Duration, bool) {
+func (p *Server) healthCheckViaCLI(ctx context.Context, node Node) (bool, string, time.Duration) {
 	runner := p.cliRunner
 	if runner == nil {
 		runner = defaultCLIRunner
 	}
 	if node.APIKey == "" {
-		return false, "cli health check requires api key", 0, false
+		return false, "cli health check requires api key", 0
 	}
 	if node.URL == nil {
-		return false, "cli health check requires valid base url", 0, false
+		return false, "cli health check requires valid base url", 0
 	}
 	env := map[string]string{
 		"ANTHROPIC_API_KEY":    node.APIKey,
@@ -323,12 +319,13 @@ func (p *Server) healthCheckViaCLI(ctx context.Context, node Node) (bool, string
 	out, err := runner(ctx, "claude-code-cli-verify", env, "hi")
 	latency := time.Since(start)
 	if err != nil {
-		return false, err.Error(), latency, isDockerUnavailable(err)
+		// 不再返回 fallback 标志，直接返回错误
+		return false, err.Error(), latency
 	}
 	if strings.TrimSpace(out) == "" {
-		return false, "cli health check returned empty output", latency, false
+		return false, "cli health check returned empty output", latency
 	}
-	return true, "", latency, false
+	return true, "", latency
 }
 
 type CliRunner func(ctx context.Context, image string, env map[string]string, prompt string) (string, error)

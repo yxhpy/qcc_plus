@@ -123,7 +123,7 @@ func TestHealthCheckCLI(t *testing.T) {
 	}
 }
 
-func TestHealthCheckCLIFallbackToAPI(t *testing.T) {
+func TestHealthCheckCLINoFallback(t *testing.T) {
 	apiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost && r.URL.Path == "/v1/messages" {
 			w.WriteHeader(http.StatusOK)
@@ -149,10 +149,13 @@ func TestHealthCheckCLIFallbackToAPI(t *testing.T) {
 
 	srv.TestCheckNodeHealth(node.ID)
 
-	if node.Failed {
-		t.Fatalf("expected node recovered via API fallback")
+	// CLI 方式失败后不再自动降级，节点应该保持失败状态
+	if !node.Failed {
+		t.Fatalf("expected node to remain failed (no fallback)")
 	}
-	if node.Metrics.LastPingErr != "" {
-		t.Fatalf("expected ping error cleared, got %s", node.Metrics.LastPingErr)
+	// 错误信息应该保留 Docker 不可用的错误
+	if node.Metrics.LastPingErr == "" {
+		t.Fatalf("expected ping error to be recorded")
 	}
+	t.Logf("CLI failure recorded: %s", node.Metrics.LastPingErr)
 }

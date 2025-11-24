@@ -76,5 +76,7 @@ docker-compose.yml
 # Test and debug directories
 tests
 debugs
-verify
 tasks
+
+# 保留 verify/claude_code_cli/ 用于 CLI 健康检查
+# verify（已注释，需要用于 Docker 镜像构建）

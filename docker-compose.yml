@@ -31,6 +31,10 @@ services:
       PROXY_MYSQL_DSN: qcc:example@tcp(mysql:3306)/qcc_proxy?parseTime=true
     ports:
       - "8000:8000"
+    volumes:
+      # 挂载宿主机 Docker socket，使容器内可以使用宿主机的 Docker
+      # 这样就可以支持 CLI 健康检查方式
+      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       mysql:
         condition: service_healthy

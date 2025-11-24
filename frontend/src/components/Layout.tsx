@@ -49,6 +49,9 @@ export default function Layout({ children }: LayoutProps) {
           <NavLink to="/admin/settings" className={linkClass}>
             系统配置
           </NavLink>
+          <NavLink to="/admin/notifications" className={linkClass}>
+            通知管理
+          </NavLink>
           {user?.is_admin && (
             <NavLink to="/admin/tunnel" className={linkClass}>
               隧道设置
@@ -64,9 +67,9 @@ export default function Layout({ children }: LayoutProps) {
           <button className="btn-logout" type="button" onClick={handleLogout}>
             退出登录
           </button>
-        </div>
-        <div className="layout-version" title={versionTitle}>
-          {versionLabel}
+          <div className="layout-version" title={versionTitle}>
+            {versionLabel}
+          </div>
         </div>
       </nav>
       <main className="layout-main">{children}</main>

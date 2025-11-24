@@ -1,4 +1,16 @@
-import type { Account, Node, Config, TunnelState, VersionInfo } from '../types'
+import type {
+  Account,
+  Node,
+  Config,
+  TunnelState,
+  VersionInfo,
+  NotificationChannel,
+  CreateChannelRequest,
+  NotificationSubscription,
+  CreateSubscriptionsRequest,
+  EventType,
+  TestNotificationRequest,
+} from '../types'
 
 const defaultHeaders = { 'Content-Type': 'application/json' }
 
@@ -202,6 +214,73 @@ async function getVersion(): Promise<VersionInfo> {
   return request<VersionInfo>('/version')
 }
 
+async function getNotificationChannels(): Promise<NotificationChannel[]> {
+  return request<NotificationChannel[]>('/api/notification/channels')
+}
+
+async function createNotificationChannel(data: CreateChannelRequest): Promise<NotificationChannel> {
+  return request<NotificationChannel>('/api/notification/channels', {
+    method: 'POST',
+    headers: defaultHeaders,
+    body: JSON.stringify(data),
+  })
+}
+
+async function updateNotificationChannel(id: string, data: Partial<CreateChannelRequest>): Promise<void> {
+  await request(`/api/notification/channels/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: defaultHeaders,
+    body: JSON.stringify(data),
+  })
+}
+
+async function deleteNotificationChannel(id: string): Promise<void> {
+  await request(`/api/notification/channels/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  })
+}
+
+async function getNotificationSubscriptions(channelId?: string): Promise<NotificationSubscription[]> {
+  const url = channelId
+    ? `/api/notification/subscriptions?channel_id=${encodeURIComponent(channelId)}`
+    : '/api/notification/subscriptions'
+  return request<NotificationSubscription[]>(url)
+}
+
+async function createNotificationSubscriptions(data: CreateSubscriptionsRequest): Promise<void> {
+  await request('/api/notification/subscriptions', {
+    method: 'POST',
+    headers: defaultHeaders,
+    body: JSON.stringify(data),
+  })
+}
+
+async function updateNotificationSubscription(id: string, enabled: boolean): Promise<void> {
+  await request(`/api/notification/subscriptions/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: defaultHeaders,
+    body: JSON.stringify({ enabled }),
+  })
+}
+
+async function deleteNotificationSubscription(id: string): Promise<void> {
+  await request(`/api/notification/subscriptions/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  })
+}
+
+async function getEventTypes(): Promise<EventType[]> {
+  return request<EventType[]>('/api/notification/event-types')
+}
+
+async function testNotification(data: TestNotificationRequest): Promise<void> {
+  await request('/api/notification/test', {
+    method: 'POST',
+    headers: defaultHeaders,
+    body: JSON.stringify(data),
+  })
+}
+
 export default {
   login,
   logout,
@@ -223,4 +302,14 @@ export default {
   stopTunnel,
   listZones,
   getVersion,
+  getNotificationChannels,
+  createNotificationChannel,
+  updateNotificationChannel,
+  deleteNotificationChannel,
+  getNotificationSubscriptions,
+  createNotificationSubscriptions,
+  updateNotificationSubscription,
+  deleteNotificationSubscription,
+  getEventTypes,
+  testNotification,
 }

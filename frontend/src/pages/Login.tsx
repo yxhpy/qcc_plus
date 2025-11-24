@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 
 import Toast from '../components/Toast'
 import { useAuth } from '../hooks/useAuth'
+import { useVersion } from '../hooks/useVersion'
 
 import './Login.css'
 
@@ -12,6 +13,7 @@ import loginIcon from '../assets/qcc-plus-logo.png'
 export default function Login() {
   const navigate = useNavigate()
   const { login } = useAuth()
+  const { version, loading: versionLoading, error: versionError } = useVersion()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -38,6 +40,13 @@ export default function Login() {
       setLoading(false)
     }
   }
+
+  const versionLabel = version ? `v${version.version}` : versionLoading ? 'v...' : 'v-'
+  const versionTitle = version
+    ? `commit: ${version.git_commit}\nbuild: ${version.build_date}\ngo: ${version.go_version}`
+    : versionError
+      ? `版本获取失败：${versionError.message}`
+      : '正在加载版本信息...'
 
   return (
     <div className="login-page">
@@ -88,6 +97,9 @@ export default function Login() {
         <div className="login-footer">
           登录后 24 小时内保持会话，记得使用退出按钮主动登出。
         </div>
+      </div>
+      <div className="login-version" title={versionTitle}>
+        {versionLabel}
       </div>
       <Toast message={toast?.message} type={toast?.type} />
     </div>

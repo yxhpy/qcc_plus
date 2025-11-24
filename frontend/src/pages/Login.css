@@ -241,6 +241,19 @@ body:has(.login-page) #root {
   text-align: center;
 }
 
+.login-version {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  margin-top: 2rem;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.4);
+  cursor: help;
+  z-index: 1;
+}
+
 /* 响应式设计 */
 /* PC 大屏幕 (>1200px) */
 @media (min-width: 1200px) {

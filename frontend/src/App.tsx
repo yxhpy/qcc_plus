@@ -7,6 +7,7 @@ import Accounts from './pages/Accounts'
 import Nodes from './pages/Nodes'
 import Settings from './pages/Settings'
 import TunnelSettings from './pages/TunnelSettings'
+import Notifications from './pages/Notifications'
 import { useAuth } from './hooks/useAuth'
 
 function ProtectedRoute({ children, adminOnly = false }: { children: ReactElement; adminOnly?: boolean }) {
@@ -72,6 +73,16 @@ export default function App() {
             <ProtectedRoute>
               <Layout>
                 <Settings />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/notifications"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <Notifications />
               </Layout>
             </ProtectedRoute>
           }

@@ -46,3 +46,49 @@ export interface VersionInfo {
   build_date: string;
   go_version: string;
 }
+
+export interface NotificationChannel {
+  id: string;
+  name: string;
+  channel_type: string; // wechat_work, email, dingtalk, etc.
+  enabled: boolean;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface CreateChannelRequest {
+  name: string;
+  channel_type: string;
+  config: {
+    webhook_url?: string;
+    [key: string]: any;
+  };
+  enabled: boolean;
+}
+
+export interface NotificationSubscription {
+  id: string;
+  channel_id: string;
+  event_type: string;
+  enabled: boolean;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface CreateSubscriptionsRequest {
+  channel_id: string;
+  event_types: string[];
+  enabled: boolean;
+}
+
+export interface EventType {
+  type: string;
+  category: string; // node, request, account, system
+  description: string;
+}
+
+export interface TestNotificationRequest {
+  channel_id: string;
+  title: string;
+  content: string;
+}

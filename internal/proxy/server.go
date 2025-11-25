@@ -111,12 +111,17 @@ func (p *Server) createDefaultAccount(defaultUpstream *url.URL, defaultCfg store
 	if defaultUpstream == nil {
 		return errors.New("default upstream required for initial account")
 	}
+	method := normalizeHealthCheckMethod(defaultHealthCheckMethod)
+	if healthMethodRequiresAPIKey(method) && upstreamKey == "" {
+		p.logger.Printf("health check mode %s requires api key, fallback to head for default node", method)
+		method = HealthCheckMethodHEAD
+	}
 	node := &Node{
 		ID:                "default",
 		Name:              chooseNonEmpty(defaultUpstream.Host, "default"),
 		URL:               defaultUpstream,
 		APIKey:            upstreamKey,
-		HealthCheckMethod: HealthCheckMethodAPI,
+		HealthCheckMethod: method,
 		AccountID:         acc.ID,
 		CreatedAt:         time.Now(),
 		Weight:            1,
@@ -190,12 +195,17 @@ func (p *Server) loadAccountsFromStore(defaultUpstream *url.URL, defaultCfg stor
 
 		// 如果账号没有节点且是默认账号，创建一个默认节点以保证可用。
 		if len(recs) == 0 && a.ID == store.DefaultAccountID && defaultUpstream != nil {
+			method := normalizeHealthCheckMethod(defaultHealthCheckMethod)
+			if healthMethodRequiresAPIKey(method) && defaultUpstreamKey == "" {
+				p.logger.Printf("health check mode %s requires api key, fallback to head for default node", method)
+				method = HealthCheckMethodHEAD
+			}
 			node := &Node{
 				ID:                "default",
 				Name:              chooseNonEmpty(defaultUpstream.Host, "default"),
 				URL:               defaultUpstream,
 				APIKey:            defaultUpstreamKey,
-				HealthCheckMethod: HealthCheckMethodAPI,
+				HealthCheckMethod: method,
 				AccountID:         acc.ID,
 				CreatedAt:         time.Now(),
 				Weight:            1,
@@ -207,9 +217,10 @@ func (p *Server) loadAccountsFromStore(defaultUpstream *url.URL, defaultCfg stor
 		} else {
 			for _, r := range recs {
 				u, _ := url.Parse(r.BaseURL)
-				hcMethod := r.HealthCheckMethod
-				if hcMethod == "" {
-					hcMethod = HealthCheckMethodAPI
+				hcMethod := normalizeHealthCheckMethod(chooseNonEmpty(r.HealthCheckMethod, defaultHealthCheckMethod))
+				if healthMethodRequiresAPIKey(hcMethod) && r.APIKey == "" {
+					p.logger.Printf("health check mode %s requires api key, fallback to head for node %s", hcMethod, r.Name)
+					hcMethod = HealthCheckMethodHEAD
 				}
 				n := &Node{
 					ID:                r.ID,

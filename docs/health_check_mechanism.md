@@ -4,9 +4,11 @@
 
 qcc_plus 实现了自动故障检测和恢复机制，通过监控节点的请求状态和定期探活来确保服务可用性。健康检查支持三种方式：
 
-- **API**（默认）：调用 `/v1/messages` 做真实写入检查。
+- **CLI**（默认 ⭐ 新）：直接调用 Claude Code CLI（`claude -p "hi"`），模拟真实 CLI 使用场景，最贴近实际使用。
+- **API**：调用 `/v1/messages` 做真实 API 写入检查。
 - **HEAD**：对 Base URL 发送 HEAD 请求，适合无密钥或只需连通性验证的场景。
-- **CLI**：容器内直接调用预装的 Claude Code CLI（无头模式）；不依赖宿主机 Docker。
+
+> **重要变更**（v1.2.1+）：默认健康检查方式已从 API 改为 CLI，以便更准确地验证节点的完整功能链路。
 
 ## 健康检查流程
 
@@ -190,15 +192,20 @@ if recoveredNode.Weight < currentActiveNode.Weight {
 | `PROXY_FAIL_THRESHOLD` | 连续失败多少次标记为失败 | 3 |
 | `PROXY_HEALTH_INTERVAL_SEC` | 探活间隔（秒） | 30 |
 | `PROXY_RETRY_MAX` | 非 200 状态重试次数 | 3 |
-| `health_check_method` (节点字段) | `api` / `head` / `cli` | `api` |
+| `PROXY_HEALTH_CHECK_MODE` ⭐ | 全局默认健康检查方式：`cli` / `api` / `head` | `cli` |
+| `health_check_method` (节点字段) | 节点级别健康检查方式（优先级高于全局） | 继承全局 |
 
 ### 健康检查方式对比
 
 | 方式 | 依赖 | 优点 | 适用场景 |
 |------|------|------|-----------|
-| API | API Key，服务需开放 `/v1/messages` | 与真实请求一致，准确度最高 | 生产默认；需要验证上下游写入能力 |
+| CLI ⭐ | API Key、本地 `claude` CLI 命令 | **默认方式**；覆盖 Claude Code CLI 完整流程，最贴近实际使用 | 生产推荐；验证 CLI 路径与 API 代理链路 |
+| API | API Key，服务需开放 `/v1/messages` | 与 API 请求一致，直接验证 HTTP 端点 | 需要验证纯 API 写入能力（非 CLI 场景） |
 | HEAD | 无需密钥 | 开销最低，适合仅验证连通性 | 暂无密钥或只需要轻量心跳 |
-| CLI | 容器内预装的 Claude CLI、API Key（可复用为 `ANTHROPIC_AUTH_TOKEN`） | 覆盖 Claude Code CLI 无头模式，贴近实际使用；**失败时不降级，保留真实错误** | 需要验证 CLI 路径或 API 代理链路；调试 CLI 问题 |
+
+**注意**：
+- CLI 方式需要 API Key，如果节点缺少 API Key，会**自动降级为 HEAD** 方式并记录日志
+- 配置优先级：**节点级别配置 > 全局环境变量 > 默认值（CLI）**
 
 ### 示例配置
 
@@ -254,9 +261,24 @@ A: CLI 方式需要：
 
 ### Q: 如何选择健康检查方式？
 A: 选择建议：
-- **API（推荐）**：默认方式，验证完整的 API 调用链路，适合生产环境
+- **CLI（推荐，默认）**：验证 Claude Code CLI 完整调用链路，最贴近实际使用，适合生产环境
+- **API**：直接验证 HTTP API 端点，适合非 CLI 场景或纯 API 代理
 - **HEAD**：仅验证连通性，适合无 API Key 或需要轻量级心跳的场景
-- **CLI**：验证 Claude Code CLI 无头模式的兼容性，适合需要模拟真实 CLI 使用场景
+
+**配置示例**：
+```bash
+# 使用默认 CLI 方式（无需配置）
+go run ./cmd/cccli proxy
+
+# 使用 API 方式
+PROXY_HEALTH_CHECK_MODE=api go run ./cmd/cccli proxy
+
+# 使用 HEAD 方式
+PROXY_HEALTH_CHECK_MODE=head go run ./cmd/cccli proxy
+
+# 节点级别配置（优先级更高）
+# 在管理界面创建节点时指定 health_check_method
+```
 
 ### Q: 可以手动恢复失败节点吗？
 A: 失败节点会自动探活恢复，无需手动操作。如果需要强制使用，可以：

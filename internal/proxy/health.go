@@ -23,6 +23,9 @@ const (
 	HealthCheckMethodCLI  = "cli"  // Claude Code CLI 无头模式
 )
 
+// 默认健康检查方式（可被环境变量覆盖）；从 API 变更为 CLI，以便在无 HTTP 端点时也能探活。
+var defaultHealthCheckMethod = HealthCheckMethodCLI
+
 // 处理失败：计数、记录错误、熔断并尝试切换。
 func (p *Server) handleFailure(nodeID string, errMsg string) {
 	if errMsg == "" {
@@ -130,6 +133,12 @@ func (p *Server) checkNodeHealth(acc *Account, id string) {
 
 	// 根据健康检查方式设置超时时间
 	method := normalizeHealthCheckMethod(nodeCopy.HealthCheckMethod)
+	if method == HealthCheckMethodCLI && nodeCopy.APIKey == "" {
+		// CLI 需要 API Key，缺失时自动降级为 HEAD，避免探活失败卡死。
+		p.logger.Printf("health check mode cli requires api key, fallback to head for node %s", nodeCopy.Name)
+		method = HealthCheckMethodHEAD
+	}
+
 	timeout := 5 * time.Second
 	if method == HealthCheckMethodCLI {
 		// CLI 方式需要执行外部 CLI，需要更长的超时时间
@@ -243,7 +252,8 @@ func normalizeHealthCheckMethod(method string) string {
 	case HealthCheckMethodCLI:
 		return HealthCheckMethodCLI
 	default:
-		return HealthCheckMethodAPI
+		// 使用全局默认值，支持环境变量覆盖
+		return defaultHealthCheckMethod
 	}
 }
 

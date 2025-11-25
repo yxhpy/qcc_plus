@@ -97,6 +97,7 @@ func main() {
 			WithAdminKey(adminKey).
 			WithDefaultAccount(defaultAccountName, defaultProxyKey).
 			WithTransport(nil).
+			WithEnv().
 			Build()
 		if err != nil {
 			log.Fatal(err)

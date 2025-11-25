@@ -78,6 +78,21 @@ func (b *Builder) WithTransport(t http.RoundTripper) *Builder {
 	return b
 }
 
+// WithEnv 读取环境变量覆盖全局默认配置（例如健康检查方式）。
+func (b *Builder) WithEnv() *Builder {
+	// 解析全局健康检查方式
+	if v := os.Getenv("PROXY_HEALTH_CHECK_MODE"); v != "" {
+		method := normalizeHealthCheckMethod(v)
+		defaultHealthCheckMethod = method
+		logger := b.logger
+		if logger == nil {
+			logger = log.Default()
+		}
+		logger.Printf("using health check mode: %s", method)
+	}
+	return b
+}
+
 // WithCLIRunner 用于测试时覆盖 CLI 健康检查执行逻辑。
 func (b *Builder) WithCLIRunner(r CliRunner) *Builder {
 	b.cliRunner = r

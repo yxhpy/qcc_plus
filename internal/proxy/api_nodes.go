@@ -123,10 +123,7 @@ func (p *Server) listNodes(acc *Account) []map[string]interface{} {
 	}
 	views := make([]nodeView, 0, len(acc.Nodes))
 	for id, n := range acc.Nodes {
-		healthMethod := n.HealthCheckMethod
-		if healthMethod == "" {
-			healthMethod = HealthCheckMethodAPI
-		}
+		healthMethod := normalizeHealthCheckMethod(n.HealthCheckMethod)
 		avgPerToken := "-"
 		if n.Metrics.TotalOutputTokens > 0 {
 			avgPerToken = fmt.Sprintf("%.2f", float64(n.Metrics.StreamDur.Milliseconds())/float64(n.Metrics.TotalOutputTokens))

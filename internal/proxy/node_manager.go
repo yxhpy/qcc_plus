@@ -40,13 +40,15 @@ func (p *Server) addNodeWithMethod(acc *Account, name, rawURL, apiKey string, we
 	if weight <= 0 {
 		weight = 1
 	}
+	// 未指定时使用全局默认健康检查方式（可被环境变量覆盖）
+	if healthMethod == "" {
+		healthMethod = defaultHealthCheckMethod
+	}
 	healthMethod = normalizeHealthCheckMethod(healthMethod)
 	if healthMethodRequiresAPIKey(healthMethod) && apiKey == "" {
-		if healthMethod == HealthCheckMethodAPI {
-			healthMethod = HealthCheckMethodHEAD // 无密钥时降级为 HEAD 探活
-		} else {
-			return nil, errors.New("health_check_method requires api key")
-		}
+		// CLI/API 探活都需要密钥，缺失时统一降级到 HEAD，保证可用性。
+		p.logger.Printf("health check mode %s requires api key, fallback to head for node %s", healthMethod, name)
+		healthMethod = HealthCheckMethodHEAD
 	}
 	id := fmt.Sprintf("n-%d", time.Now().UnixNano())
 	node := &Node{ID: id, Name: name, URL: u, APIKey: apiKey, HealthCheckMethod: healthMethod, AccountID: acc.ID, CreatedAt: time.Now(), Weight: weight}
@@ -115,12 +117,9 @@ func (p *Server) updateNode(id, name, rawURL string, apiKey *string, weight int,
 	}
 	desiredMethod = normalizeHealthCheckMethod(desiredMethod)
 	if healthMethodRequiresAPIKey(desiredMethod) && newAPIKey == "" {
-		if desiredMethod == HealthCheckMethodAPI {
-			desiredMethod = HealthCheckMethodHEAD
-		} else {
-			p.mu.Unlock()
-			return errors.New("health_check_method requires api key")
-		}
+		// CLI/API 探活需要密钥，缺失时统一降级为 HEAD。
+		p.logger.Printf("health check mode %s requires api key, fallback to head for node %s", desiredMethod, n.Name)
+		desiredMethod = HealthCheckMethodHEAD
 	}
 	oldWeight := n.Weight
 	if name != "" {

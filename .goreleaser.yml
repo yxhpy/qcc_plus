@@ -1,0 +1,236 @@
+# GoReleaser 配置文件
+# 文档: https://goreleaser.com/customization/
+version: 2
+
+# 项目基本信息
+project_name: qcc_plus
+
+# 编译前检查
+before:
+  hooks:
+    # 清理并下载依赖
+    - go mod tidy
+    - go mod download
+
+# Go 二进制构建配置
+builds:
+  - id: ccproxy
+    # 主程序入口
+    main: ./cmd/cccli
+    # 二进制文件名
+    binary: ccproxy
+
+    # 环境变量
+    env:
+      - CGO_ENABLED=0
+
+    # 目标平台
+    goos:
+      - linux
+      - darwin
+      - windows
+
+    goarch:
+      - amd64
+      - arm64
+
+    # 忽略组合（macOS 没有 386）
+    ignore:
+      - goos: darwin
+        goarch: "386"
+      - goos: windows
+        goarch: arm64
+
+    # 版本信息注入（通过 ldflags）
+    ldflags:
+      - -s -w
+      - -X 'qcc_plus/internal/version.Version={{.Version}}'
+      - -X 'qcc_plus/internal/version.GitCommit={{.ShortCommit}}'
+      - -X 'qcc_plus/internal/version.BuildDate={{.Date}}'
+
+# Docker 镜像构建和推送
+dockers:
+  - # Docker Hub 镜像
+    id: qcc_plus-amd64
+
+    # 使用项目现有的 Dockerfile
+    dockerfile: Dockerfile
+    use: buildx
+
+    # 构建参数（与现有脚本保持一致）
+    build_flag_templates:
+      - "--platform=linux/amd64"
+      - "--build-arg=VERSION={{.Version}}"
+      - "--build-arg=GIT_COMMIT={{.ShortCommit}}"
+      - "--build-arg=BUILD_DATE={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.description=Claude Code CLI 多租户代理服务器"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.source={{.GitURL}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+
+    # 镜像标签
+    image_templates:
+      - "yxhpy520/{{.ProjectName}}:{{.Version}}-amd64"
+      - "yxhpy520/{{.ProjectName}}:latest-amd64"
+
+  - # ARM64 镜像
+    id: qcc_plus-arm64
+    dockerfile: Dockerfile
+    use: buildx
+
+    build_flag_templates:
+      - "--platform=linux/arm64"
+      - "--build-arg=VERSION={{.Version}}"
+      - "--build-arg=GIT_COMMIT={{.ShortCommit}}"
+      - "--build-arg=BUILD_DATE={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.description=Claude Code CLI 多租户代理服务器"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.source={{.GitURL}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+
+    image_templates:
+      - "yxhpy520/{{.ProjectName}}:{{.Version}}-arm64"
+      - "yxhpy520/{{.ProjectName}}:latest-arm64"
+
+    goarch: arm64
+
+# Docker Manifest（多架构镜像支持）
+docker_manifests:
+  - # 版本标签的 manifest
+    name_template: "yxhpy520/{{.ProjectName}}:{{.Version}}"
+    image_templates:
+      - "yxhpy520/{{.ProjectName}}:{{.Version}}-amd64"
+      - "yxhpy520/{{.ProjectName}}:{{.Version}}-arm64"
+
+  - # latest 标签的 manifest
+    name_template: "yxhpy520/{{.ProjectName}}:latest"
+    image_templates:
+      - "yxhpy520/{{.ProjectName}}:latest-amd64"
+      - "yxhpy520/{{.ProjectName}}:latest-arm64"
+
+# 归档配置（发布的压缩包）
+archives:
+  - id: default
+    # 归档文件名模板
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+
+    # 包含的文件
+    files:
+      - README.md
+      - LICENSE
+      - CHANGELOG.md
+      - docs/**/*
+
+# Checksum 文件
+checksum:
+  name_template: 'checksums.txt'
+
+# Snapshot 版本配置（用于测试）
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+# CHANGELOG 自动生成
+changelog:
+  sort: asc
+  use: github
+
+  # Changelog 分组
+  groups:
+    - title: '🚀 新功能'
+      regexp: "^.*feat[(\\w)]*:+.*$"
+      order: 0
+    - title: '🐛 Bug 修复'
+      regexp: "^.*fix[(\\w)]*:+.*$"
+      order: 1
+    - title: '📝 文档更新'
+      regexp: "^.*docs[(\\w)]*:+.*$"
+      order: 2
+    - title: '🔨 重构'
+      regexp: "^.*refactor[(\\w)]*:+.*$"
+      order: 3
+    - title: '🧪 测试'
+      regexp: "^.*test[(\\w)]*:+.*$"
+      order: 4
+    - title: '🔧 其他'
+      order: 999
+
+  # 过滤规则（不包含在 changelog 中的提交）
+  filters:
+    exclude:
+      - '^chore:'
+      - '^ci:'
+      - '^build:'
+      - '^style:'
+      - 'merge conflict'
+      - Merge pull request
+      - Merge remote-tracking branch
+      - Merge branch
+
+# GitHub Release 配置
+release:
+  # GitHub 仓库（自动检测）
+  github:
+    owner: yxhpy
+    name: qcc_plus
+
+  # Release 名称模板
+  name_template: "{{.ProjectName}} {{.Version}}"
+
+  # 是否为草稿
+  draft: false
+
+  # 是否为预发布版本（根据版本号自动判断）
+  prerelease: auto
+
+  # Release 说明模板
+  header: |
+    ## qcc_plus {{.Version}}
+
+    **发布日期**: {{.Date}}
+
+    ## 📦 安装方式
+
+    ### Docker 部署（推荐）
+    ```bash
+    # 拉取最新版本
+    docker pull yxhpy520/qcc_plus:{{.Version}}
+
+    # 使用 docker-compose
+    docker compose up -d
+    ```
+
+    ### 二进制安装
+    从下方 Assets 下载对应平台的压缩包，解压后即可使用。
+
+    ### 从源码构建
+    ```bash
+    git clone -b {{.Version}} https://github.com/yxhpy/qcc_plus.git
+    cd qcc_plus
+    go build -o ccproxy ./cmd/cccli
+    ```
+
+  footer: |
+    ---
+
+    **完整更新日志**: https://github.com/yxhpy/qcc_plus/blob/main/CHANGELOG.md
+
+    **文档**: https://github.com/yxhpy/qcc_plus#readme
+
+    **问题反馈**: https://github.com/yxhpy/qcc_plus/issues
+
+# 发布公告（可选，用于其他平台）
+announce:
+  skip: true
+
+# 通用配置
+dist: dist

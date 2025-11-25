@@ -1,0 +1,60 @@
+name: Release with GoReleaser
+
+on:
+  push:
+    # 当推送 tag 时触发（例如 v1.0.0）
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write  # 允许创建 Release
+  packages: write  # 允许推送镜像到 GHCR（可选）
+
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 获取完整的 git 历史，用于生成 changelog
+
+      - name: Fetch all tags
+        run: git fetch --force --tags
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: all
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: '~> v2'
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update Docker Hub Repository Info
+        if: success()
+        run: |
+          # 更新 Docker Hub 仓库的 Short Description 和 Full Description
+          if [ -f "./scripts/update-dockerhub-info-v2.sh" ]; then
+            chmod +x ./scripts/update-dockerhub-info-v2.sh
+            ./scripts/update-dockerhub-info-v2.sh ${{ secrets.DOCKER_TOKEN }} || echo "Warning: Failed to update Docker Hub info"
+          fi

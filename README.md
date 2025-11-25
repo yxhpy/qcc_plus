@@ -221,7 +221,8 @@ pnpm dev
 - [Cloudflare Tunnel 集成](docs/cloudflare-tunnel.md) - 内网穿透和隧道配置
 - [前端技术栈](docs/frontend-tech-stack.md) - React Web 界面开发文档
 - [健康检查机制](docs/health_check_mechanism.md) - 节点故障检测与恢复
-- [Docker Hub 发布](docs/docker-hub-publish.md) - 镜像发布流程
+- [GoReleaser 自动化发布](docs/goreleaser-guide.md) - 一键发布流程（开发者必读）⭐
+- [Docker Hub 发布](docs/docker-hub-publish.md) - 镜像发布流程（手动模式，已弃用）
 - [文档索引](docs/README.md) - 所有文档导航
 - [项目记忆](CLAUDE.md) - 开发规范和工作流程
 

@@ -320,7 +320,10 @@ export default function Nodes() {
       await Promise.all(
         withWeights.map((n, idx) =>
           api.updateNode(n.id, {
+            name: n.name || '',
+            base_url: n.base_url,
             weight: idx + 1,
+            health_check_method: n.health_check_method || 'api',
           }),
         ),
       )

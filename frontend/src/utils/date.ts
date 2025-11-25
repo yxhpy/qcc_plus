@@ -24,19 +24,19 @@ function formatParts(date: Date, parts: PartToken[]) {
     return acc
   }, {})
   const safe = (key: string) => map[key] || key
-  return parts.map((key) => (key.length === 1 && key.match(/[-:\\s]/) ? key : safe(key))).join('')
+  return parts.map((key) => safe(key)).join('')
 }
 
 export function formatBeijingTime(input?: Date | string | number | null): string {
   const date = toDate(input)
   if (!date) return '--'
-  const parts = formatParts(date, ['year', '-', 'month', '-', 'day', ' ', 'hour', ':', 'minute', ':', 'second'])
+  const parts = formatParts(date, ['year', '年', 'month', '月', 'day', '日', ' ', 'hour', '时', 'minute', '分', 'second', '秒'])
   return parts
 }
 
 export function formatBeijingTimeShort(input?: Date | string | number | null): string {
   const date = toDate(input)
   if (!date) return '--'
-  const parts = formatParts(date, ['hour', ':', 'minute', ':', 'second'])
+  const parts = formatParts(date, ['hour', '时', 'minute', '分', 'second', '秒'])
   return parts
 }

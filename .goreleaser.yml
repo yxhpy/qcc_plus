@@ -57,6 +57,13 @@ dockers:
     dockerfile: Dockerfile
     use: buildx
 
+    # 额外需要的文件（放入构建上下文）
+    extra_files:
+      - scripts/docker-entrypoint.sh
+      - CHANGELOG.md
+      - cccli/
+      - web/
+
     # 构建参数（与现有脚本保持一致）
     build_flag_templates:
       - "--platform=linux/amd64"
@@ -79,6 +86,13 @@ dockers:
     id: qcc_plus-arm64
     dockerfile: Dockerfile
     use: buildx
+
+    # 额外需要的文件（放入构建上下文）
+    extra_files:
+      - scripts/docker-entrypoint.sh
+      - CHANGELOG.md
+      - cccli/
+      - web/
 
     build_flag_templates:
       - "--platform=linux/arm64"

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"qcc_plus/internal/store"
+	"qcc_plus/internal/timeutil"
 )
 
 type wechatConfig struct {
@@ -34,7 +35,7 @@ func newWechatChannel(rec store.NotificationChannelRecord) (NotificationChannel,
 		return nil, errors.New("wechat webhook_url required")
 	}
 	return &wechatChannel{
-		cfg: cfg,
+		cfg:  cfg,
 		name: rec.Name,
 		client: &http.Client{
 			Timeout: 5 * time.Second,
@@ -90,5 +91,5 @@ func formatWechatMarkdown(msg NotificationMessage) string {
 	if title == "" {
 		title = msg.EventType
 	}
-	return fmt.Sprintf("**%s**\n> 事件类型：%s\n> 时间：%s\n\n%s", title, msg.EventType, msg.OccurredAt, content)
+	return fmt.Sprintf("**%s**\n> 事件类型：%s\n> 时间：%s\n\n%s", title, msg.EventType, timeutil.FormatBeijingTime(msg.OccurredAt), content)
 }

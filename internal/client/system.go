@@ -4,9 +4,9 @@ import (
 	"os"
 	"runtime"
 	"strings"
-	"time"
 
 	"qcc_plus/cccli"
+	"qcc_plus/internal/timeutil"
 )
 
 func system0(minimal bool) string {
@@ -26,7 +26,7 @@ func renderSystem1(cfg Config, model string) string {
 		"Is directory a git repo: " + gitFlag(),
 		"Platform: " + strings.ToLower(os.Getenv("OSTYPE")),
 		"OS Version: " + uname(),
-		"Today's date: " + time.Now().Format("2006-01-02"),
+		"Today's date: " + timeutil.FormatBeijingTime(timeutil.NowBeijing()),
 	}, "\n")
 	tpl = strings.Replace(tpl, "<env>", "<env>\n"+envBlock, 1)
 	tpl = strings.ReplaceAll(tpl, "The exact model ID is claude-haiku-4-5-20251001.", "The exact model ID is "+model+".")

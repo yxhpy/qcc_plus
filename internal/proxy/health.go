@@ -14,6 +14,7 @@ import (
 
 	"qcc_plus/internal/notify"
 	"qcc_plus/internal/store"
+	"qcc_plus/internal/timeutil"
 )
 
 const (
@@ -57,7 +58,7 @@ func (p *Server) handleFailure(nodeID string, errMsg string) {
 				AccountID:  acc.ID,
 				EventType:  notify.EventNodeFailed,
 				Title:      "节点故障告警",
-				Content:    fmt.Sprintf("**节点名称**: %s\n**错误信息**: %s\n**失败次数**: %d\n**时间**: %s", nodeName, errMsg, failStreak, time.Now().Format("2006-01-02 15:04:05")),
+				Content:    fmt.Sprintf("**节点名称**: %s\n**错误信息**: %s\n**失败次数**: %d\n**时间**: %s", nodeName, errMsg, failStreak, timeutil.FormatBeijingTime(time.Now())),
 				DedupKey:   node.ID,
 				OccurredAt: time.Now(),
 			})
@@ -200,7 +201,7 @@ func (p *Server) checkNodeHealth(acc *Account, id string) {
 				AccountID:  acc.ID,
 				EventType:  notify.EventNodeRecovered,
 				Title:      "节点已恢复",
-				Content:    fmt.Sprintf("**节点名称**: %s\n**恢复时间**: %s", n.Name, time.Now().Format("2006-01-02 15:04:05")),
+				Content:    fmt.Sprintf("**节点名称**: %s\n**恢复时间**: %s", n.Name, timeutil.FormatBeijingTime(time.Now())),
 				DedupKey:   n.ID,
 				OccurredAt: time.Now(),
 			})

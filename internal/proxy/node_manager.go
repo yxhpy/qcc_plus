@@ -9,6 +9,7 @@ import (
 
 	"qcc_plus/internal/notify"
 	"qcc_plus/internal/store"
+	"qcc_plus/internal/timeutil"
 )
 
 // 添加新节点（默认账号）。
@@ -72,7 +73,7 @@ func (p *Server) addNodeWithMethod(acc *Account, name, rawURL, apiKey string, we
 			AccountID:  acc.ID,
 			EventType:  notify.EventNodeAdded,
 			Title:      "节点新增",
-			Content:    fmt.Sprintf("**节点名称**: %s\n**地址**: %s\n**权重**: %d\n**时间**: %s", node.Name, node.URL.String(), node.Weight, time.Now().Format("2006-01-02 15:04:05")),
+			Content:    fmt.Sprintf("**节点名称**: %s\n**地址**: %s\n**权重**: %d\n**时间**: %s", node.Name, node.URL.String(), node.Weight, timeutil.FormatBeijingTime(time.Now())),
 			DedupKey:   node.ID,
 			OccurredAt: time.Now(),
 		})

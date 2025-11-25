@@ -9,7 +9,7 @@ import useDialog from '../hooks/useDialog'
 import usePrompt from '../hooks/usePrompt'
 import api from '../services/api'
 import type { Account, Node } from '../types'
-import { formatBeijingTime } from '../utils/date'
+import { formatBeijingTime, parseToDate } from '../utils/date'
 import './Nodes.css'
 
 interface EditForm {
@@ -50,18 +50,26 @@ export default function Nodes() {
     setTimeout(() => setToast(null), 2200)
   }
 
-  const sortByOrder = useCallback((list: Node[]) => {
-    return list
-      .slice()
-      .sort((a, b) => {
-        const wa = a.weight ?? 0
-        const wb = b.weight ?? 0
-        if (wa !== wb) return wa - wb
-        const ta = a.created_at ? new Date(a.created_at).getTime() : 0
-        const tb = b.created_at ? new Date(b.created_at).getTime() : 0
-        return ta - tb
-      })
-  }, [])
+  const toTimestamp = (val?: string | number | Date | null) => {
+    const d = parseToDate(val)
+    return d ? d.getTime() : 0
+  }
+
+  const sortByOrder = useCallback(
+    (list: Node[]) => {
+      return list
+        .slice()
+        .sort((a, b) => {
+          const wa = a.weight ?? 0
+          const wb = b.weight ?? 0
+          if (wa !== wb) return wa - wb
+          const ta = toTimestamp(a.created_at ?? null)
+          const tb = toTimestamp(b.created_at ?? null)
+          return ta - tb
+        })
+    },
+    [toTimestamp],
+  )
 
   const loadAccounts = async () => {
     try {

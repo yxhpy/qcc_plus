@@ -167,7 +167,7 @@ func (m *Manager) handleEvent(evt Event) {
 			EventType:  evt.EventType,
 			Title:      evt.Title,
 			Content:    evt.Content,
-			OccurredAt: evt.OccurredAt.Format(time.RFC3339),
+			OccurredAt: evt.OccurredAt,
 		}
 		sendErr := ch.Send(ctx, msg)
 		status := historyStatusSent

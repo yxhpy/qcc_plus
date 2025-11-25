@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"sort"
 	"time"
+
+	"qcc_plus/internal/timeutil"
 )
 
 func (p *Server) handleNodes(w http.ResponseWriter, r *http.Request) {
@@ -114,7 +116,12 @@ func (p *Server) listNodes(acc *Account) []map[string]interface{} {
 	}
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	out := make([]map[string]interface{}, 0, len(acc.Nodes))
+	type nodeView struct {
+		view      map[string]interface{}
+		weight    int
+		createdAt time.Time
+	}
+	views := make([]nodeView, 0, len(acc.Nodes))
 	for id, n := range acc.Nodes {
 		healthMethod := n.HealthCheckMethod
 		if healthMethod == "" {
@@ -133,52 +140,59 @@ func (p *Server) listNodes(acc *Account) []map[string]interface{} {
 				healthRate = 0
 			}
 		}
-		lastHealthCheckAt := ""
-		if !n.Metrics.LastHealthCheckAt.IsZero() {
-			lastHealthCheckAt = n.Metrics.LastHealthCheckAt.Format(time.RFC3339)
-		}
-		out = append(out, map[string]interface{}{
-			"id":                    id,
-			"name":                  n.Name,
-			"base_url":              n.URL.String(),
-			"health_check_method":   healthMethod,
-			"active":                id == acc.ActiveID,
-			"has_api_key":           n.APIKey != "",
-			"created_at":            n.CreatedAt.Format(time.RFC3339),
-			"requests":              n.Metrics.Requests,
-			"fail_count":            n.Metrics.FailCount,
-			"fail_streak":           n.Metrics.FailStreak,
-			"health_rate":           fmt.Sprintf("%.1f%%", healthRate),
-			"ping_ms":               n.Metrics.LastPingMS,
-			"ping_error":            n.Metrics.LastPingErr,
-			"last_ping_ms":          n.Metrics.LastPingMS,
-			"last_ping_error":       n.Metrics.LastPingErr,
-			"last_health_check_at":  lastHealthCheckAt,
-			"input_tokens":          n.Metrics.TotalInputTokens,
-			"output_tokens":         n.Metrics.TotalOutputTokens,
-			"total_bytes":           n.Metrics.TotalBytes,
-			"stream_dur_ms":         n.Metrics.StreamDur.Milliseconds(),
-			"first_byte_ms":         n.Metrics.FirstByteDur.Milliseconds(),
-			"avg_recv_ms_per_token": avgPerToken,
-			"weight":                n.Weight,
-			"failed":                n.Failed,
-			"disabled":              n.Disabled,
-			"last_error":            n.LastError,
+		lastHealthCheckAt := timeutil.FormatBeijingTime(n.Metrics.LastHealthCheckAt)
+		views = append(views, nodeView{
+			weight:    n.Weight,
+			createdAt: n.CreatedAt,
+			view: map[string]interface{}{
+				"id":                    id,
+				"name":                  n.Name,
+				"base_url":              n.URL.String(),
+				"health_check_method":   healthMethod,
+				"active":                id == acc.ActiveID,
+				"has_api_key":           n.APIKey != "",
+				"created_at":            timeutil.FormatBeijingTime(n.CreatedAt),
+				"requests":              n.Metrics.Requests,
+				"fail_count":            n.Metrics.FailCount,
+				"fail_streak":           n.Metrics.FailStreak,
+				"health_rate":           fmt.Sprintf("%.1f%%", healthRate),
+				"ping_ms":               n.Metrics.LastPingMS,
+				"ping_error":            n.Metrics.LastPingErr,
+				"last_ping_ms":          n.Metrics.LastPingMS,
+				"last_ping_error":       n.Metrics.LastPingErr,
+				"last_health_check_at":  lastHealthCheckAt,
+				"input_tokens":          n.Metrics.TotalInputTokens,
+				"output_tokens":         n.Metrics.TotalOutputTokens,
+				"total_bytes":           n.Metrics.TotalBytes,
+				"stream_dur_ms":         n.Metrics.StreamDur.Milliseconds(),
+				"first_byte_ms":         n.Metrics.FirstByteDur.Milliseconds(),
+				"avg_recv_ms_per_token": avgPerToken,
+				"weight":                n.Weight,
+				"failed":                n.Failed,
+				"disabled":              n.Disabled,
+				"last_error":            n.LastError,
+			},
 		})
 	}
 
 	// 按权重排序，其次按创建时间。
-	sort.Slice(out, func(i, j int) bool {
-		wi := out[i]["weight"].(int)
-		wj := out[j]["weight"].(int)
+	sort.Slice(views, func(i, j int) bool {
+		wi := views[i].weight
+		wj := views[j].weight
 		if wi != wj {
 			return wi < wj
 		}
-		// 权重相同，按创建时间排序
-		ti, _ := time.Parse(time.RFC3339, out[i]["created_at"].(string))
-		tj, _ := time.Parse(time.RFC3339, out[j]["created_at"].(string))
+		ti := views[i].createdAt
+		tj := views[j].createdAt
+		if ti.IsZero() || tj.IsZero() {
+			return ti.IsZero() && !tj.IsZero()
+		}
 		return ti.Before(tj)
 	})
 
+	out := make([]map[string]interface{}, 0, len(views))
+	for _, v := range views {
+		out = append(out, v.view)
+	}
 	return out
 }

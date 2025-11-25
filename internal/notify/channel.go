@@ -3,6 +3,7 @@ package notify
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"qcc_plus/internal/store"
 )
@@ -13,7 +14,7 @@ type NotificationMessage struct {
 	EventType  string
 	Title      string
 	Content    string
-	OccurredAt string
+	OccurredAt time.Time
 }
 
 // NotificationChannel 通知渠道需要实现的接口。

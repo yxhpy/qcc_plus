@@ -12,6 +12,7 @@ import (
 
 	"qcc_plus/internal/notify"
 	"qcc_plus/internal/store"
+	"qcc_plus/internal/timeutil"
 )
 
 // handleNotificationChannels 处理渠道列表与创建。
@@ -559,7 +560,7 @@ func (p *Server) testNotification(w http.ResponseWriter, r *http.Request) {
 		EventType:  "test",
 		Title:      chooseNonEmpty(req.Title, "测试通知"),
 		Content:    chooseNonEmpty(req.Content, "这是一条测试通知"),
-		OccurredAt: time.Now().Format(time.RFC3339),
+		OccurredAt: timeutil.NowBeijing(),
 	}
 	if err := ch.Send(ctx, msg); err != nil {
 		p.logger.Printf("send test notification failed: %v", err)
@@ -576,8 +577,8 @@ func channelView(rec store.NotificationChannelRecord) map[string]interface{} {
 		"name":         rec.Name,
 		"channel_type": rec.ChannelType,
 		"enabled":      rec.Enabled,
-		"created_at":   rec.CreatedAt.Format(time.RFC3339),
-		"updated_at":   rec.UpdatedAt.Format(time.RFC3339),
+		"created_at":   timeutil.FormatBeijingTime(rec.CreatedAt),
+		"updated_at":   timeutil.FormatBeijingTime(rec.UpdatedAt),
 	}
 }
 
@@ -588,7 +589,7 @@ func subscriptionView(rec store.NotificationSubscriptionRecord) map[string]inter
 		"channel_id": rec.ChannelID,
 		"event_type": rec.EventType,
 		"enabled":    rec.Enabled,
-		"created_at": rec.CreatedAt.Format(time.RFC3339),
+		"created_at": timeutil.FormatBeijingTime(rec.CreatedAt),
 	}
 }
 

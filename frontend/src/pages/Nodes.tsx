@@ -54,9 +54,6 @@ export default function Nodes() {
     return list
       .slice()
       .sort((a, b) => {
-        const sa = a.sort_order ?? 0
-        const sb = b.sort_order ?? 0
-        if (sa !== sb) return sa - sb
         const wa = a.weight ?? 0
         const wb = b.weight ?? 0
         if (wa !== wb) return wa - wb
@@ -312,16 +309,20 @@ export default function Nodes() {
     const newIndex = nodes.findIndex((n) => n.id === overId)
     if (oldIndex === -1 || newIndex === -1) return
     const prevNodes = nodes
-    const reordered = arrayMove(nodes, oldIndex, newIndex).map((n, idx) => ({
+    const reordered = arrayMove(nodes, oldIndex, newIndex)
+    const withWeights = reordered.map((n, idx) => ({
       ...n,
-      sort_order: idx + 1,
+      weight: idx + 1,
     }))
-    setNodes(reordered)
+    setNodes(withWeights)
     setSavingOrder(true)
     try {
-      await api.reorderNodes(
-        reordered.map((n, idx) => ({ id: n.id, sort_order: idx + 1 })),
-        accountId
+      await Promise.all(
+        withWeights.map((n, idx) =>
+          api.updateNode(n.id, {
+            weight: idx + 1,
+          }),
+        ),
       )
       showToast('排序已保存')
     } catch (err) {

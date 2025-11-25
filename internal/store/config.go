@@ -25,7 +25,7 @@ func (s *Store) LoadAllByAccount(ctx context.Context, accountID string) (records
 
 	nctx, ncancel := withTimeout(ctx)
 	defer ncancel()
-	rows, err := s.db.QueryContext(nctx, `SELECT id,name,base_url,api_key,health_check_method,account_id,weight,sort_order,failed,disabled,last_error,created_at,requests,fail_count,fail_streak,total_bytes,total_input,total_output,stream_dur_ms,first_byte_ms,last_ping_ms,last_ping_err,last_health_check_at FROM nodes WHERE account_id=?`, accountID)
+	rows, err := s.db.QueryContext(nctx, `SELECT id,name,base_url,api_key,health_check_method,account_id,weight,failed,disabled,last_error,created_at,requests,fail_count,fail_streak,total_bytes,total_input,total_output,stream_dur_ms,first_byte_ms,last_ping_ms,last_ping_err,last_health_check_at FROM nodes WHERE account_id=? ORDER BY weight ASC, created_at ASC`, accountID)
 	if err != nil {
 		return
 	}
@@ -33,7 +33,7 @@ func (s *Store) LoadAllByAccount(ctx context.Context, accountID string) (records
 	for rows.Next() {
 		var r NodeRecord
 		var lastHealthAt sql.NullTime
-		err = rows.Scan(&r.ID, &r.Name, &r.BaseURL, &r.APIKey, &r.HealthCheckMethod, &r.AccountID, &r.Weight, &r.SortOrder, &r.Failed, &r.Disabled, &r.LastError, &r.CreatedAt, &r.Requests, &r.FailCount, &r.FailStreak, &r.TotalBytes, &r.TotalInput, &r.TotalOutput, &r.StreamDurMs, &r.FirstByteMs, &r.LastPingMs, &r.LastPingErr, &lastHealthAt)
+		err = rows.Scan(&r.ID, &r.Name, &r.BaseURL, &r.APIKey, &r.HealthCheckMethod, &r.AccountID, &r.Weight, &r.Failed, &r.Disabled, &r.LastError, &r.CreatedAt, &r.Requests, &r.FailCount, &r.FailStreak, &r.TotalBytes, &r.TotalInput, &r.TotalOutput, &r.StreamDurMs, &r.FirstByteMs, &r.LastPingMs, &r.LastPingErr, &lastHealthAt)
 		if err != nil {
 			return
 		}

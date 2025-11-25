@@ -58,7 +58,6 @@ func (s *Store) ensureNodesTable(ctx context.Context) error {
 			health_check_method VARCHAR(10) DEFAULT 'api',
 			account_id VARCHAR(64) NOT NULL DEFAULT '` + DefaultAccountID + `',
             weight INT DEFAULT 1,
-			sort_order INT DEFAULT 0,
             failed BOOLEAN DEFAULT FALSE,
 			disabled BOOLEAN DEFAULT FALSE,
             last_error TEXT,
@@ -107,18 +106,6 @@ func (s *Store) ensureNodesTable(ctx context.Context) error {
 			return err
 		}
 		if _, err := s.db.ExecContext(alterCtx, `UPDATE nodes SET account_id='`+DefaultAccountID+`' WHERE account_id IS NULL OR account_id=''`); err != nil {
-			return err
-		}
-	}
-
-	hasSortOrder, err := s.columnExists(context.Background(), "nodes", "sort_order")
-	if err != nil {
-		return err
-	}
-	if !hasSortOrder {
-		alterCtx, cancel := withTimeout(context.Background())
-		defer cancel()
-		if _, err := s.db.ExecContext(alterCtx, `ALTER TABLE nodes ADD COLUMN sort_order INT DEFAULT 0 AFTER weight`); err != nil {
 			return err
 		}
 	}

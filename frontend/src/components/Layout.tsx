@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { useVersion } from '../hooks/useVersion'
+import { formatBeijingTime } from '../utils/date'
 import './Layout.css'
 
 interface LayoutProps {
@@ -31,7 +32,7 @@ export default function Layout({ children }: LayoutProps) {
       ? 'v...'
       : 'v-'
   const versionTitle = version
-    ? `commit: ${version.git_commit}\nbuild: ${version.build_date}\ngo: ${version.go_version}`
+    ? `commit: ${version.git_commit}\nbuild: ${formatBeijingTime(version.build_date)}\ngo: ${version.go_version}`
     : versionError
       ? `版本获取失败：${versionError.message}`
       : '正在加载版本信息...'

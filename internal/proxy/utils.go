@@ -50,7 +50,6 @@ func toRecord(n *Node) store.NodeRecord {
 		HealthCheckMethod: n.HealthCheckMethod,
 		AccountID:         chooseNonEmpty(n.AccountID, store.DefaultAccountID),
 		Weight:            n.Weight,
-		SortOrder:         n.SortOrder,
 		Failed:            n.Failed,
 		Disabled:          n.Disabled,
 		LastError:         n.LastError,

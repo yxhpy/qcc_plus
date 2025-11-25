@@ -13,7 +13,7 @@ import Card from '../components/Card'
 import Toast from '../components/Toast'
 import api from '../services/api'
 import type { Account, Node } from '../types'
-import { formatBeijingTimeShort } from '../utils/date'
+import { formatBeijingTime } from '../utils/date'
 import './Dashboard.css'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend)
@@ -370,7 +370,7 @@ export default function Dashboard() {
 
       <Card
         title="节点性能与请求分布"
-        extra={<div className="badge gray">{lastUpdated ? `更新于 ${formatBeijingTimeShort(lastUpdated)}` : '--'}</div>}
+        extra={<div className="badge gray">{lastUpdated ? `更新于 ${formatBeijingTime(lastUpdated)}` : '--'}</div>}
       >
         <div className="chart-grid">
           <Card

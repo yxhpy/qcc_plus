@@ -16,7 +16,6 @@ type Node struct {
 	CreatedAt         time.Time
 	Metrics           metrics
 	Weight            int
-	SortOrder         int
 	Failed            bool
 	Disabled          bool // 用户手动禁用
 	LastError         string

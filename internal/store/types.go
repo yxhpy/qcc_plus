@@ -21,7 +21,6 @@ type NodeRecord struct {
 	HealthCheckMethod string
 	AccountID         string
 	Weight            int
-	SortOrder         int
 	Failed            bool
 	Disabled          bool
 	LastError         string

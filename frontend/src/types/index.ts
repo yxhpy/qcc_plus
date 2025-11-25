@@ -27,7 +27,6 @@ export interface Node {
   last_health_check_at?: string;
   last_ping_ms?: number;
   last_ping_error?: string;
-  sort_order?: number;
   created_at?: string;
 }
 

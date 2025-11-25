@@ -105,7 +105,6 @@ func (p *Server) createDefaultAccount(defaultUpstream *url.URL, defaultCfg store
 		AccountID:         acc.ID,
 		CreatedAt:         time.Now(),
 		Weight:            1,
-		SortOrder:         1,
 	}
 	acc.Nodes[node.ID] = node
 	acc.ActiveID = node.ID
@@ -114,7 +113,7 @@ func (p *Server) createDefaultAccount(defaultUpstream *url.URL, defaultCfg store
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = p.store.CreateAccount(ctx, store.AccountRecord{ID: acc.ID, Name: acc.Name, Password: acc.Password, ProxyAPIKey: acc.ProxyAPIKey, IsAdmin: true, CreatedAt: node.CreatedAt, UpdatedAt: node.CreatedAt})
-		_ = p.store.UpsertNode(ctx, store.NodeRecord{ID: node.ID, Name: node.Name, BaseURL: node.URL.String(), APIKey: node.APIKey, HealthCheckMethod: node.HealthCheckMethod, AccountID: acc.ID, Weight: node.Weight, SortOrder: node.SortOrder, CreatedAt: node.CreatedAt})
+		_ = p.store.UpsertNode(ctx, store.NodeRecord{ID: node.ID, Name: node.Name, BaseURL: node.URL.String(), APIKey: node.APIKey, HealthCheckMethod: node.HealthCheckMethod, AccountID: acc.ID, Weight: node.Weight, CreatedAt: node.CreatedAt})
 		_ = p.store.SetActive(ctx, acc.ID, node.ID)
 		_ = p.store.UpdateConfig(ctx, acc.ID, defaultCfg, node.ID)
 	}
@@ -185,11 +184,10 @@ func (p *Server) loadAccountsFromStore(defaultUpstream *url.URL, defaultCfg stor
 				AccountID:         acc.ID,
 				CreatedAt:         time.Now(),
 				Weight:            1,
-				SortOrder:         1,
 			}
 			acc.Nodes[node.ID] = node
 			acc.ActiveID = node.ID
-			_ = p.store.UpsertNode(context.Background(), store.NodeRecord{ID: node.ID, Name: node.Name, BaseURL: node.URL.String(), HealthCheckMethod: node.HealthCheckMethod, AccountID: acc.ID, Weight: node.Weight, SortOrder: node.SortOrder, CreatedAt: node.CreatedAt})
+			_ = p.store.UpsertNode(context.Background(), store.NodeRecord{ID: node.ID, Name: node.Name, BaseURL: node.URL.String(), HealthCheckMethod: node.HealthCheckMethod, AccountID: acc.ID, Weight: node.Weight, CreatedAt: node.CreatedAt})
 			_ = p.store.SetActive(context.Background(), acc.ID, node.ID)
 		} else {
 			for _, r := range recs {
@@ -207,7 +205,6 @@ func (p *Server) loadAccountsFromStore(defaultUpstream *url.URL, defaultCfg stor
 					AccountID:         r.AccountID,
 					CreatedAt:         r.CreatedAt,
 					Weight:            r.Weight,
-					SortOrder:         r.SortOrder,
 					Failed:            r.Failed,
 					Disabled:          r.Disabled,
 					LastError:         r.LastError,

@@ -67,7 +67,6 @@ func (p *Server) handler() http.Handler {
 	apiMux.HandleFunc("/logout", p.handleLogout)
 	apiMux.HandleFunc("/admin/api/accounts", p.requireSession(p.handleAccounts))
 	apiMux.HandleFunc("/admin/api/nodes", p.requireSession(p.handleNodes))
-	apiMux.HandleFunc("/admin/api/nodes/reorder", p.requireSession(p.handleNodesReorder))
 	apiMux.HandleFunc("/admin/api/config", p.requireSession(p.handleConfig))
 	apiMux.HandleFunc("/admin/api/nodes/activate", p.requireSession(p.handleActivate))
 	apiMux.HandleFunc("/admin/api/nodes/disable", p.requireSession(p.handleDisable))

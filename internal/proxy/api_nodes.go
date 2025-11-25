@@ -107,103 +107,6 @@ func (p *Server) handleNodes(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleNodesReorder 批量更新节点排序（sort_order）。
-func (p *Server) handleNodesReorder(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPut {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
-	acc := accountFromCtx(r)
-	if acc == nil {
-		acc = p.defaultAccount
-	}
-	if acc == nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "account missing"})
-		return
-	}
-	if isAdmin(r.Context()) {
-		if aid := r.URL.Query().Get("account_id"); aid != "" {
-			target := p.getAccountByID(aid)
-			if target == nil {
-				writeJSON(w, http.StatusNotFound, map[string]string{"error": "account not found"})
-				return
-			}
-			acc = target
-		}
-	} else if q := r.URL.Query().Get("account_id"); q != "" && acc != nil && q != acc.ID {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
-		return
-	}
-
-	var req struct {
-		Orders []struct {
-			ID        string `json:"id"`
-			SortOrder int    `json:"sort_order"`
-		} `json:"orders"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json"})
-		return
-	}
-	if len(req.Orders) == 0 {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "orders required"})
-		return
-	}
-
-	orderMap := make(map[string]int, len(req.Orders))
-	ids := make([]string, 0, len(req.Orders))
-	for idx, item := range req.Orders {
-		if item.ID == "" {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "id required"})
-			return
-		}
-		so := item.SortOrder
-		if so <= 0 {
-			so = idx + 1
-		}
-		orderMap[item.ID] = so
-		ids = append(ids, item.ID)
-	}
-
-	p.mu.Lock()
-	prevOrders := make(map[string]int, len(ids))
-	for _, id := range ids {
-		node := p.nodeIndex[id]
-		if node == nil {
-			p.mu.Unlock()
-			writeJSON(w, http.StatusNotFound, map[string]string{"error": "node not found"})
-			return
-		}
-		if node.AccountID != acc.ID {
-			p.mu.Unlock()
-			writeJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
-			return
-		}
-	}
-	for _, id := range ids {
-		if n := acc.Nodes[id]; n != nil {
-			prevOrders[id] = n.SortOrder
-			n.SortOrder = orderMap[id]
-		}
-	}
-	p.mu.Unlock()
-
-	if p.store != nil {
-		if err := p.store.UpdateNodeOrders(r.Context(), acc.ID, orderMap); err != nil {
-			p.mu.Lock()
-			for id, prev := range prevOrders {
-				if n := acc.Nodes[id]; n != nil {
-					n.SortOrder = prev
-				}
-			}
-			p.mu.Unlock()
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
-			return
-		}
-	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
-}
-
 // 列出节点，标注是否激活和是否含密钥。
 func (p *Server) listNodes(acc *Account) []map[string]interface{} {
 	if acc == nil {
@@ -258,20 +161,14 @@ func (p *Server) listNodes(acc *Account) []map[string]interface{} {
 			"first_byte_ms":         n.Metrics.FirstByteDur.Milliseconds(),
 			"avg_recv_ms_per_token": avgPerToken,
 			"weight":                n.Weight,
-			"sort_order":            n.SortOrder,
 			"failed":                n.Failed,
 			"disabled":              n.Disabled,
 			"last_error":            n.LastError,
 		})
 	}
 
-	// 按自定义排序值排序，其次按权重、创建时间。
+	// 按权重排序，其次按创建时间。
 	sort.Slice(out, func(i, j int) bool {
-		si := out[i]["sort_order"].(int)
-		sj := out[j]["sort_order"].(int)
-		if si != sj {
-			return si < sj
-		}
 		wi := out[i]["weight"].(int)
 		wj := out[j]["weight"].(int)
 		if wi != wj {

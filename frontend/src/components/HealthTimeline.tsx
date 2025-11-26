@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import api from '../services/api'
 import type { HealthCheckRecord, HealthHistory } from '../types'
 import { formatBeijingTime, parseToDate } from '../utils/date'
@@ -114,7 +115,7 @@ export default function HealthTimeline({ nodeId, refreshKey = 0, latest, shareTo
 		if (!hover) return null
 		const { rec, x, y } = hover
 		const status = !rec.success ? '失败' : rec.response_time_ms >= 1000 ? '较慢' : '正常'
-		return (
+		const tooltip = (
 			<div className="health-tooltip" style={{ left: x + 12, top: y - 10 }}>
 				<div className="health-tooltip__time">{formatBeijingTime(rec.check_time)}</div>
 				<div className="health-tooltip__row">状态：{status}</div>
@@ -123,6 +124,9 @@ export default function HealthTimeline({ nodeId, refreshKey = 0, latest, shareTo
 				{rec.error_message && <div className="health-tooltip__row">错误：{rec.error_message}</div>}
 			</div>
 		)
+
+		if (typeof document === 'undefined') return tooltip
+		return createPortal(tooltip, document.body)
 	}
 
 	const checks = history?.checks || []

@@ -191,12 +191,14 @@ func (p *Server) checkNodeHealth(acc *Account, id string) {
 		nodeFailed      bool
 		nodeDisabled    bool
 		hasNode         bool
+		wasFailed       bool
 	)
 
 	p.mu.Lock()
 	n := p.nodeIndex[id]
 	if n != nil {
 		acc := p.nodeAccount[id]
+		wasFailed = n.Failed
 		n.Metrics.LastHealthCheckAt = now
 		if latency > 0 {
 			n.Metrics.LastPingMS = latency.Milliseconds()
@@ -232,7 +234,7 @@ func (p *Server) checkNodeHealth(acc *Account, id string) {
 	if shouldPersist {
 		_ = p.store.UpsertNode(context.Background(), rec)
 	}
-	if ok {
+	if ok && wasFailed {
 		// 恢复后重新在健康节点中选择最优的一个。
 		if p.notifyMgr != nil && acc != nil && n != nil {
 			p.notifyMgr.Publish(notify.Event{

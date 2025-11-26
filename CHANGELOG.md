@@ -6,6 +6,41 @@
 
 ## [Unreleased]
 
+## [1.3.0] - 2025-11-26
+
+### 新增
+
+#### 监控大屏（重大特性）
+- **实时监控大屏**：全新的监控大屏界面，实时展示节点状态和流量指标
+- **健康检查历史时间线**：可视化展示节点健康检查历史记录
+- **监控数据持久化**：支持多维度统计数据的持久化存储
+- **分离代理流量和健康检查指标**：独立展示代理流量统计和健康检查数据
+
+#### 分享功能
+- **共享监控页面**：支持生成分享链接，允许外部访问监控大屏
+- **实时 WebSocket 推送**：分享页面支持实时数据更新
+- **完整指标展示**：分享大屏实时更新请求数、失败数等完整指标
+
+#### 健康检查改进
+- **默认使用 CLI 健康检查**：新建节点默认使用 CLI 方式进行健康检查
+
+### 修复
+- 修复节点累计统计数据持久化问题
+- 修复撤销分享链接返回 unexpected response 错误
+- 修复健康检查历史 tooltip 定位和重复恢复通知问题
+- 修复分享页面健康检查历史 unauthorized 错误
+- 修复分享链接时间统一使用北京时间
+- 同步 SharedMonitor 与 Monitor 的 WebSocket 更新逻辑
+- 添加 /monitor/ 路径到 SPA 路由白名单
+
+### 改进
+- 优化分享大屏布局，提升信息密度约 35%
+- 后端统一使用 `timeutil.FormatBeijingTime` 输出北京时间
+- 添加 UI 高信息密度规范
+
+### 文档
+- 添加监控数据持久化技术文档
+
 ## [1.2.0] - 2025-11-25
 
 ### 新增
@@ -143,7 +178,8 @@
 - 前端：React 18, TypeScript, Vite, Chart.js
 - 部署：Docker Compose, Cloudflare Tunnel
 
-[unreleased]: https://github.com/yxhpy/qcc_plus/compare/v1.2.0...HEAD
+[unreleased]: https://github.com/yxhpy/qcc_plus/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/yxhpy/qcc_plus/releases/tag/v1.3.0
 [1.2.0]: https://github.com/yxhpy/qcc_plus/releases/tag/v1.2.0
 [1.1.0]: https://github.com/yxhpy/qcc_plus/releases/tag/v1.1.0
 [1.0.0]: https://github.com/yxhpy/qcc_plus/releases/tag/v1.0.0

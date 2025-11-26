@@ -4,9 +4,9 @@
 ## 最后更新
 - **更新日期**: 2025-11-26
 - **更新人**: Claude Code
-- **当前版本**: v1.2.0
-- **最新功能**: 监控大屏分离指标和紧凑布局
-- **最新更新**: 分离代理流量/健康检查指标，优化布局提升信息密度约35%
+- **当前版本**: v1.3.0
+- **最新功能**: 监控大屏和分享功能
+- **最新更新**: 实时监控大屏、健康检查历史时间线、共享监控页面、分离代理流量和健康检查指标
 - **GitHub**: https://github.com/yxhpy/qcc_plus
 - **Docker Hub**: https://hub.docker.com/r/yxhpy520/qcc_plus
 
@@ -509,6 +509,37 @@ docker compose up -d
     </important_notes>
 
     <version_history description="版本发布历史">
+        <release version="v1.3.0" date="2025-11-26">
+            <description>监控大屏和分享功能</description>
+            <highlights>
+                - 实时监控大屏界面
+                - 健康检查历史时间线
+                - 共享监控页面和分享链接
+                - 分离代理流量和健康检查指标
+            </highlights>
+            <github>https://github.com/yxhpy/qcc_plus/releases/tag/v1.3.0</github>
+            <docker>yxhpy520/qcc_plus:v1.3.0</docker>
+        </release>
+        <release version="v1.2.0" date="2025-11-25">
+            <description>节点拖拽排序和时间统一</description>
+            <highlights>
+                - 节点拖拽排序功能
+                - 统一北京时间显示
+            </highlights>
+            <github>https://github.com/yxhpy/qcc_plus/releases/tag/v1.2.0</github>
+            <docker>yxhpy520/qcc_plus:v1.2.0</docker>
+        </release>
+        <release version="v1.1.0" date="2025-11-24">
+            <description>CLI 健康检查和通知系统</description>
+            <highlights>
+                - CLI 健康检查系统
+                - 版本管理系统
+                - 通知系统
+                - CI/CD 自动化
+            </highlights>
+            <github>https://github.com/yxhpy/qcc_plus/releases/tag/v1.1.0</github>
+            <docker>yxhpy520/qcc_plus:v1.1.0</docker>
+        </release>
         <release version="v1.0.0" date="2025-11-23">
             <description>首个正式版本</description>
             <highlights>

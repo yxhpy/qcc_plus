@@ -12,18 +12,25 @@ interface NodeCardProps {
 
 const statusLabel: Record<string, string> = {
   online: '在线',
+  degraded: '注意',
   offline: '离线',
   disabled: '停用',
+  unknown: '未知',
 }
 
 export default function NodeCard({ node, historyRefreshKey, healthEvent, shareToken }: NodeCardProps) {
-	const resolvedStatus = node.disabled ? 'disabled' : node.status || 'offline'
-	const successRate = Number.isFinite(node.success_rate) ? Number(node.success_rate) : 0
-	const avgTime = Number.isFinite(node.avg_response_time) ? Number(node.avg_response_time) : 0
-  const totalReq = Number(node.total_requests ?? 0)
-  const failedReq = Number(node.failed_requests ?? 0)
-  const lastCheck = node.last_check_at ? formatBeijingTime(node.last_check_at) : '暂无'
-  const lastError = (node.last_error || '').trim()
+	const resolvedStatus = node.disabled ? 'disabled' : node.status || 'unknown'
+	const trafficStatus = resolvedStatus
+	const successRate = Number(node.traffic?.success_rate ?? 0)
+	const avgTime = Number(node.traffic?.avg_response_time ?? 0)
+	const totalReq = Number(node.traffic?.total_requests ?? 0)
+	const failedReq = Number(node.traffic?.failed_requests ?? 0)
+	const lastCheck = node.health?.last_check_at ? formatBeijingTime(node.health.last_check_at) : '暂无'
+	const lastError = (node.last_error || node.health?.last_ping_err || '').trim()
+	const healthLabel: Record<string, string> = { up: '正常', down: '失败', stale: '过期' }
+	const healthStatus = node.health?.status || 'stale'
+	const checkMethod = (node.health?.check_method || 'api').toUpperCase()
+	const lastPing = node.health?.last_ping_ms ?? 0
 
 	return (
 		<div className="node-card">
@@ -32,26 +39,63 @@ export default function NodeCard({ node, historyRefreshKey, healthEvent, shareTo
 					<div className="node-card__title">{node.name || '未命名节点'}</div>
 					<div className="node-card__url">{node.url || '-'}</div>
 				</div>
-				<div className={`node-card__status ${resolvedStatus}`}>
-					<span className="dot" />
-					{statusLabel[resolvedStatus] || resolvedStatus || '未知'}
+				<div className="node-card__status-badges">
+					<span className={`status-badge traffic ${trafficStatus}`}>
+						流量 · {statusLabel[trafficStatus] || trafficStatus}
+					</span>
+					<span className={`status-badge health ${healthStatus}`}>
+						探活 · {healthLabel[healthStatus] || healthStatus}
+					</span>
 				</div>
 			</div>
 
-			<div className="node-card__metrics">
-				<div className="node-card__metrics-row primary">
-					<span>成功率 <strong>{successRate.toFixed(1)}%</strong></span>
-					<span className="sep">|</span>
-					<span>平均 <strong>{avgTime ? `${avgTime}ms` : '--'}</strong></span>
-					<span className="sep">|</span>
-					<span>请求 <strong>{totalReq.toLocaleString()}</strong></span>
+			<div className="node-card__metrics-grid">
+				<div className="node-card__section traffic">
+					<div className="section-title">代理流量</div>
+					<div className="section-content">
+						<div className="metric-item">
+							<span className="label">成功率</span>
+							<strong>{successRate.toFixed(1)}%</strong>
+						</div>
+						<div className="metric-item">
+							<span className="label">平均延时</span>
+							<strong>{avgTime ? `${avgTime} ms` : '--'}</strong>
+						</div>
+						<div className="metric-item">
+							<span className="label">请求数</span>
+							<strong>{totalReq.toLocaleString()}</strong>
+						</div>
+						<div className="metric-item">
+							<span className="label">失败数</span>
+							<strong className={failedReq > 0 ? 'danger' : ''}>
+								{failedReq.toLocaleString()}
+							</strong>
+						</div>
+					</div>
 				</div>
-				<div className="node-card__metrics-row secondary">
-					<span className={failedReq > 0 ? 'danger' : ''}>失败 <strong>{failedReq.toLocaleString()}</strong></span>
-					<span className="sep">|</span>
-					<span>权重 <strong>{node.weight ?? '-'}</strong></span>
-					<span className="sep">|</span>
-					<span>检查 <strong>{lastCheck}</strong></span>
+
+				<div className="node-card__section health">
+					<div className="section-title">健康检查</div>
+					<div className="section-content">
+						<div className="metric-item">
+							<span className="label">状态</span>
+							<strong className={`health-${healthStatus}`}>
+								{healthLabel[healthStatus] || '未知'}
+							</strong>
+						</div>
+						<div className="metric-item">
+							<span className="label">最近检查</span>
+							<strong>{lastCheck}</strong>
+						</div>
+						<div className="metric-item">
+							<span className="label">探活延时</span>
+							<strong>{lastPing ? `${lastPing} ms` : '--'}</strong>
+						</div>
+						<div className="metric-item">
+							<span className="label">检查方式</span>
+							<strong>{checkMethod}</strong>
+						</div>
+					</div>
 				</div>
 			</div>
 

@@ -54,6 +54,9 @@ func (p *Server) recordMetrics(nodeID string, start time.Time, mw *metricsWriter
 		firstByteDur time.Duration
 		streamDur    time.Duration
 		lastPingMS   int64
+		healthErr    string
+		healthAt     time.Time
+		method       string
 		accountID    string
 	)
 
@@ -106,6 +109,9 @@ func (p *Server) recordMetrics(nodeID string, start time.Time, mw *metricsWriter
 	firstByteDur = node.Metrics.FirstByteDur
 	streamDur = node.Metrics.StreamDur
 	lastPingMS = node.Metrics.LastPingMS
+	healthErr = node.Metrics.LastPingErr
+	healthAt = node.Metrics.LastHealthCheckAt
+	method = node.HealthCheckMethod
 	p.mu.Unlock()
 
 	if p.store != nil {
@@ -116,27 +122,51 @@ func (p *Server) recordMetrics(nodeID string, start time.Time, mw *metricsWriter
 	}
 
 	if p.wsHub != nil {
-		successCount := requests - failCount
-		if successCount < 0 {
-			successCount = 0
+		traffic := summarizeTraffic(metrics{
+			Requests:     requests,
+			StreamDur:    streamDur,
+			FirstByteDur: firstByteDur,
+			FailCount:    failCount,
+			LastPingMS:   lastPingMS,
+			LastPingErr:  healthErr,
+		})
+		healthInterval := p.healthEvery
+		if acc != nil && acc.Config.HealthEvery > 0 {
+			healthInterval = acc.Config.HealthEvery
 		}
-		successRate := calculateSuccessRate(successCount, failCount)
-		totalDuration := firstByteDur + streamDur
-		avgResponseTime := calculateAvgResponseTime(totalDuration.Milliseconds(), requests)
-		status := "offline"
-		if !nodeFailed && !nodeDisabled {
+		health := summarizeHealth(metrics{
+			Requests:          requests,
+			StreamDur:         streamDur,
+			FirstByteDur:      firstByteDur,
+			FailCount:         failCount,
+			LastPingMS:        lastPingMS,
+			LastPingErr:       healthErr,
+			LastHealthCheckAt: healthAt,
+		}, method, healthInterval, time.Now())
+
+		status := "unknown"
+		if nodeDisabled {
+			status = "disabled"
+		} else if nodeFailed || health.Status == "down" {
+			status = "offline"
+		} else if health.Status == "stale" {
+			status = "degraded"
+		} else {
 			status = "online"
 		}
+
+		timestamp := timeutil.FormatBeijingTime(time.Now())
+		if health.LastCheckAt != nil {
+			timestamp = *health.LastCheckAt
+		}
+
 		p.wsHub.Broadcast(accountID, "node_metrics", map[string]interface{}{
-			"node_id":           nodeIDCopy,
-			"node_name":         nodeName,
-			"status":            status,
-			"total_requests":    requests,
-			"failed_requests":   failCount,
-			"success_rate":      successRate,
-			"avg_response_time": avgResponseTime,
-			"last_ping_ms":      lastPingMS,
-			"timestamp":         timeutil.FormatBeijingTime(time.Now()),
+			"node_id":   nodeIDCopy,
+			"node_name": nodeName,
+			"status":    status,
+			"traffic":   traffic,
+			"health":    health,
+			"timestamp": timestamp,
 		})
 	}
 }

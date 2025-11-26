@@ -150,24 +150,44 @@ export default function Monitor({ shared = false }: MonitorProps) {
       const idx = prev.nodes.findIndex((n) => n.id === payload.node_id)
       if (idx === -1) return prev
       const prevNode = prev.nodes[idx]
+
+      const mergedTraffic = {
+        success_rate: payload.traffic?.success_rate ?? payload.success_rate ?? prevNode.traffic?.success_rate ?? 0,
+        avg_response_time:
+          payload.traffic?.avg_response_time ?? payload.avg_response_time ?? prevNode.traffic?.avg_response_time ?? 0,
+        total_requests: payload.traffic?.total_requests ?? payload.total_requests ?? prevNode.traffic?.total_requests ?? 0,
+        failed_requests:
+          payload.traffic?.failed_requests ?? payload.failed_requests ?? prevNode.traffic?.failed_requests ?? 0,
+      }
+
+      const mergedHealth = {
+        status: (payload.health?.status ?? prevNode.health?.status ?? 'up') as MonitorNode['health']['status'],
+        last_check_at:
+          payload.health?.last_check_at ?? payload.timestamp ?? prevNode.health?.last_check_at ?? null,
+        last_ping_ms: payload.health?.last_ping_ms ?? payload.last_ping_ms ?? prevNode.health?.last_ping_ms ?? 0,
+        last_ping_err: payload.health?.last_ping_err ?? prevNode.health?.last_ping_err ?? '',
+        check_method: (payload.health?.check_method ?? prevNode.health?.check_method ?? 'api').toLowerCase(),
+      }
+
       const nextNode: MonitorNode = {
         ...prevNode,
         status: (payload.status as MonitorNode['status'] | undefined) || prevNode.status,
         last_error: payload.error ?? prevNode.last_error,
-        success_rate: payload.success_rate ?? prevNode.success_rate,
-        avg_response_time: payload.avg_response_time ?? prevNode.avg_response_time,
-        total_requests: payload.total_requests ?? prevNode.total_requests,
-        failed_requests: payload.failed_requests ?? prevNode.failed_requests,
-        last_ping_ms: payload.last_ping_ms ?? prevNode.last_ping_ms,
-        last_check_at: payload.timestamp || prevNode.last_check_at,
+        traffic: mergedTraffic,
+        health: mergedHealth,
       }
-      if (payload.success_rate !== undefined && payload.timestamp) {
-        const merged = prevNode.trend_24h
-          .filter((p) => p.timestamp !== payload.timestamp)
+
+      const hasTrafficUpdate =
+        payload.traffic?.success_rate !== undefined || payload.success_rate !== undefined
+      const trendTs = payload.timestamp || mergedHealth.last_check_at || undefined
+
+      if (hasTrafficUpdate && trendTs) {
+        const merged = (prevNode.trend_24h || [])
+          .filter((p) => p.timestamp !== trendTs)
           .concat({
-            timestamp: payload.timestamp,
-            success_rate: payload.success_rate,
-            avg_time: payload.avg_response_time ?? prevNode.avg_response_time,
+            timestamp: trendTs,
+            success_rate: mergedTraffic.success_rate,
+            avg_time: mergedTraffic.avg_response_time,
           })
           .sort((a, b) => {
             const ta = parseToDate(a.timestamp)?.getTime() || 0
@@ -182,22 +202,25 @@ export default function Monitor({ shared = false }: MonitorProps) {
       return {
         ...prev,
         nodes: nextNodes,
-        updated_at: payload.timestamp || prev.updated_at,
+        updated_at: trendTs || prev.updated_at,
       }
     })
   }, [lastMessage])
 
   const aggregated = useMemo(() => {
     const list = dashboard?.nodes || []
-    const totalRequests = list.reduce((acc, n) => acc + Number(n.total_requests || 0), 0)
-    const failedRequests = list.reduce((acc, n) => acc + Number(n.failed_requests || 0), 0)
+    const totalRequests = list.reduce((acc, n) => acc + Number(n.traffic?.total_requests || 0), 0)
+    const failedRequests = list.reduce((acc, n) => acc + Number(n.traffic?.failed_requests || 0), 0)
     const successRate = totalRequests > 0 ? ((totalRequests - failedRequests) / totalRequests) * 100 : 100
     const avgResponse =
-      list.length > 0 ? list.reduce((acc, n) => acc + Number(n.avg_response_time || 0), 0) / list.length : 0
+      list.length > 0
+        ? list.reduce((acc, n) => acc + Number(n.traffic?.avg_response_time || 0), 0) / list.length
+        : 0
     const online = list.filter((n) => n.status === 'online').length
+    const degraded = list.filter((n) => n.status === 'degraded').length
     const offline = list.filter((n) => n.status === 'offline').length
-    const checking = list.filter((n) => n.status === 'checking').length
-    return { totalRequests, failedRequests, successRate, avgResponse, online, offline, checking }
+    const disabled = list.filter((n) => n.status === 'disabled').length
+    return { totalRequests, failedRequests, successRate, avgResponse, online, degraded, offline, disabled }
   }, [dashboard])
 
   const handleCreateShare = async () => {
@@ -298,7 +321,7 @@ export default function Monitor({ shared = false }: MonitorProps) {
         title="全局指标"
         extra={
           <div className="badge gray">
-            总节点 {dashboard?.nodes.length ?? 0} · 在线 {aggregated.online} · 离线 {aggregated.offline}
+            总节点 {dashboard?.nodes.length ?? 0} · 在线 {aggregated.online} · 降级 {aggregated.degraded} · 离线 {aggregated.offline}
           </div>
         }
       >
@@ -323,9 +346,9 @@ export default function Monitor({ shared = false }: MonitorProps) {
           <div className="stat-card glass">
             <span className="muted-title">状态分布</span>
             <div className="kpi-main">
-              🟢 {aggregated.online} / 🟡 {aggregated.checking} / 🔴 {aggregated.offline}
+              🟢 {aggregated.online} / ⚠️ {aggregated.degraded} / 🔴 {aggregated.offline} / ⏸ {aggregated.disabled}
             </div>
-            <div className="badge gray">在线 / 检测 / 离线</div>
+            <div className="badge gray">在线 / 降级 / 离线 / 停用</div>
           </div>
         </div>
       </Card>
@@ -342,12 +365,13 @@ export default function Monitor({ shared = false }: MonitorProps) {
         ) : dashboard && dashboard.nodes.length > 0 ? (
           <div className="nodes-grid">
             {dashboard.nodes.map((node) => (
-				<NodeCard
-					key={node.id}
-					node={node}
-					historyRefreshKey={historyRefreshKey}
-					healthEvent={healthEvents[node.id]}
-				/>
+			<NodeCard
+				key={node.id}
+				node={node}
+				historyRefreshKey={historyRefreshKey}
+				healthEvent={healthEvents[node.id]}
+				shareToken={shareToken}
+			/>
             ))}
           </div>
         ) : (

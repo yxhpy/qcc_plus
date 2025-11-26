@@ -18,7 +18,7 @@
 .node-card__header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
 }
 
@@ -39,82 +39,118 @@
   word-break: break-all;
 }
 
-.node-card__status {
+.node-card__status-badges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.status-badge {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
+  padding: 6px 10px;
   border-radius: 999px;
   font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.9);
 }
 
-.node-card__status .dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: currentColor;
+.status-badge.traffic.online {
+  background: rgba(34, 197, 94, 0.15);
+  border-color: rgba(34, 197, 94, 0.3);
+  color: #c6f6d5;
 }
 
-.node-card__status.online {
-  background: rgba(16, 185, 129, 0.15);
-  color: #34d399;
+.status-badge.traffic.offline,
+.status-badge.health.down {
+  background: rgba(248, 113, 113, 0.18);
+  border-color: rgba(248, 113, 113, 0.35);
+  color: #fecdd3;
 }
 
-.node-card__status.offline {
-  background: rgba(248, 113, 113, 0.15);
-  color: #fca5a5;
+.status-badge.traffic.degraded,
+.status-badge.health.stale {
+  background: rgba(245, 158, 11, 0.16);
+  border-color: rgba(245, 158, 11, 0.35);
+  color: #fcd34d;
 }
 
-.node-card__status.disabled {
-  background: rgba(156, 163, 175, 0.15);
-  color: #d1d5db;
+.status-badge.traffic.disabled {
+  background: rgba(148, 163, 184, 0.16);
+  border-color: rgba(148, 163, 184, 0.32);
+  color: #e5e7eb;
 }
 
-.node-card__metrics {
+.status-badge.health.up {
+  background: rgba(59, 130, 246, 0.18);
+  border-color: rgba(59, 130, 246, 0.32);
+  color: #c7d2fe;
+}
+
+.node-card__metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.node-card__section {
+  padding: 10px 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
+}
+
+.node-card__section.traffic {
+  box-shadow: inset 0 1px 0 rgba(16, 185, 129, 0.15);
+}
+
+.node-card__section.health {
+  box-shadow: inset 0 1px 0 rgba(59, 130, 246, 0.15);
+}
+
+.section-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 10px;
+  letter-spacing: 0.2px;
+}
+
+.section-content {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+}
+
+.metric-item {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
-.node-card__metrics-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  font-size: 13px;
-  color: var(--text-secondary);
-}
-
-.node-card__metrics-row.primary {
-  font-size: 14px;
-  color: var(--text-primary);
-}
-
-.node-card__metrics-row.primary strong {
-  color: #fff;
-  font-weight: 700;
-}
-
-.node-card__metrics-row.secondary {
+.metric-item .label {
   font-size: 12px;
   color: var(--text-muted);
 }
 
-.node-card__metrics-row.secondary strong {
-  color: var(--text-secondary);
-  font-weight: 600;
+.metric-item strong {
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
 }
 
-.node-card__metrics-row .sep {
-  color: rgba(255, 255, 255, 0.2);
-  margin: 0 2px;
-}
 
-.node-card__metrics-row .danger strong {
+.metric-item strong.danger {
   color: #fca5a5;
 }
+
+.health-up { color: #c7d2fe; }
+.health-down { color: #fecdd3; }
+.health-stale { color: #fcd34d; }
 
 .node-card__footer {
   display: flex;

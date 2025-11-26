@@ -17,22 +17,35 @@ type MonitorDashboardResponse struct {
 	UpdatedAt   string        `json:"updated_at"`
 }
 
+// ProxySummary 代理流量指标
+type ProxySummary struct {
+	SuccessRate     float64 `json:"success_rate"`      // 代理请求成功率
+	AvgResponseTime int64   `json:"avg_response_time"` // 平均响应时间(ms)
+	TotalRequests   int64   `json:"total_requests"`    // 总请求数
+	FailedRequests  int64   `json:"failed_requests"`   // 失败请求数
+}
+
+// HealthSummary 健康检查指标
+type HealthSummary struct {
+	Status      string  `json:"status"`        // up/down/stale
+	LastCheckAt *string `json:"last_check_at"` // 最近检查时间
+	LastPingMs  int64   `json:"last_ping_ms"`  // 最近检查延时
+	LastPingErr string  `json:"last_ping_err"` // 最近检查错误
+	CheckMethod string  `json:"check_method"`  // 检查方式 api/head/cli
+}
+
 type MonitorNode struct {
-	ID              string       `json:"id"`
-	Name            string       `json:"name"`
-	URL             string       `json:"url"`
-	Status          string       `json:"status"`
-	Weight          int          `json:"weight"`
-	IsActive        bool         `json:"is_active"`
-	Disabled        bool         `json:"disabled"`
-	SuccessRate     float64      `json:"success_rate"`
-	AvgResponseTime int64        `json:"avg_response_time"`
-	LastCheckAt     *string      `json:"last_check_at"`
-	LastError       string       `json:"last_error"`
-	LastPingMS      int64        `json:"last_ping_ms"`
-	Trend24h        []TrendPoint `json:"trend_24h"`
-	TotalRequests   int64        `json:"total_requests"`
-	FailedRequests  int64        `json:"failed_requests"`
+	ID        string        `json:"id"`
+	Name      string        `json:"name"`
+	URL       string        `json:"url"`
+	Status    string        `json:"status"` // 综合状态: online/degraded/offline/unknown/disabled
+	Weight    int           `json:"weight"`
+	IsActive  bool          `json:"is_active"`
+	Disabled  bool          `json:"disabled"`
+	LastError string        `json:"last_error"`
+	Traffic   ProxySummary  `json:"traffic"` // 代理流量指标
+	Health    HealthSummary `json:"health"`  // 健康检查指标
+	Trend24h  []TrendPoint  `json:"trend_24h"`
 }
 
 type TrendPoint struct {
@@ -49,6 +62,7 @@ type nodeSnapshot struct {
 	Failed    bool
 	Disabled  bool
 	LastError string
+	Method    string
 	Metrics   metrics
 	CreatedAt time.Time
 }
@@ -123,6 +137,7 @@ func (p *Server) buildMonitorDashboardResponse(ctx context.Context, target *Acco
 			Failed:    n.Failed,
 			Disabled:  n.Disabled,
 			LastError: n.LastError,
+			Method:    n.HealthCheckMethod,
 			Metrics:   n.Metrics,
 			CreatedAt: n.CreatedAt,
 		})
@@ -153,42 +168,44 @@ func (p *Server) buildMonitorDashboardResponse(ctx context.Context, target *Acco
 		}
 	}
 
+	now := time.Now()
+	healthInterval := target.Config.HealthEvery
+	if healthInterval <= 0 {
+		healthInterval = p.healthEvery
+	}
 	nodes := make([]MonitorNode, 0, len(snapshots))
 	for _, snap := range snapshots {
-		successCount := snap.Metrics.Requests - snap.Metrics.FailCount
-		if successCount < 0 {
-			successCount = 0
-		}
-		status := "offline"
-		if !snap.Failed && !snap.Disabled {
+		traffic := summarizeTraffic(snap.Metrics)
+		health := summarizeHealth(snap.Metrics, snap.Method, healthInterval, now)
+
+		status := "unknown"
+		if snap.Disabled {
+			status = "disabled"
+		} else if snap.Failed || health.Status == "down" {
+			status = "offline"
+		} else if health.Status == "stale" {
+			status = "degraded"
+		} else {
 			status = "online"
 		}
+
 		lastError := snap.LastError
 		if lastError == "" {
 			lastError = snap.Metrics.LastPingErr
 		}
-		var lastCheck *string
-		if !snap.Metrics.LastHealthCheckAt.IsZero() {
-			ts := timeutil.FormatBeijingTime(snap.Metrics.LastHealthCheckAt)
-			lastCheck = &ts
-		}
-		totalDuration := snap.Metrics.FirstByteDur + snap.Metrics.StreamDur
+
 		nodes = append(nodes, MonitorNode{
-			ID:              snap.ID,
-			Name:            snap.Name,
-			URL:             snap.URL,
-			Status:          status,
-			Weight:          snap.Weight,
-			IsActive:        snap.ID == activeID,
-			Disabled:        snap.Disabled,
-			SuccessRate:     calculateSuccessRate(successCount, snap.Metrics.FailCount),
-			AvgResponseTime: calculateAvgResponseTime(totalDuration.Milliseconds(), snap.Metrics.Requests),
-			LastCheckAt:     lastCheck,
-			LastError:       lastError,
-			LastPingMS:      snap.Metrics.LastPingMS,
-			Trend24h:        buildTrendPoints(trendRecords[snap.ID]),
-			TotalRequests:   snap.Metrics.Requests,
-			FailedRequests:  snap.Metrics.FailCount,
+			ID:        snap.ID,
+			Name:      snap.Name,
+			URL:       snap.URL,
+			Status:    status,
+			Weight:    snap.Weight,
+			IsActive:  snap.ID == activeID,
+			Disabled:  snap.Disabled,
+			LastError: lastError,
+			Traffic:   traffic,
+			Health:    health,
+			Trend24h:  buildTrendPoints(trendRecords[snap.ID]),
 		})
 	}
 
@@ -231,4 +248,48 @@ func buildTrendPoints(records []store.MetricsRecord) []TrendPoint {
 		})
 	}
 	return points
+}
+
+func summarizeTraffic(m metrics) ProxySummary {
+	successCount := m.Requests - m.FailCount
+	if successCount < 0 {
+		successCount = 0
+	}
+	totalDuration := m.FirstByteDur + m.StreamDur
+
+	return ProxySummary{
+		SuccessRate:     calculateSuccessRate(successCount, m.FailCount),
+		AvgResponseTime: calculateAvgResponseTime(totalDuration.Milliseconds(), m.Requests),
+		TotalRequests:   m.Requests,
+		FailedRequests:  m.FailCount,
+	}
+}
+
+func summarizeHealth(m metrics, method string, interval time.Duration, now time.Time) HealthSummary {
+	healthStatus := computeHealthStatus(m.LastHealthCheckAt, m.LastPingErr, interval, now)
+	var lastCheck *string
+	if !m.LastHealthCheckAt.IsZero() {
+		formatted := timeutil.FormatBeijingTime(m.LastHealthCheckAt)
+		lastCheck = &formatted
+	}
+
+	return HealthSummary{
+		Status:      healthStatus,
+		LastCheckAt: lastCheck,
+		LastPingMs:  m.LastPingMS,
+		LastPingErr: m.LastPingErr,
+		CheckMethod: normalizeHealthCheckMethod(method),
+	}
+}
+
+func computeHealthStatus(lastCheckAt time.Time, lastPingErr string, interval time.Duration, now time.Time) string {
+	if interval > 0 && !lastCheckAt.IsZero() {
+		if now.Sub(lastCheckAt) > 2*interval {
+			return "stale"
+		}
+	}
+	if lastPingErr != "" {
+		return "down"
+	}
+	return "up"
 }

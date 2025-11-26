@@ -258,31 +258,36 @@ func (p *Server) checkNodeHealth(acc *Account, id string) {
 	}
 
 	if p.wsHub != nil && acc != nil && hasNode {
-		successCount := metricsSnapshot.Requests - metricsSnapshot.FailCount
-		if successCount < 0 {
-			successCount = 0
+		healthInterval := acc.Config.HealthEvery
+		if healthInterval <= 0 {
+			healthInterval = p.healthEvery
 		}
-		successRate := calculateSuccessRate(successCount, metricsSnapshot.FailCount)
-		totalDuration := metricsSnapshot.FirstByteDur + metricsSnapshot.StreamDur
-		avgResponseTime := calculateAvgResponseTime(totalDuration.Milliseconds(), metricsSnapshot.Requests)
-		ts := metricsSnapshot.LastHealthCheckAt
-		if ts.IsZero() {
-			ts = time.Now()
-		}
-		status := "offline"
-		if !nodeFailed && !nodeDisabled {
+		health := summarizeHealth(metricsSnapshot, method, healthInterval, time.Now())
+		traffic := summarizeTraffic(metricsSnapshot)
+
+		status := "unknown"
+		if nodeDisabled {
+			status = "disabled"
+		} else if nodeFailed || health.Status == "down" {
+			status = "offline"
+		} else if health.Status == "stale" {
+			status = "degraded"
+		} else {
 			status = "online"
 		}
+
+		timestamp := timeutil.FormatBeijingTime(time.Now())
+		if health.LastCheckAt != nil {
+			timestamp = *health.LastCheckAt
+		}
+
 		p.wsHub.Broadcast(acc.ID, "node_metrics", map[string]interface{}{
-			"node_id":           nodeID,
-			"node_name":         nodeName,
-			"status":            status,
-			"total_requests":    metricsSnapshot.Requests,
-			"failed_requests":   metricsSnapshot.FailCount,
-			"success_rate":      successRate,
-			"avg_response_time": avgResponseTime,
-			"last_ping_ms":      metricsSnapshot.LastPingMS,
-			"timestamp":         timeutil.FormatBeijingTime(ts),
+			"node_id":   nodeID,
+			"node_name": nodeName,
+			"status":    status,
+			"traffic":   traffic,
+			"health":    health,
+			"timestamp": timestamp,
 		})
 	}
 }

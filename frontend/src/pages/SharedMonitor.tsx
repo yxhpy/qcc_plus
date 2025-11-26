@@ -66,16 +66,30 @@ export default function SharedMonitor() {
       const idx = prev.nodes.findIndex((n) => n.id === payload.node_id)
       if (idx === -1) return prev
       const prevNode = prev.nodes[idx]
+
+      const mergedTraffic = {
+        success_rate: payload.traffic?.success_rate ?? payload.success_rate ?? prevNode.traffic?.success_rate ?? 0,
+        avg_response_time:
+          payload.traffic?.avg_response_time ?? payload.avg_response_time ?? prevNode.traffic?.avg_response_time ?? 0,
+        total_requests: payload.traffic?.total_requests ?? payload.total_requests ?? prevNode.traffic?.total_requests ?? 0,
+        failed_requests:
+          payload.traffic?.failed_requests ?? payload.failed_requests ?? prevNode.traffic?.failed_requests ?? 0,
+      }
+
+      const mergedHealth = {
+        status: (payload.health?.status ?? prevNode.health?.status ?? 'up') as typeof prevNode.health.status,
+        last_check_at: payload.health?.last_check_at ?? payload.timestamp ?? prevNode.health?.last_check_at ?? null,
+        last_ping_ms: payload.health?.last_ping_ms ?? payload.last_ping_ms ?? prevNode.health?.last_ping_ms ?? 0,
+        last_ping_err: payload.health?.last_ping_err ?? prevNode.health?.last_ping_err ?? '',
+        check_method: (payload.health?.check_method ?? prevNode.health?.check_method ?? 'api').toLowerCase(),
+      }
+
       const nextNode = {
         ...prevNode,
         status: (payload.status as typeof prevNode.status | undefined) || prevNode.status,
         last_error: payload.error ?? prevNode.last_error,
-        success_rate: payload.success_rate ?? prevNode.success_rate,
-        avg_response_time: payload.avg_response_time ?? prevNode.avg_response_time,
-        total_requests: payload.total_requests ?? prevNode.total_requests,
-        failed_requests: payload.failed_requests ?? prevNode.failed_requests,
-        last_ping_ms: payload.last_ping_ms ?? prevNode.last_ping_ms,
-        last_check_at: payload.timestamp || prevNode.last_check_at,
+        traffic: mergedTraffic,
+        health: mergedHealth,
       }
       const nextNodes = prev.nodes.slice()
       nextNodes[idx] = nextNode

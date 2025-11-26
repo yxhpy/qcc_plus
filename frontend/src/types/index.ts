@@ -108,6 +108,21 @@ export interface TrendPoint {
   avg_time: number;
 }
 
+export interface ProxySummary {
+  success_rate: number;
+  avg_response_time: number;
+  total_requests: number;
+  failed_requests: number;
+}
+
+export interface HealthSummary {
+  status: string; // up/down/stale
+  last_check_at: string | null;
+  last_ping_ms: number;
+  last_ping_err: string;
+  check_method: string;
+}
+
 export interface HealthCheckRecord {
   node_id?: string;
   check_time: string;
@@ -129,18 +144,14 @@ export interface MonitorNode {
   id: string;
   name: string;
   url: string;
-  status: 'online' | 'offline' | 'checking';
+  status: 'online' | 'offline' | 'degraded' | 'disabled' | 'unknown';
   weight: number;
   is_active: boolean;
   disabled: boolean;
-  success_rate: number;
-  avg_response_time: number;
-  last_check_at?: string | null;
   last_error?: string;
-  last_ping_ms?: number;
-  trend_24h: TrendPoint[];
-  total_requests?: number;
-  failed_requests?: number;
+  traffic: ProxySummary;
+  health: HealthSummary;
+  trend_24h?: TrendPoint[];
 }
 
 export interface MonitorDashboard {
@@ -175,12 +186,15 @@ export type WSMessage =
         node_name: string;
         status?: string;
         error?: string;
+        traffic?: Partial<ProxySummary>;
+        health?: Partial<HealthSummary>;
+        // 兼容旧字段
         success_rate?: number;
         avg_response_time?: number;
         total_requests?: number;
         failed_requests?: number;
         last_ping_ms?: number;
-        timestamp: string;
+        timestamp?: string;
       };
     }
   | {

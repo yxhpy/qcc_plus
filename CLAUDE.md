@@ -271,6 +271,23 @@ docker compose up -d
 
 ## 版本控制
 <version_control description="Git 工作流规范">
+    <branch_strategy description="分支策略（强制）">
+        <rule>**强制规则**：所有开发工作必须在 `test` 分支进行，编写代码前必须确认当前分支</rule>
+        <branches>
+            <branch name="test" purpose="日常开发">✅ 在这里开发，推送后自动部署到测试环境（端口 8001）</branch>
+            <branch name="main" purpose="正式发布">合并测试通过的代码，用于打 tag 发布版本</branch>
+            <branch name="prod" purpose="生产部署">部署到生产服务器（端口 8000）</branch>
+        </branches>
+        <workflow>
+            <step>1. 开发：git checkout test → 编写代码 → git push origin test</step>
+            <step>2. 发布：git checkout main → git merge test → git tag vX.Y.Z → git push origin vX.Y.Z</step>
+            <step>3. 部署：git checkout prod → git merge main → git push origin prod</step>
+        </workflow>
+        <pre_coding_checklist description="编写代码前必须执行">
+            <check>git branch --show-current（确认在 test 分支）</check>
+            <check>如不在 test 分支，执行 git checkout test</check>
+        </pre_coding_checklist>
+    </branch_strategy>
     <commit_format>[类型] 简短描述</commit_format>
     <commit_types>
         <type name="feat">新功能</type>

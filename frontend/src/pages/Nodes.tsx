@@ -392,11 +392,6 @@ export default function Nodes() {
         </td>
         <td className="node-name-cell">{node.name || '未命名'}</td>
         <td>
-          <div className="url-cell" title={node.base_url || '-'}>
-            {node.base_url || '-'}
-          </div>
-        </td>
-        <td>
           <div
             className={`pill ${status.cls}`}
             style={{ cursor: node.failed && node.last_error ? 'pointer' : 'default' }}
@@ -406,6 +401,8 @@ export default function Nodes() {
             <span>{status.label}</span>
           </div>
         </td>
+        <td>{formatHealthMethod(node.health_check_method)}</td>
+        <td>{node.last_ping_ms == null ? '-' : `${node.last_ping_ms}ms`}</td>
         <td>
           {health === null ? (
             '-'
@@ -413,8 +410,7 @@ export default function Nodes() {
             <span className={healthClass(health)}>{health.toFixed(1)}%</span>
           )}
         </td>
-        <td title="值越小优先级越高">{node.weight || 1}</td>
-        <td>{node.requests ?? 0}</td>
+        <td>{`${node.requests ?? 0}/${node.fail_count ?? 0}`}</td>
         <td>
           <div className="table-actions" style={{ rowGap: 6 }}>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -515,12 +511,12 @@ export default function Nodes() {
               <tr>
                 <th style={{ width: 54 }}>排序</th>
                 <th>名称</th>
-                <th>Base URL</th>
                 <th>状态</th>
-                <th>健康率</th>
-                <th title="值越小优先级越高">权重</th>
-                <th>请求数</th>
-                <th style={{ minWidth: 230 }}>操作</th>
+                <th>检查方式</th>
+                <th>延迟</th>
+                <th>成功率</th>
+                <th>请求/失败</th>
+                <th style={{ minWidth: 200 }}>操作</th>
               </tr>
             </thead>
             <DndContext

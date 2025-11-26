@@ -152,7 +152,7 @@ func (p *Server) listNodes(acc *Account) []map[string]interface{} {
 				"requests":              n.Metrics.Requests,
 				"fail_count":            n.Metrics.FailCount,
 				"fail_streak":           n.Metrics.FailStreak,
-				"health_rate":           fmt.Sprintf("%.1f%%", healthRate),
+				"health_rate":           healthRate,
 				"ping_ms":               n.Metrics.LastPingMS,
 				"ping_error":            n.Metrics.LastPingErr,
 				"last_ping_ms":          n.Metrics.LastPingMS,

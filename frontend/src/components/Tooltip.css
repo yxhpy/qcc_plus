@@ -1,0 +1,109 @@
+.tooltip-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.tooltip-content {
+  position: absolute;
+  background: #1f2937;
+  color: #ffffff;
+  padding: 8px 12px;
+  border-radius: 6px;
+  max-width: var(--tooltip-max-width, 300px);
+  z-index: 1000;
+  white-space: pre-wrap;
+  word-break: break-word;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 200ms ease, transform 200ms ease;
+  font-size: 13px;
+  line-height: 1.4;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+}
+
+.tooltip-content.show {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.tooltip-top {
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translate(-50%, -4px);
+}
+
+.tooltip-top.show {
+  transform: translate(-50%, 0);
+}
+
+.tooltip-bottom {
+  top: calc(100% + 10px);
+  left: 50%;
+  transform: translate(-50%, 4px);
+}
+
+.tooltip-bottom.show {
+  transform: translate(-50%, 0);
+}
+
+.tooltip-left {
+  right: calc(100% + 10px);
+  top: 50%;
+  transform: translate(4px, -50%);
+}
+
+.tooltip-left.show {
+  transform: translate(0, -50%);
+}
+
+.tooltip-right {
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translate(-4px, -50%);
+}
+
+.tooltip-right.show {
+  transform: translate(0, -50%);
+}
+
+.tooltip-arrow {
+  position: absolute;
+  width: 0;
+  height: 0;
+  border-style: solid;
+}
+
+.tooltip-top .tooltip-arrow {
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 6px 6px 0 6px;
+  border-color: #1f2937 transparent transparent transparent;
+}
+
+.tooltip-bottom .tooltip-arrow {
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 0 6px 6px 6px;
+  border-color: transparent transparent #1f2937 transparent;
+}
+
+.tooltip-left .tooltip-arrow {
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  border-width: 6px 0 6px 6px;
+  border-color: transparent transparent transparent #1f2937;
+}
+
+.tooltip-right .tooltip-arrow {
+  right: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  border-width: 6px 6px 6px 0;
+  border-color: transparent #1f2937 transparent transparent;
+}

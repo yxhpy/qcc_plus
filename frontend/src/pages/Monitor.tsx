@@ -5,6 +5,7 @@ import NodeCard from '../components/NodeCard'
 import Toast from '../components/Toast'
 import { useAuth } from '../hooks/useAuth'
 import { useMonitorWebSocket } from '../hooks/useMonitorWebSocket'
+import { useNodeMetrics } from '../contexts/NodeMetricsContext'
 import api from '../services/api'
 import type {
   Account,
@@ -25,6 +26,7 @@ export default function Monitor({ shared = false }: MonitorProps) {
   const params = useParams<{ token?: string }>()
   const shareToken = shared ? params.token : undefined
   const { isAdmin } = useAuth()
+  const { preference, setPreference, resetToDefault } = useNodeMetrics()
 
   const [accounts, setAccounts] = useState<Account[]>([])
   const [accountId, setAccountId] = useState('')
@@ -275,6 +277,25 @@ export default function Monitor({ shared = false }: MonitorProps) {
           <div className={`ws-pill ${connected ? 'on' : 'off'}`}>
             <span className="status-dot" />
             WebSocket {connected ? '已连接' : '未连接'}
+          </div>
+          <div className="monitor-settings">
+            <label className="setting-checkbox">
+              <input
+                type="checkbox"
+                checked={preference.showProxy}
+                onChange={(e) => setPreference({ showProxy: e.target.checked })}
+              />
+              <span>代理</span>
+            </label>
+            <label className="setting-checkbox">
+              <input
+                type="checkbox"
+                checked={preference.showHealth}
+                onChange={(e) => setPreference({ showHealth: e.target.checked })}
+              />
+              <span>探活</span>
+            </label>
+            <button className="reset-btn" onClick={resetToDefault}>重置</button>
           </div>
           {!shared && (
             <label className="auto-refresh">

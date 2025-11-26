@@ -52,6 +52,10 @@
   gap: 6px;
 }
 
+.node-card__metrics-compact:empty {
+  display: none;
+}
+
 .metrics-row {
   display: flex;
   align-items: center;
@@ -152,18 +156,16 @@
   right: 12px;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  background: var(--color-danger-bg);
-  color: var(--color-danger-text);
-  border-radius: 10px;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1.2;
-  max-width: 65%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-  z-index: 1;
+  z-index: 2;
+}
+
+.node-card__error-icon {
+  font-size: 18px;
+  cursor: pointer;
+  filter: grayscale(0) brightness(1);
+  transition: transform 0.2s;
+}
+
+.node-card__error-icon:hover {
+  transform: scale(1.1);
 }

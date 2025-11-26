@@ -41,6 +41,37 @@
   flex-wrap: wrap;
 }
 
+.monitor-settings {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 8px;
+  background: var(--color-bg-secondary, #374151);
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.setting-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.reset-btn {
+  padding: 2px 6px;
+  background: var(--color-bg-tertiary, #4B5563);
+  border: none;
+  border-radius: 3px;
+  color: var(--color-text-secondary, #9CA3AF);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.reset-btn:hover {
+  background: #6B7280;
+}
+
 .ws-pill {
   display: inline-flex;
   align-items: center;

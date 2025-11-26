@@ -1,5 +1,7 @@
 import type { HealthCheckRecord, MonitorNode } from '../types'
 import HealthTimeline from './HealthTimeline'
+import Tooltip from './Tooltip'
+import { useNodeMetrics } from '../contexts/NodeMetricsContext'
 import './NodeCard.css'
 
 interface NodeCardProps {
@@ -10,6 +12,7 @@ interface NodeCardProps {
 }
 
 export default function NodeCard({ node, historyRefreshKey, healthEvent, shareToken }: NodeCardProps) {
+  const { preference } = useNodeMetrics()
   const successRate = Number(node.traffic?.success_rate ?? 0)
   const avgTime = Number(node.traffic?.avg_response_time ?? 0)
   const totalReq = Number(node.traffic?.total_requests ?? 0)
@@ -27,8 +30,10 @@ export default function NodeCard({ node, historyRefreshKey, healthEvent, shareTo
   return (
     <div className={`node-card ${node.is_active ? 'node-card--active' : ''}`}>
       {lastError && (
-        <div className="node-card__error-badge" title={lastError}>
-          错误: {lastError}
+        <div className="node-card__error-badge">
+          <Tooltip content={lastError} trigger="both" maxWidth="300px">
+            <span className="node-card__error-icon" role="img" aria-label="错误">⚠️</span>
+          </Tooltip>
         </div>
       )}
       {/* Header: 节点名 + 双状态徽章 */}
@@ -41,26 +46,28 @@ export default function NodeCard({ node, historyRefreshKey, healthEvent, shareTo
 
       {/* 紧凑指标区 - 两行 */}
       <div className="node-card__metrics-compact">
-        {/* 代理行 */}
-        <div className="metrics-row traffic">
-          <span className="row-label">代理</span>
-          <span className="metric">成功率 <strong>{successRate.toFixed(1)}%</strong></span>
-          <span className="sep">|</span>
-          <span className="metric">延时 <strong>{avgTime ? avgTime : '--'}ms</strong></span>
-          <span className="sep">|</span>
-          <span className="metric">请求 <strong>{totalReq.toLocaleString()}</strong></span>
-          <span className="metric secondary">/失败 <strong className={failedReq > 0 ? 'danger' : ''}>{failedReq.toLocaleString()}</strong></span>
-        </div>
-        {/* 探活行 */}
-        <div className="metrics-row health">
-          <span className="row-label">探活</span>
-          <span className={`metric health-${healthStatus}`}><strong>{healthLabel[healthStatus]}</strong></span>
-          <span className="sep">|</span>
-          <span className="metric"><strong>{lastPing || '--'}ms</strong></span>
-          <span className="metric secondary">({checkMethod})</span>
-          <span className="sep">|</span>
-          <span className="metric secondary">检查于 {lastCheckShort}</span>
-        </div>
+        {preference.showProxy && (
+          <div className="metrics-row traffic">
+            <span className="row-label">代理</span>
+            <span className="metric">成功率 <strong>{successRate.toFixed(1)}%</strong></span>
+            <span className="sep">|</span>
+            <span className="metric">延时 <strong>{avgTime ? avgTime : '--'}ms</strong></span>
+            <span className="sep">|</span>
+            <span className="metric">请求 <strong>{totalReq.toLocaleString()}</strong></span>
+            <span className="metric secondary">/失败 <strong className={failedReq > 0 ? 'danger' : ''}>{failedReq.toLocaleString()}</strong></span>
+          </div>
+        )}
+        {preference.showHealth && (
+          <div className="metrics-row health">
+            <span className="row-label">探活</span>
+            <span className={`metric health-${healthStatus}`}><strong>{healthLabel[healthStatus]}</strong></span>
+            <span className="sep">|</span>
+            <span className="metric"><strong>{lastPing || '--'}ms</strong></span>
+            <span className="metric secondary">({checkMethod})</span>
+            <span className="sep">|</span>
+            <span className="metric secondary">检查于 {lastCheckShort}</span>
+          </div>
+        )}
       </div>
 
       {/* 健康检查历史 - 保持原样但更紧凑 */}

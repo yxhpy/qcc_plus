@@ -4,7 +4,7 @@ import NodeCard from '../components/NodeCard'
 import type { HealthCheckRecord, MonitorDashboard } from '../types'
 import api from '../services/api'
 import { useMonitorWebSocket } from '../hooks/useMonitorWebSocket'
-import { formatBeijingTime } from '../utils/date'
+import { formatBeijingTime, parseToDate } from '../utils/date'
 import './SharedMonitor.css'
 
 export default function SharedMonitor() {
@@ -36,6 +36,10 @@ export default function SharedMonitor() {
       }
     }
     fetchData()
+  }, [token])
+
+  useEffect(() => {
+    setHealthEvents({})
   }, [token])
 
   // 处理 WebSocket 实时更新
@@ -91,12 +95,33 @@ export default function SharedMonitor() {
         traffic: mergedTraffic,
         health: mergedHealth,
       }
+
+      const hasTrafficUpdate =
+        payload.traffic?.success_rate !== undefined || payload.success_rate !== undefined
+      const trendTs = payload.timestamp || mergedHealth.last_check_at || undefined
+
+      if (hasTrafficUpdate && trendTs) {
+        const merged = (prevNode.trend_24h || [])
+          .filter((p) => p.timestamp !== trendTs)
+          .concat({
+            timestamp: trendTs,
+            success_rate: mergedTraffic.success_rate,
+            avg_time: mergedTraffic.avg_response_time,
+          })
+          .sort((a, b) => {
+            const ta = parseToDate(a.timestamp)?.getTime() || 0
+            const tb = parseToDate(b.timestamp)?.getTime() || 0
+            return ta - tb
+          })
+          .slice(-96)
+        nextNode.trend_24h = merged
+      }
       const nextNodes = prev.nodes.slice()
       nextNodes[idx] = nextNode
       return {
         ...prev,
         nodes: nextNodes,
-        updated_at: payload.timestamp || prev.updated_at,
+        updated_at: trendTs || prev.updated_at,
       }
     })
   }, [lastMessage])

@@ -2,11 +2,11 @@
 - 必须保证本文件简洁、准确，并且保证文件实时更新
 
 ## 最后更新
-- **更新日期**: 2025-11-26
+- **更新日期**: 2025-11-27
 - **更新人**: Claude Code
-- **当前版本**: v1.5.0
-- **最新功能**: 健康检查状态两态化、节点列表展示优化
-- **最新更新**: 在线/离线两态显示，移除卡片状态徽章，节点列表信息更紧凑；前端主题与布局紧凑化延续
+- **当前版本**: v1.6.1
+- **最新功能**: 配置中心、趋势数据实时性、健康检查历史修复
+- **最新更新**: 配置中心统一管理；趋势数据包含当前小时；健康检查历史返回最新N条并正序显示
 - **GitHub**: https://github.com/yxhpy/qcc_plus
 - **Docker Hub**: https://hub.docker.com/r/yxhpy520/qcc_plus
 
@@ -526,6 +526,26 @@ docker compose up -d
     </important_notes>
 
     <version_history description="版本发布历史">
+        <release version="v1.6.1" date="2025-11-27">
+            <description>健康检查历史数据修复</description>
+            <highlights>
+                - 修复健康检查历史数据显示不完整的问题
+                - 返回最新N条记录并按正序显示
+            </highlights>
+            <github>https://github.com/yxhpy/qcc_plus/releases/tag/v1.6.1</github>
+            <docker>yxhpy520/qcc_plus:v1.6.1</docker>
+        </release>
+        <release version="v1.6.0" date="2025-11-27">
+            <description>配置中心与数据实时性</description>
+            <highlights>
+                - 配置中心：统一系统配置管理、热更新、管理界面
+                - 趋势数据实时性：包含当前小时的原始数据
+                - 系统设置页面样式统一
+                - 错误信息图标化显示
+            </highlights>
+            <github>https://github.com/yxhpy/qcc_plus/releases/tag/v1.6.0</github>
+            <docker>yxhpy520/qcc_plus:v1.6.0</docker>
+        </release>
         <release version="v1.5.0" date="2025-11-26">
             <description>健康检查两态化与列表体验优化</description>
             <highlights>

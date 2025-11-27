@@ -48,7 +48,7 @@ func (s *Store) InsertHealthCheck(ctx context.Context, record *HealthCheckRecord
 	return err
 }
 
-// QueryHealthChecks 查询健康检查历史，按时间降序返回（最新的在前）。
+// QueryHealthChecks 查询健康检查历史，返回最新的 limit 条记录，按时间正序排列（用于显示）。
 func (s *Store) QueryHealthChecks(ctx context.Context, params QueryHealthCheckParams) ([]HealthCheckRecord, error) {
 	if s == nil || s.db == nil {
 		return nil, errors.New("store not initialized")
@@ -83,12 +83,16 @@ func (s *Store) QueryHealthChecks(ctx context.Context, params QueryHealthCheckPa
 
 	ctx, cancel := withTimeout(ctx)
 	defer cancel()
-	// 使用降序排列，确保 limit 时返回最新的数据
+	// 使用子查询：先用 DESC 取最新的 N 条，再用 ASC 排序返回（正序显示）
 	rows, err := s.db.QueryContext(ctx, `SELECT id, account_id, node_id, check_time, success, response_time_ms, error_message, check_method, created_at
-		FROM health_check_history
-		WHERE account_id=? AND node_id=? AND check_time >= ? AND check_time <= ?
-		ORDER BY check_time DESC
-		LIMIT ? OFFSET ?`,
+		FROM (
+			SELECT id, account_id, node_id, check_time, success, response_time_ms, error_message, check_method, created_at
+			FROM health_check_history
+			WHERE account_id=? AND node_id=? AND check_time >= ? AND check_time <= ?
+			ORDER BY check_time DESC
+			LIMIT ? OFFSET ?
+		) AS latest
+		ORDER BY check_time ASC`,
 		params.AccountID, params.NodeID, params.From, params.To, limit, offset)
 	if err != nil {
 		return nil, err

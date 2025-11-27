@@ -507,12 +507,6 @@ func (s *Store) migrateConfigToSettings(ctx context.Context) error {
 	if err := s.insertSettingIfMissing(ctx, "health.check_interval_sec", "system", nil, sysCfg.HealthEveryMs/1000, "number", "health"); err != nil {
 		return err
 	}
-	if err := s.insertSettingIfMissing(ctx, "health.check_workers", "system", nil, 16, "number", "health"); err != nil {
-		return err
-	}
-	if err := s.insertSettingIfMissing(ctx, "health.round_timeout_sec", "system", nil, 60, "number", "health"); err != nil {
-		return err
-	}
 	log.Printf("[migration] system settings migrated from account %s", sysCfg.AccountID)
 
 	// 4) account 级别 active_node。

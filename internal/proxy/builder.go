@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -27,8 +26,6 @@ type Builder struct {
 	failLimit          int
 	healthEvery        time.Duration
 	healthAllInterval  time.Duration
-	healthWorkers      int
-	healthRoundTimeout time.Duration
 	storeDSN           string
 	adminKey           string
 	defaultAccountName string
@@ -38,7 +35,7 @@ type Builder struct {
 
 // NewBuilder 构建带默认监听地址和日志的 Builder。
 func NewBuilder() *Builder {
-	return &Builder{listenAddr: ":8000", logger: log.Default(), upstreamName: "default", retries: 3, failLimit: 3, healthEvery: 30 * time.Second, healthWorkers: defaultHealthWorkers, healthRoundTimeout: defaultHealthRoundTimeout}
+	return &Builder{listenAddr: ":8000", logger: log.Default(), upstreamName: "default", retries: 3, failLimit: 3, healthEvery: 30 * time.Second}
 }
 
 func chooseNonEmpty(vals ...string) string {
@@ -48,23 +45,6 @@ func chooseNonEmpty(vals ...string) string {
 		}
 	}
 	return ""
-}
-
-func normalizeHealthWorkers(n int) int {
-	if n < 1 {
-		return defaultHealthWorkers
-	}
-	if n > maxHealthWorkers {
-		return maxHealthWorkers
-	}
-	return n
-}
-
-func normalizeRoundTimeout(d time.Duration) time.Duration {
-	if d <= 0 {
-		return defaultHealthRoundTimeout
-	}
-	return d
 }
 
 // WithUpstream 设置默认上游地址（必填）。
@@ -132,22 +112,6 @@ func (b *Builder) WithFailLimit(n int) *Builder {
 func (b *Builder) WithHealthEvery(d time.Duration) *Builder {
 	if d > 0 {
 		b.healthEvery = d
-	}
-	return b
-}
-
-// WithHealthWorkers 设置健康检查 worker 数量（1-256）。
-func (b *Builder) WithHealthWorkers(n int) *Builder {
-	if n > 0 {
-		b.healthWorkers = n
-	}
-	return b
-}
-
-// WithHealthRoundTimeout 设置全量健康检查单轮超时。
-func (b *Builder) WithHealthRoundTimeout(d time.Duration) *Builder {
-	if d > 0 {
-		b.healthRoundTimeout = d
 	}
 	return b
 }
@@ -223,27 +187,6 @@ func (b *Builder) Build() (*Server, error) {
 		logger = log.Default()
 	}
 
-	healthWorkers := normalizeHealthWorkers(b.healthWorkers)
-	roundTimeout := normalizeRoundTimeout(b.healthRoundTimeout)
-
-	if raw := os.Getenv("PROXY_HEALTH_WORKERS"); raw != "" {
-		if n, err := strconv.Atoi(raw); err == nil {
-			healthWorkers = normalizeHealthWorkers(n)
-		} else {
-			logger.Printf("invalid PROXY_HEALTH_WORKERS=%s, fallback to %d", raw, healthWorkers)
-		}
-	}
-
-	if raw := os.Getenv("PROXY_HEALTH_ROUND_TIMEOUT"); raw != "" {
-		if d, err := time.ParseDuration(raw); err == nil && d > 0 {
-			roundTimeout = normalizeRoundTimeout(d)
-		} else if n, err := strconv.Atoi(raw); err == nil && n > 0 {
-			roundTimeout = normalizeRoundTimeout(time.Duration(n) * time.Second)
-		} else {
-			logger.Printf("invalid PROXY_HEALTH_ROUND_TIMEOUT=%s, fallback to %v", raw, roundTimeout)
-		}
-	}
-
 	aggregateInterval := defaultAggregateInterval
 	if v := os.Getenv("METRICS_AGGREGATE_INTERVAL"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil && d > 0 {
@@ -316,23 +259,21 @@ func (b *Builder) Build() (*Server, error) {
 	go hub.Run()
 
 	srv := &Server{
-		accounts:           make(map[string]*Account),
-		accountByID:        make(map[string]*Account),
-		nodeIndex:          make(map[string]*Node),
-		nodeAccount:        make(map[string]*Account),
-		listenAddr:         b.listenAddr,
-		transport:          transport,
-		healthRT:           healthRT,
-		healthWorkers:      healthWorkers,
-		healthRoundTimeout: roundTimeout,
-		cliRunner:          runner,
-		logger:             logger,
-		store:              st,
-		adminKey:           adminKey,
-		defaultAccName:     defaultAccountName,
-		sessionMgr:         NewSessionManager(defaultSessionTTL),
-		metricsScheduler:   metricsScheduler,
-		wsHub:              hub,
+		accounts:         make(map[string]*Account),
+		accountByID:      make(map[string]*Account),
+		nodeIndex:        make(map[string]*Node),
+		nodeAccount:      make(map[string]*Account),
+		listenAddr:       b.listenAddr,
+		transport:        transport,
+		healthRT:         healthRT,
+		cliRunner:        runner,
+		logger:           logger,
+		store:            st,
+		adminKey:         adminKey,
+		defaultAccName:   defaultAccountName,
+		sessionMgr:       NewSessionManager(defaultSessionTTL),
+		metricsScheduler: metricsScheduler,
+		wsHub:            hub,
 	}
 
 	if st != nil {
@@ -367,24 +308,6 @@ func (b *Builder) Build() (*Server, error) {
 					srv.updateHealthInterval(time.Duration(n) * time.Second)
 				case int64:
 					srv.updateHealthInterval(time.Duration(n) * time.Second)
-				}
-			case "health.check_workers":
-				switch n := value.(type) {
-				case float64:
-					srv.updateHealthWorkers(int(n))
-				case int:
-					srv.updateHealthWorkers(n)
-				case int64:
-					srv.updateHealthWorkers(int(n))
-				}
-			case "health.round_timeout_sec":
-				switch n := value.(type) {
-				case float64:
-					srv.updateHealthRoundTimeout(time.Duration(n) * time.Second)
-				case int:
-					srv.updateHealthRoundTimeout(time.Duration(n) * time.Second)
-				case int64:
-					srv.updateHealthRoundTimeout(time.Duration(n) * time.Second)
 				}
 			case "proxy.retry_max":
 				switch n := value.(type) {

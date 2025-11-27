@@ -45,8 +45,6 @@ func (s *Store) SeedDefaultSettings() error {
 		{Key: "monitor.error_display", Scope: "system", Value: "icon", DataType: "string", Category: "monitor", Description: strPtr("错误显示方式：icon/inline")},
 		{Key: "monitor.show_node_stats", Scope: "system", Value: map[string]bool{"showProxy": true, "showHealth": true}, DataType: "object", Category: "monitor", Description: strPtr("节点统计栏显示配置")},
 		{Key: "health.check_interval_sec", Scope: "system", Value: 30, DataType: "number", Category: "health", Description: strPtr("健康检查间隔（秒）")},
-		{Key: "health.check_workers", Scope: "system", Value: 16, DataType: "number", Category: "health", Description: strPtr("全量健康检查并发 worker 数量")},
-		{Key: "health.round_timeout_sec", Scope: "system", Value: 60, DataType: "number", Category: "health", Description: strPtr("全量健康检查单轮超时（秒）")},
 		{Key: "health.fail_threshold", Scope: "system", Value: 3, DataType: "number", Category: "health", Description: strPtr("失败阈值")},
 		{Key: "proxy.retry_max", Scope: "system", Value: 3, DataType: "number", Category: "performance", Description: strPtr("最大重试次数")},
 	}

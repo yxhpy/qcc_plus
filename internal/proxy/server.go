@@ -32,24 +32,22 @@ type Server struct {
 
 	sessionMgr *SessionManager
 
-	listenAddr         string
-	transport          http.RoundTripper
-	logger             *log.Logger
-	retries            int
-	failLimit          int
-	healthEvery        time.Duration
-	healthWorkers      int
-	healthRoundTimeout time.Duration
-	healthRT           http.RoundTripper
-	cliRunner          CliRunner
-	store              *store.Store
-	adminKey           string
-	notifyMgr          *notify.Manager
-	metricsScheduler   *MetricsScheduler
-	healthScheduler    *HealthScheduler
-	settingsCache      *SettingsCache
-	settingsStopCh     chan struct{}
-	settingsWg         sync.WaitGroup
+	listenAddr       string
+	transport        http.RoundTripper
+	logger           *log.Logger
+	retries          int
+	failLimit        int
+	healthEvery      time.Duration
+	healthRT         http.RoundTripper
+	cliRunner        CliRunner
+	store            *store.Store
+	adminKey         string
+	notifyMgr        *notify.Manager
+	metricsScheduler *MetricsScheduler
+	healthScheduler  *HealthScheduler
+	settingsCache    *SettingsCache
+	settingsStopCh   chan struct{}
+	settingsWg       sync.WaitGroup
 
 	claudeConfigCache map[string]claudeConfigEntry
 	claudeConfigMu    sync.RWMutex
@@ -158,26 +156,6 @@ func (p *Server) applySettingsFromCache() {
 			p.updateHealthInterval(time.Duration(n) * time.Second)
 		case int64:
 			p.updateHealthInterval(time.Duration(n) * time.Second)
-		}
-	}
-	if v, ok := p.settingsCache.Get("health.check_workers"); ok {
-		switch n := v.(type) {
-		case float64:
-			p.updateHealthWorkers(int(n))
-		case int:
-			p.updateHealthWorkers(n)
-		case int64:
-			p.updateHealthWorkers(int(n))
-		}
-	}
-	if v, ok := p.settingsCache.Get("health.round_timeout_sec"); ok {
-		switch n := v.(type) {
-		case float64:
-			p.updateHealthRoundTimeout(time.Duration(n) * time.Second)
-		case int:
-			p.updateHealthRoundTimeout(time.Duration(n) * time.Second)
-		case int64:
-			p.updateHealthRoundTimeout(time.Duration(n) * time.Second)
 		}
 	}
 	if v, ok := p.settingsCache.Get("proxy.retry_max"); ok {
@@ -649,42 +627,6 @@ func (p *Server) updateFailLimit(limit int) {
 	}
 	p.failLimit = limit
 	p.mu.Unlock()
-}
-
-func (p *Server) getHealthWorkers() int {
-	p.mu.RLock()
-	workers := p.healthWorkers
-	p.mu.RUnlock()
-	return normalizeHealthWorkers(workers)
-}
-
-func (p *Server) updateHealthWorkers(n int) {
-	workers := normalizeHealthWorkers(n)
-	p.mu.Lock()
-	p.healthWorkers = workers
-	p.mu.Unlock()
-
-	if p.logger != nil {
-		p.logger.Printf("[HealthScheduler] update worker count to %d", workers)
-	}
-}
-
-func (p *Server) getHealthRoundTimeout() time.Duration {
-	p.mu.RLock()
-	to := p.healthRoundTimeout
-	p.mu.RUnlock()
-	return normalizeRoundTimeout(to)
-}
-
-func (p *Server) updateHealthRoundTimeout(d time.Duration) {
-	to := normalizeRoundTimeout(d)
-	p.mu.Lock()
-	p.healthRoundTimeout = to
-	p.mu.Unlock()
-
-	if p.logger != nil {
-		p.logger.Printf("[HealthScheduler] update round timeout to %v", to)
-	}
 }
 
 func buildLocalURL(listenAddr string) string {

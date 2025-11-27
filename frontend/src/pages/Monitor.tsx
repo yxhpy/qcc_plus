@@ -6,6 +6,7 @@ import Toast from '../components/Toast'
 import { useAuth } from '../hooks/useAuth'
 import { useMonitorWebSocket } from '../hooks/useMonitorWebSocket'
 import { useNodeMetrics } from '../contexts/NodeMetricsContext'
+import { useSettings } from '../contexts/SettingsContext'
 import api from '../services/api'
 import type {
   Account,
@@ -27,6 +28,8 @@ export default function Monitor({ shared = false }: MonitorProps) {
   const shareToken = shared ? params.token : undefined
   const { isAdmin } = useAuth()
   const { preference, setPreference, resetToDefault } = useNodeMetrics()
+  const { getSetting } = useSettings()
+  const refreshInterval = getSetting<number>('monitor.refresh_interval_ms', 30000)
 
   const [accounts, setAccounts] = useState<Account[]>([])
   const [accountId, setAccountId] = useState('')
@@ -113,9 +116,9 @@ export default function Monitor({ shared = false }: MonitorProps) {
 
   useEffect(() => {
     if (!autoRefresh) return undefined
-    const id = setInterval(() => fetchDashboard(false), 30000)
+    const id = setInterval(() => fetchDashboard(false), refreshInterval)
     return () => clearInterval(id)
-  }, [autoRefresh, fetchDashboard])
+  }, [autoRefresh, fetchDashboard, refreshInterval])
 
   useEffect(() => {
     loadShares()
@@ -304,7 +307,7 @@ export default function Monitor({ shared = false }: MonitorProps) {
                 checked={autoRefresh}
                 onChange={(e) => setAutoRefresh(e.target.checked)}
               />
-              自动刷新 30s
+              自动刷新 {Math.round(refreshInterval / 1000)}s
             </label>
           )}
           <button className="btn ghost" type="button" onClick={() => fetchDashboard()} disabled={refreshing}>

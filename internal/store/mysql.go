@@ -47,8 +47,6 @@ func (s *Store) SeedDefaultSettings() error {
 		{Key: "health.check_interval_sec", Scope: "system", Value: 30, DataType: "number", Category: "health", Description: strPtr("健康检查间隔（秒）")},
 		{Key: "health.fail_threshold", Scope: "system", Value: 3, DataType: "number", Category: "health", Description: strPtr("失败阈值")},
 		{Key: "proxy.retry_max", Scope: "system", Value: 3, DataType: "number", Category: "performance", Description: strPtr("最大重试次数")},
-		{Key: "metrics.aggregate_interval", Scope: "system", Value: "1h", DataType: "duration", Category: "performance", Description: strPtr("指标聚合间隔")},
-		{Key: "metrics.cleanup_interval", Scope: "system", Value: "24h", DataType: "duration", Category: "performance", Description: strPtr("数据清理间隔")},
 	}
 
 	for _, d := range defaults {

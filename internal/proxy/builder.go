@@ -318,6 +318,15 @@ func (b *Builder) Build() (*Server, error) {
 				case int64:
 					srv.updateRetryMax(int(n))
 				}
+			case "health.fail_threshold":
+				switch n := value.(type) {
+				case float64:
+					srv.updateFailLimit(int(n))
+				case int:
+					srv.updateFailLimit(n)
+				case int64:
+					srv.updateFailLimit(int(n))
+				}
 			}
 		})
 	}

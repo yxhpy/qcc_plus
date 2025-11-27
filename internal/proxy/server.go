@@ -165,6 +165,16 @@ func (p *Server) applySettingsFromCache() {
 			p.updateRetryMax(int(n))
 		}
 	}
+	if v, ok := p.settingsCache.Get("health.fail_threshold"); ok {
+		switch n := v.(type) {
+		case float64:
+			p.updateFailLimit(int(n))
+		case int:
+			p.updateFailLimit(n)
+		case int64:
+			p.updateFailLimit(int(n))
+		}
+	}
 }
 
 // 创建默认账号及默认节点（如必要）。
@@ -599,6 +609,21 @@ func (p *Server) updateRetryMax(max int) {
 	if rt, ok := p.transport.(*retryTransport); ok {
 		rt.attempts = max
 	}
+}
+
+// updateFailLimit 在运行时调整失败阈值。
+func (p *Server) updateFailLimit(limit int) {
+	if limit <= 0 {
+		return
+	}
+	p.mu.Lock()
+	for _, acc := range p.accountByID {
+		if acc != nil {
+			acc.Config.FailLimit = limit
+		}
+	}
+	p.failLimit = limit
+	p.mu.Unlock()
 }
 
 func buildLocalURL(listenAddr string) string {

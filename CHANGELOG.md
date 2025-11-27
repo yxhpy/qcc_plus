@@ -6,6 +6,17 @@
 
 ## [Unreleased]
 
+## [1.7.1] - 2025-11-27
+
+### 修复
+- 全面统一 Claude Code 快速配置页面样式与系统风格一致
+  - 移除所有硬编码颜色，全部使用 CSS 主题变量
+  - install-card 改用主题变量，深色主题下显示渐变背景
+  - tabs 样式改用 SystemSettings 的 tab-btn 规范
+  - badge/pill/eyebrow 等组件使用主题变量
+  - 表单输入框样式统一，添加 hover/focus 效果
+  - 间距和圆角统一使用 CSS 变量
+
 ## [1.7.0] - 2025-11-27
 
 ### 新增

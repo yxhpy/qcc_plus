@@ -4,9 +4,9 @@
 ## 最后更新
 - **更新日期**: 2025-11-27
 - **更新人**: Claude Code
-- **当前版本**: v1.7.0
+- **当前版本**: v1.7.1
 - **最新功能**: Claude Code 快速配置
-- **最新更新**: 新增快速配置页面，一键生成 settings.json 配置文件
+- **最新更新**: 统一快速配置页面样式与系统风格一致
 - **GitHub**: https://github.com/yxhpy/qcc_plus
 - **Docker Hub**: https://hub.docker.com/r/yxhpy520/qcc_plus
 
@@ -526,6 +526,16 @@ docker compose up -d
     </important_notes>
 
     <version_history description="版本发布历史">
+        <release version="v1.7.1" date="2025-11-27">
+            <description>快速配置页面样式统一</description>
+            <highlights>
+                - 统一 Claude Code 快速配置页面样式与系统风格一致
+                - 移除硬编码颜色，全部使用 CSS 主题变量
+                - 支持亮色/深色主题切换
+            </highlights>
+            <github>https://github.com/yxhpy/qcc_plus/releases/tag/v1.7.1</github>
+            <docker>yxhpy520/qcc_plus:v1.7.1</docker>
+        </release>
         <release version="v1.7.0" date="2025-11-27">
             <description>Claude Code 快速配置</description>
             <highlights>

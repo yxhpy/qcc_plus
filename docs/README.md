@@ -22,6 +22,7 @@
 
 ### 部署与发布
 - [Docker Hub 发布指南](./docker-hub-publish.md) - 镜像构建与发布流程
+- [飞牛 NAS 部署指南](https://p.kdocs.cn/s/PNCAUCBEABAES) ⭐ - 飞牛 NAS Docker 部署教程
 
 ## 按主题分类
 
@@ -89,6 +90,11 @@
   - 镜像验证和测试
   - 版本规范和最佳实践
 
+#### NAS 部署
+- **[飞牛 NAS 部署指南](https://p.kdocs.cn/s/PNCAUCBEABAES)** ⭐ 外部文档
+  - 飞牛 NAS Docker 部署教程
+  - 图文详解安装步骤
+
 #### 环境配置
 - 参见 [主文档 - 环境变量配置](../README.md#环境变量配置)
 - 参见 `.env.example` 文件
@@ -134,8 +140,8 @@ docs/
 
 ## 版本信息
 
-- **当前版本**：v1.5.0
-- **最后更新**：2025-11-26
+- **当前版本**：v1.7.0
+- **最后更新**：2025-11-27
 - **文档维护**：Claude Code
 
 ## 下一步

@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [1.7.0] - 2025-11-27
+
+### 新增
+- **Claude Code 快速配置**：一键生成 settings.json 配置文件
+  - 可视化配置生成器页面（/admin/claude-config）
+  - 后端配置模板 API 和临时下载链接（24h TTL）
+  - 支持 macOS/Linux 和 Windows 安装命令
+  - 实时预览 JSON 配置内容
+  - 侧边栏「快速配置」入口（核心功能分组）
+
 ## [1.6.1] - 2025-11-27
 
 ### 修复

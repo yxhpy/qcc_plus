@@ -4,9 +4,9 @@
 ## 最后更新
 - **更新日期**: 2025-11-27
 - **更新人**: Claude Code
-- **当前版本**: v1.6.1
-- **最新功能**: 配置中心、趋势数据实时性、健康检查历史修复
-- **最新更新**: 配置中心统一管理；趋势数据包含当前小时；健康检查历史返回最新N条并正序显示
+- **当前版本**: v1.7.0
+- **最新功能**: Claude Code 快速配置
+- **最新更新**: 新增快速配置页面，一键生成 settings.json 配置文件
 - **GitHub**: https://github.com/yxhpy/qcc_plus
 - **Docker Hub**: https://hub.docker.com/r/yxhpy520/qcc_plus
 
@@ -526,6 +526,16 @@ docker compose up -d
     </important_notes>
 
     <version_history description="版本发布历史">
+        <release version="v1.7.0" date="2025-11-27">
+            <description>Claude Code 快速配置</description>
+            <highlights>
+                - 新增快速配置页面，一键生成 settings.json
+                - 支持 macOS/Linux 和 Windows 安装命令
+                - 实时预览配置内容
+            </highlights>
+            <github>https://github.com/yxhpy/qcc_plus/releases/tag/v1.7.0</github>
+            <docker>yxhpy520/qcc_plus:v1.7.0</docker>
+        </release>
         <release version="v1.6.1" date="2025-11-27">
             <description>健康检查历史数据修复</description>
             <highlights>

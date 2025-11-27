@@ -282,31 +282,40 @@ export default function Monitor({ shared = false }: MonitorProps) {
             WebSocket {connected ? '已连接' : '未连接'}
           </div>
           <div className="monitor-settings">
-            <label className="setting-checkbox">
-              <input
-                type="checkbox"
-                checked={preference.showProxy}
-                onChange={(e) => setPreference({ showProxy: e.target.checked })}
-              />
+            <label className="setting-toggle">
               <span>代理</span>
+              <span className="toggle-mini">
+                <input
+                  type="checkbox"
+                  checked={preference.showProxy}
+                  onChange={(e) => setPreference({ showProxy: e.target.checked })}
+                />
+                <span className="slider" />
+              </span>
             </label>
-            <label className="setting-checkbox">
-              <input
-                type="checkbox"
-                checked={preference.showHealth}
-                onChange={(e) => setPreference({ showHealth: e.target.checked })}
-              />
+            <label className="setting-toggle">
               <span>探活</span>
+              <span className="toggle-mini">
+                <input
+                  type="checkbox"
+                  checked={preference.showHealth}
+                  onChange={(e) => setPreference({ showHealth: e.target.checked })}
+                />
+                <span className="slider" />
+              </span>
             </label>
             <button className="reset-btn" onClick={resetToDefault}>重置</button>
           </div>
           {!shared && (
             <label className="auto-refresh">
-              <input
-                type="checkbox"
-                checked={autoRefresh}
-                onChange={(e) => setAutoRefresh(e.target.checked)}
-              />
+              <span className="toggle-mini">
+                <input
+                  type="checkbox"
+                  checked={autoRefresh}
+                  onChange={(e) => setAutoRefresh(e.target.checked)}
+                />
+                <span className="slider" />
+              </span>
               自动刷新 {Math.round(refreshInterval / 1000)}s
             </label>
           )}

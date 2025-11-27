@@ -44,56 +44,94 @@
 .monitor-settings {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 4px 8px;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-3);
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-border-default);
-  border-radius: 4px;
-  font-size: 12px;
-  color: var(--color-text-secondary);
+  border-radius: var(--radius-xl);
+  font-size: var(--font-size-small);
 }
 
-.setting-checkbox {
+.setting-toggle {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--spacing-2);
   cursor: pointer;
   color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+  user-select: none;
 }
 
-.setting-checkbox input[type="checkbox"] {
-  accent-color: var(--color-primary);
+/* Mini Toggle Switch */
+.toggle-mini {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 32px;
+  height: 18px;
+}
+
+.toggle-mini input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-mini .slider {
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+  background-color: var(--color-border-default);
+  transition: all var(--transition-normal) var(--easing-in-out);
+  border-radius: var(--radius-full);
+}
+
+.toggle-mini .slider:before {
+  position: absolute;
+  content: "";
+  height: 14px;
+  width: 14px;
+  left: 2px;
+  top: 2px;
+  background-color: var(--color-bg-card);
+  transition: all var(--transition-normal) var(--easing-in-out);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-sm);
+}
+
+.toggle-mini input:checked + .slider {
+  background-color: var(--color-primary);
+}
+
+.toggle-mini input:checked + .slider:before {
+  transform: translateX(14px);
 }
 
 .reset-btn {
-  padding: 2px 6px;
+  padding: var(--spacing-1) var(--spacing-2);
   background: var(--button-secondary-bg);
   border: 1px solid var(--color-border-default);
-  border-radius: 3px;
+  border-radius: var(--radius-md);
   color: var(--color-text-muted);
   cursor: pointer;
   font-size: 11px;
-  transition: background var(--transition-fast), color var(--transition-fast);
+  transition: all var(--transition-fast) var(--easing-in-out);
 }
 
 .reset-btn:hover {
   background: var(--button-secondary-hover-bg);
   color: var(--color-text-secondary);
+  border-color: var(--color-primary);
 }
 
 .auto-refresh {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--spacing-2);
   cursor: pointer;
   user-select: none;
-  font-size: 12px;
+  font-size: var(--font-size-small);
   color: var(--color-text-secondary);
-}
-
-.auto-refresh input[type="checkbox"] {
-  cursor: pointer;
-  accent-color: var(--color-primary);
 }
 
 .ws-pill {

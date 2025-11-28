@@ -89,6 +89,7 @@ func (p *Server) handler() http.Handler {
 	apiMux.HandleFunc("/api/monitor/shares", p.requireSession(p.handleMonitorShares))
 	apiMux.HandleFunc("/api/monitor/shares/", p.requireSession(p.handleRevokeMonitorShare))
 	apiMux.HandleFunc("/api/monitor/share/", p.handleAccessMonitorShare)
+	apiMux.HandleFunc("/api/audit/events", p.requireSession(p.handleAuditEvents))
 	settingsHandler := &SettingsHandler{store: p.store, cache: p.settingsCache}
 	apiMux.HandleFunc("/api/settings/version", p.requireSession(settingsHandler.GetVersion))
 	apiMux.HandleFunc("/api/settings", p.requireSession(settingsHandler.ListSettings))

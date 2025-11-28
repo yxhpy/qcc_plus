@@ -32,6 +32,8 @@ type Server struct {
 
 	sessionMgr *SessionManager
 
+	audit *AuditLog
+
 	listenAddr       string
 	transport        http.RoundTripper
 	logger           *log.Logger
@@ -198,6 +200,9 @@ func (p *Server) applySettingsFromCache() {
 
 // 创建默认账号及默认节点（如必要）。
 func (p *Server) createDefaultAccount(defaultUpstream *url.URL, defaultCfg store.Config, name, proxyKey, upstreamKey string) error {
+	if p.audit == nil {
+		p.audit = NewAuditLog(1000)
+	}
 	windowSize := p.windowSize
 	if windowSize == 0 {
 		windowSize = 200
@@ -291,6 +296,9 @@ func (p *Server) createDefaultAccount(defaultUpstream *url.URL, defaultCfg store
 
 // 从持久层加载账号、节点与配置。
 func (p *Server) loadAccountsFromStore(defaultUpstream *url.URL, defaultCfg Config, defaultUpstreamKey string) error {
+	if p.audit == nil {
+		p.audit = NewAuditLog(1000)
+	}
 	if p.store == nil {
 		return nil
 	}

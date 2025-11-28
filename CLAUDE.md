@@ -114,6 +114,7 @@ docker compose up -d
 | **QCC_HEALTH_BACKOFF_MIN** | 健康检查最小回退间隔（如 "5s"） | 5s |
 | **QCC_HEALTH_BACKOFF_MAX** | 健康检查最大回退间隔（如 "60s"） | 60s |
 | **QCC_HEALTH_CONCURRENCY** | 健康检查并发worker数量 | 4 |
+| **QCC_AUDIT_CAPACITY** | 审计日志容量（条数） | 1000 |
 
 ⚠️ **安全警告**：生产环境必须修改 `ADMIN_API_KEY` 和 `DEFAULT_PROXY_API_KEY`！
 
@@ -129,6 +130,12 @@ docker compose up -d
 - **并发worker**：4个并发worker并行探活，避免长尾阻塞
 - **智能调度**：每秒调度一次，只探活到期的节点
 - 恢复后自动重置回退间隔
+
+**审计日志说明**：v1.8.0+ 引入节点切换审计日志系统，提供问题追溯能力：
+- **内存环形缓冲**：默认保存最近 1000 条事件，重启后丢失
+- **事件类型**：节点失败、节点恢复、节点切换、健康检查失败
+- **查询接口**：`GET /api/audit/events?limit=100` 获取最近的审计事件
+- **元数据记录**：包含评分、延迟、成功率、切换原因等详细信息
 
 管理界面与管理 API 通过 `/login` 登录获得的 `session_token` Cookie 认证，不再使用 `x-admin-key` 头。
 

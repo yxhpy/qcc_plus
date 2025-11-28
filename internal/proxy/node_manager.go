@@ -353,6 +353,30 @@ func (p *Server) selectBestAndActivate(acc *Account, reason ...string) (*Node, e
 		})
 	}
 
+	if p.audit != nil && acc != nil && prevID != bestID {
+		fromName := "-"
+		if prevNode != nil {
+			fromName = prevNode.Name
+		}
+		p.audit.Add(AuditEvent{
+			Ts:       time.Now(),
+			Tenant:   acc.ID,
+			NodeID:   bestID,
+			NodeName: bestNode.Name,
+			Type:     EvSwitch,
+			Detail:   fmt.Sprintf("%s → %s (%s)", fromName, bestNode.Name, switchReason),
+			Meta: map[string]interface{}{
+				"from_id":   prevID,
+				"from_name": fromName,
+				"to_id":     bestID,
+				"to_name":   bestNode.Name,
+				"to_score":  bestNode.Score,
+				"to_weight": bestNode.Weight,
+				"reason":    switchReason,
+			},
+		})
+	}
+
 	return bestNode, nil
 }
 

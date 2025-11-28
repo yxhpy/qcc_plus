@@ -57,6 +57,7 @@ func (p *Server) handleFailure(nodeID string, errMsg string) {
 	failed := node.Metrics.FailStreak >= int64(failLimit)
 	failStreak := node.Metrics.FailStreak
 	nodeName := node.Name
+	nodeScore := node.Score
 	if failed {
 		node.Failed = true
 		node.StableSince = time.Time{}
@@ -68,6 +69,22 @@ func (p *Server) handleFailure(nodeID string, errMsg string) {
 
 	if failed {
 		p.logger.Printf("node %s marked failed: %s", nodeName, errMsg)
+
+		if p.audit != nil && acc != nil && node != nil {
+			p.audit.Add(AuditEvent{
+				Ts:       time.Now(),
+				Tenant:   acc.ID,
+				NodeID:   nodeID,
+				NodeName: nodeName,
+				Type:     EvNodeFail,
+				Detail:   errMsg,
+				Meta: map[string]interface{}{
+					"fail_streak": failStreak,
+					"score":       nodeScore,
+				},
+			})
+		}
+
 		if p.notifyMgr != nil && acc != nil {
 			p.notifyMgr.Publish(notify.Event{
 				AccountID:  acc.ID,
@@ -334,6 +351,24 @@ func (p *Server) checkNodeHealth(acc *Account, id string, source string) {
 		_ = p.store.UpsertNode(context.Background(), rec)
 	}
 	if recovered {
+		if p.audit != nil && acc != nil && n != nil {
+			stableDur := time.Duration(0)
+			if !n.StableSince.IsZero() {
+				stableDur = now.Sub(n.StableSince)
+			}
+			p.audit.Add(AuditEvent{
+				Ts:       now,
+				Tenant:   acc.ID,
+				NodeID:   n.ID,
+				NodeName: n.Name,
+				Type:     EvNodeRecover,
+				Detail:   "health check passed",
+				Meta: map[string]interface{}{
+					"stable_duration_sec": stableDur.Seconds(),
+					"latency_ms":          latency.Milliseconds(),
+				},
+			})
+		}
 		// 恢复后重新在健康节点中选择最优的一个。
 		if p.notifyMgr != nil && acc != nil && n != nil {
 			p.notifyMgr.Publish(notify.Event{
@@ -387,6 +422,21 @@ func (p *Server) checkNodeHealth(acc *Account, id string, source string) {
 			"traffic":   traffic,
 			"health":    health,
 			"timestamp": timestamp,
+		})
+	}
+
+	if !ok && p.audit != nil && acc != nil && n != nil {
+		p.audit.Add(AuditEvent{
+			Ts:       now,
+			Tenant:   acc.ID,
+			NodeID:   n.ID,
+			NodeName: n.Name,
+			Type:     EvHealth,
+			Detail:   fmt.Sprintf("health check failed: %s", pingErr),
+			Meta: map[string]interface{}{
+				"method": method,
+				"source": source,
+			},
 		})
 	}
 }

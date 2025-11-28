@@ -355,6 +355,15 @@ func (b *Builder) Build() (*Server, error) {
 		}
 	}
 
+	auditCap := 1000
+	if v := os.Getenv("QCC_AUDIT_CAPACITY"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			auditCap = n
+		} else {
+			logger.Printf("invalid QCC_AUDIT_CAPACITY=%s, fallback to %d", v, auditCap)
+		}
+	}
+
 	var st *store.Store
 	if b.storeDSN != "" {
 		st, err = store.Open(b.storeDSN)
@@ -395,6 +404,7 @@ func (b *Builder) Build() (*Server, error) {
 		accountByID:      make(map[string]*Account),
 		nodeIndex:        make(map[string]*Node),
 		nodeAccount:      make(map[string]*Account),
+		audit:            NewAuditLog(auditCap),
 		listenAddr:       b.listenAddr,
 		transport:        transport,
 		healthRT:         healthRT,

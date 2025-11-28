@@ -29,6 +29,11 @@ const (
 	CheckSourceProxyFail = "proxy_fail"
 )
 
+type healthJob struct {
+	acc    *Account
+	nodeID string
+}
+
 // 默认健康检查方式（可被环境变量覆盖）；从 API 变更为 CLI，以便在无 HTTP 端点时也能探活。
 var defaultHealthCheckMethod = HealthCheckMethodCLI
 
@@ -87,47 +92,110 @@ func (p *Server) handleFailure(nodeID string, errMsg string) {
 	}
 }
 
-// 定时探活失败节点。
+// 定时探活失败节点，采用并发 worker + 自适应回退。
 func (p *Server) healthLoop() {
+	if p.healthQueue == nil {
+		p.healthQueue = make(chan healthJob, 100)
+	}
+	if p.healthStop == nil {
+		p.healthStop = make(chan struct{})
+	}
+
+	concurrency := 4
+	p.mu.RLock()
+	if p.defaultAccount != nil && p.defaultAccount.Config.HealthConcurrency > 0 {
+		concurrency = p.defaultAccount.Config.HealthConcurrency
+	}
+	p.mu.RUnlock()
+
+	p.mu.Lock()
+	if p.healthWorkers > 0 {
+		concurrency = p.healthWorkers
+	} else {
+		p.healthWorkers = concurrency
+	}
+	p.mu.Unlock()
+
+	for i := 0; i < concurrency; i++ {
+		go p.healthWorker()
+	}
+
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
 	for {
-		interval := p.healthInterval()
-		if interval <= 0 {
+		select {
+		case <-ticker.C:
+			p.enqueueDueHealthChecks()
+		case <-p.healthStop:
+			close(p.healthQueue)
 			return
 		}
-		time.Sleep(interval)
-		p.checkFailedNodes()
 	}
 }
 
-func (p *Server) healthInterval() time.Duration {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	if len(p.accountByID) == 0 {
-		return 0
+func (p *Server) enqueueDueHealthChecks() {
+	if p == nil || p.healthQueue == nil {
+		return
 	}
-	min := time.Duration(0)
-	for _, acc := range p.accountByID {
-		if acc.Config.HealthEvery <= 0 {
-			continue
-		}
-		if min == 0 || acc.Config.HealthEvery < min {
-			min = acc.Config.HealthEvery
-		}
-	}
-	return min
-}
+	now := time.Now()
 
-func (p *Server) checkFailedNodes() {
 	p.mu.RLock()
 	accs := make([]*Account, 0, len(p.accountByID))
 	for _, acc := range p.accountByID {
 		accs = append(accs, acc)
 	}
 	p.mu.RUnlock()
+
 	for _, acc := range accs {
-		for id := range acc.FailedSet {
-			p.checkNodeHealth(acc, id, CheckSourceRecovery)
+		minBackoff := 5 * time.Second
+		maxBackoff := 60 * time.Second
+		if acc.Config.HealthBackoffMin > 0 {
+			minBackoff = acc.Config.HealthBackoffMin
 		}
+		if acc.Config.HealthBackoffMax > 0 {
+			maxBackoff = acc.Config.HealthBackoffMax
+		}
+
+		for id := range acc.FailedSet {
+			p.mu.RLock()
+			n := acc.Nodes[id]
+			due := time.Time{}
+			if n != nil {
+				due = n.LastHealthCheckDue
+			}
+			p.mu.RUnlock()
+			if n == nil {
+				continue
+			}
+
+			if due.IsZero() || now.After(due) {
+				select {
+				case p.healthQueue <- healthJob{acc: acc, nodeID: id}:
+					p.mu.Lock()
+					bo := n.HealthBackoff
+					if bo == 0 {
+						bo = minBackoff
+					} else {
+						bo *= 2
+						if bo > maxBackoff {
+							bo = maxBackoff
+						}
+					}
+					n.HealthBackoff = bo
+					n.LastHealthCheckDue = now.Add(bo)
+					p.mu.Unlock()
+				default:
+					// 队列已满，等待下一轮调度
+				}
+			}
+		}
+	}
+}
+
+func (p *Server) healthWorker() {
+	for job := range p.healthQueue {
+		p.checkNodeHealth(job.acc, job.nodeID, CheckSourceRecovery)
 	}
 }
 
@@ -232,6 +300,8 @@ func (p *Server) checkNodeHealth(acc *Account, id string, source string) {
 				n.LastError = ""
 				n.Metrics.FailStreak = 0
 				n.Metrics.LastPingErr = ""
+				n.HealthBackoff = 0
+				n.LastHealthCheckDue = time.Time{}
 				if acc != nil {
 					delete(acc.FailedSet, id)
 				}

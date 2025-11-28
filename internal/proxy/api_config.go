@@ -103,7 +103,33 @@ func (p *Server) getConfig() Config {
 	if minHealthy == 0 {
 		minHealthy = 15 * time.Second
 	}
-	return Config{Retries: retries, FailLimit: fail, HealthEvery: health, WindowSize: windowSize, AlphaErr: alphaErr, BetaLatency: betaLat, Cooldown: cooldown, MinHealthy: minHealthy}
+	healthBackoffMin := 5 * time.Second
+	healthBackoffMax := 60 * time.Second
+	if p.defaultAccount != nil {
+		if p.defaultAccount.Config.HealthBackoffMin > 0 {
+			healthBackoffMin = p.defaultAccount.Config.HealthBackoffMin
+		}
+		if p.defaultAccount.Config.HealthBackoffMax > 0 {
+			healthBackoffMax = p.defaultAccount.Config.HealthBackoffMax
+		}
+	}
+	healthConcurrency := p.healthWorkers
+	if healthConcurrency == 0 {
+		healthConcurrency = 4
+	}
+	return Config{
+		Retries:           retries,
+		FailLimit:         fail,
+		HealthEvery:       health,
+		HealthBackoffMin:  healthBackoffMin,
+		HealthBackoffMax:  healthBackoffMax,
+		HealthConcurrency: healthConcurrency,
+		WindowSize:        windowSize,
+		AlphaErr:          alphaErr,
+		BetaLatency:       betaLat,
+		Cooldown:          cooldown,
+		MinHealthy:        minHealthy,
+	}
 }
 
 func (p *Server) updateConfigForAccount(acc *Account, retries, failLimit int, healthEvery time.Duration) error {

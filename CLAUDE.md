@@ -111,6 +111,9 @@ docker compose up -d
 | **QCC_SCORE_BETA_LAT** | 节点评分延迟权重 | 0.5 |
 | **QCC_SWITCH_COOLDOWN** | 节点切换冷却窗口（如 "30s"） | 30s |
 | **QCC_MIN_HEALTHY** | 节点最小健康时间（如 "15s"） | 15s |
+| **QCC_HEALTH_BACKOFF_MIN** | 健康检查最小回退间隔（如 "5s"） | 5s |
+| **QCC_HEALTH_BACKOFF_MAX** | 健康检查最大回退间隔（如 "60s"） | 60s |
+| **QCC_HEALTH_CONCURRENCY** | 健康检查并发worker数量 | 4 |
 
 ⚠️ **安全警告**：生产环境必须修改 `ADMIN_API_KEY` 和 `DEFAULT_PROXY_API_KEY`！
 
@@ -120,6 +123,12 @@ docker compose up -d
 - **冷却窗口**：节点被激活后 30 秒内不会再次被选中
 - **最小健康时间**：节点恢复后需连续健康 15 秒才清除失败标记
 - 设置为 0 可禁用对应机制
+
+**并发探活说明**：v1.8.0+ 引入并发探活与自适应频率机制，加快失败节点恢复检测：
+- **指数回退**：失败节点探活间隔从 5s 开始，逐步增长到 60s（5s → 10s → 20s → 40s → 60s）
+- **并发worker**：4个并发worker并行探活，避免长尾阻塞
+- **智能调度**：每秒调度一次，只探活到期的节点
+- 恢复后自动重置回退间隔
 
 管理界面与管理 API 通过 `/login` 登录获得的 `session_token` Cookie 认证，不再使用 `x-admin-key` 头。
 

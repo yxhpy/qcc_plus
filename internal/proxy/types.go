@@ -8,23 +8,25 @@ import (
 
 // Node 代表一个可切换的上游节点。
 type Node struct {
-	ID                string
-	Name              string
-	URL               *url.URL
-	APIKey            string
-	HealthCheckMethod string
-	AccountID         string
-	CreatedAt         time.Time
-	Metrics           metrics
-	Weight            int
-	Failed            bool
-	Disabled          bool // 用户手动禁用
-	LastError         string
-	Window            *MetricsWindow
-	Score             float64
-	LastSwitchAt      time.Time
-	StableSince       time.Time
-	windowMu          sync.Mutex
+	ID                 string
+	Name               string
+	URL                *url.URL
+	APIKey             string
+	HealthCheckMethod  string
+	AccountID          string
+	CreatedAt          time.Time
+	Metrics            metrics
+	Weight             int
+	Failed             bool
+	Disabled           bool // 用户手动禁用
+	LastError          string
+	Window             *MetricsWindow
+	Score              float64
+	LastSwitchAt       time.Time
+	StableSince        time.Time
+	LastHealthCheckDue time.Time
+	HealthBackoff      time.Duration
+	windowMu           sync.Mutex
 }
 
 // metrics 记录节点请求与健康状况统计。
@@ -50,14 +52,17 @@ type usage struct {
 
 // Config 描述可运行时调整的系统配置。
 type Config struct {
-	Retries     int
-	FailLimit   int
-	HealthEvery time.Duration
-	WindowSize  int
-	AlphaErr    float64
-	BetaLatency float64
-	Cooldown    time.Duration
-	MinHealthy  time.Duration
+	Retries           int
+	FailLimit         int
+	HealthEvery       time.Duration
+	HealthBackoffMin  time.Duration
+	HealthBackoffMax  time.Duration
+	HealthConcurrency int
+	WindowSize        int
+	AlphaErr          float64
+	BetaLatency       float64
+	Cooldown          time.Duration
+	MinHealthy        time.Duration
 }
 
 // Account 表示一个租户，持有独立的节点与配置。

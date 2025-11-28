@@ -50,6 +50,9 @@ type Server struct {
 	notifyMgr        *notify.Manager
 	metricsScheduler *MetricsScheduler
 	healthScheduler  *HealthScheduler
+	healthQueue      chan healthJob
+	healthWorkers    int
+	healthStop       chan struct{}
 	settingsCache    *SettingsCache
 	settingsStopCh   chan struct{}
 	settingsWg       sync.WaitGroup
@@ -111,6 +114,14 @@ func (p *Server) Stop() {
 	}
 	if p.metricsScheduler != nil {
 		p.metricsScheduler.Stop()
+	}
+	if p.healthStop != nil {
+		select {
+		case <-p.healthStop:
+			// already closed
+		default:
+			close(p.healthStop)
+		}
 	}
 	if p.settingsStopCh != nil {
 		close(p.settingsStopCh)
@@ -207,7 +218,33 @@ func (p *Server) createDefaultAccount(defaultUpstream *url.URL, defaultCfg store
 	if minHealthy == 0 {
 		minHealthy = 15 * time.Second
 	}
-	cfg := Config{Retries: defaultCfg.Retries, FailLimit: defaultCfg.FailLimit, HealthEvery: defaultCfg.HealthEvery, WindowSize: windowSize, AlphaErr: alphaErr, BetaLatency: betaLat, Cooldown: cooldown, MinHealthy: minHealthy}
+	healthBackoffMin := 5 * time.Second
+	healthBackoffMax := 60 * time.Second
+	if p.defaultAccount != nil {
+		if p.defaultAccount.Config.HealthBackoffMin > 0 {
+			healthBackoffMin = p.defaultAccount.Config.HealthBackoffMin
+		}
+		if p.defaultAccount.Config.HealthBackoffMax > 0 {
+			healthBackoffMax = p.defaultAccount.Config.HealthBackoffMax
+		}
+	}
+	healthConcurrency := p.healthWorkers
+	if healthConcurrency == 0 {
+		healthConcurrency = 4
+	}
+	cfg := Config{
+		Retries:           defaultCfg.Retries,
+		FailLimit:         defaultCfg.FailLimit,
+		HealthEvery:       defaultCfg.HealthEvery,
+		HealthBackoffMin:  healthBackoffMin,
+		HealthBackoffMax:  healthBackoffMax,
+		HealthConcurrency: healthConcurrency,
+		WindowSize:        windowSize,
+		AlphaErr:          alphaErr,
+		BetaLatency:       betaLat,
+		Cooldown:          cooldown,
+		MinHealthy:        minHealthy,
+	}
 	acc := &Account{
 		ID:          store.DefaultAccountID,
 		Name:        chooseNonEmpty(name, "default"),
@@ -277,6 +314,15 @@ func (p *Server) loadAccountsFromStore(defaultUpstream *url.URL, defaultCfg Conf
 		}
 		if cfg.BetaLatency == 0 {
 			cfg.BetaLatency = 0.5
+		}
+		if cfg.HealthBackoffMin == 0 {
+			cfg.HealthBackoffMin = 5 * time.Second
+		}
+		if cfg.HealthBackoffMax == 0 {
+			cfg.HealthBackoffMax = 60 * time.Second
+		}
+		if cfg.HealthConcurrency == 0 {
+			cfg.HealthConcurrency = 4
 		}
 		// 加载节点与活动节点
 		recs, cfgLoaded, active, err := p.store.LoadAllByAccount(ctx, a.ID)
@@ -415,6 +461,9 @@ func (p *Server) registerAccount(acc *Account) {
 		p.healthEvery = acc.Config.HealthEvery
 		p.cooldown = acc.Config.Cooldown
 		p.minHealthy = acc.Config.MinHealthy
+		if acc.Config.HealthConcurrency > 0 {
+			p.healthWorkers = acc.Config.HealthConcurrency
+		}
 		if acc.Config.WindowSize > 0 {
 			p.windowSize = acc.Config.WindowSize
 		} else if p.windowSize == 0 {

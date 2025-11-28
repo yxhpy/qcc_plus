@@ -26,6 +26,9 @@ type Builder struct {
 	retries            int
 	failLimit          int
 	healthEvery        time.Duration
+	healthBackoffMin   time.Duration
+	healthBackoffMax   time.Duration
+	healthConcurrency  int
 	healthAllInterval  time.Duration
 	windowSize         int
 	alphaErr           float64
@@ -41,7 +44,22 @@ type Builder struct {
 
 // NewBuilder 构建带默认监听地址和日志的 Builder。
 func NewBuilder() *Builder {
-	return &Builder{listenAddr: ":8000", logger: log.Default(), upstreamName: "default", retries: 3, failLimit: 3, healthEvery: 30 * time.Second, windowSize: 200, alphaErr: 5.0, betaLatency: 0.5, cooldown: 30 * time.Second, minHealthy: 15 * time.Second}
+	return &Builder{
+		listenAddr:        ":8000",
+		logger:            log.Default(),
+		upstreamName:      "default",
+		retries:           3,
+		failLimit:         3,
+		healthEvery:       30 * time.Second,
+		healthBackoffMin:  5 * time.Second,
+		healthBackoffMax:  60 * time.Second,
+		healthConcurrency: 4,
+		windowSize:        200,
+		alphaErr:          5.0,
+		betaLatency:       0.5,
+		cooldown:          30 * time.Second,
+		minHealthy:        15 * time.Second,
+	}
 }
 
 func chooseNonEmpty(vals ...string) string {
@@ -118,6 +136,20 @@ func (b *Builder) WithFailLimit(n int) *Builder {
 func (b *Builder) WithHealthEvery(d time.Duration) *Builder {
 	if d > 0 {
 		b.healthEvery = d
+	}
+	return b
+}
+
+// WithHealthBackoff 设置恢复探活的最小/最大间隔与并发度。
+func (b *Builder) WithHealthBackoff(min, max time.Duration, concurrency int) *Builder {
+	if min > 0 {
+		b.healthBackoffMin = min
+	}
+	if max > 0 {
+		b.healthBackoffMax = max
+	}
+	if concurrency > 0 {
+		b.healthConcurrency = concurrency
 	}
 	return b
 }
@@ -287,6 +319,42 @@ func (b *Builder) Build() (*Server, error) {
 		}
 	}
 
+	healthBackoffMin := b.healthBackoffMin
+	if healthBackoffMin == 0 {
+		healthBackoffMin = 5 * time.Second
+	}
+	if v := os.Getenv("QCC_HEALTH_BACKOFF_MIN"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			healthBackoffMin = d
+		} else {
+			logger.Printf("invalid QCC_HEALTH_BACKOFF_MIN=%s, fallback to %v", v, healthBackoffMin)
+		}
+	}
+
+	healthBackoffMax := b.healthBackoffMax
+	if healthBackoffMax == 0 {
+		healthBackoffMax = 60 * time.Second
+	}
+	if v := os.Getenv("QCC_HEALTH_BACKOFF_MAX"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			healthBackoffMax = d
+		} else {
+			logger.Printf("invalid QCC_HEALTH_BACKOFF_MAX=%s, fallback to %v", v, healthBackoffMax)
+		}
+	}
+
+	healthConcurrency := b.healthConcurrency
+	if healthConcurrency == 0 {
+		healthConcurrency = 4
+	}
+	if v := os.Getenv("QCC_HEALTH_CONCURRENCY"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			healthConcurrency = n
+		} else {
+			logger.Printf("invalid QCC_HEALTH_CONCURRENCY=%s, fallback to %d", v, healthConcurrency)
+		}
+	}
+
 	var st *store.Store
 	if b.storeDSN != "" {
 		st, err = store.Open(b.storeDSN)
@@ -343,6 +411,9 @@ func (b *Builder) Build() (*Server, error) {
 		betaLatency:      betaLatency,
 		cooldown:         cooldown,
 		minHealthy:       minHealthy,
+		healthQueue:      make(chan healthJob, 100),
+		healthStop:       make(chan struct{}),
+		healthWorkers:    healthConcurrency,
 	}
 
 	if st != nil {
@@ -361,7 +432,19 @@ func (b *Builder) Build() (*Server, error) {
 		rt.notifyMgr = srv.notifyMgr
 	}
 
-	runtimeCfg := Config{Retries: b.retries, FailLimit: b.failLimit, HealthEvery: b.healthEvery, WindowSize: windowSize, AlphaErr: alphaErr, BetaLatency: betaLatency, Cooldown: cooldown, MinHealthy: minHealthy}
+	runtimeCfg := Config{
+		Retries:           b.retries,
+		FailLimit:         b.failLimit,
+		HealthEvery:       b.healthEvery,
+		HealthBackoffMin:  healthBackoffMin,
+		HealthBackoffMax:  healthBackoffMax,
+		HealthConcurrency: healthConcurrency,
+		WindowSize:        windowSize,
+		AlphaErr:          alphaErr,
+		BetaLatency:       betaLatency,
+		Cooldown:          cooldown,
+		MinHealthy:        minHealthy,
+	}
 	srv.retries = runtimeCfg.Retries
 	srv.failLimit = runtimeCfg.FailLimit
 	srv.healthEvery = runtimeCfg.HealthEvery
@@ -469,9 +552,21 @@ func (b *Builder) Build() (*Server, error) {
 			Password:    "admin123",
 			ProxyAPIKey: adminKey,
 			IsAdmin:     true,
-			Config:      Config{Retries: runtimeCfg.Retries, FailLimit: runtimeCfg.FailLimit, HealthEvery: runtimeCfg.HealthEvery, WindowSize: runtimeCfg.WindowSize, AlphaErr: runtimeCfg.AlphaErr, BetaLatency: runtimeCfg.BetaLatency, Cooldown: runtimeCfg.Cooldown, MinHealthy: runtimeCfg.MinHealthy},
-			Nodes:       make(map[string]*Node),
-			FailedSet:   make(map[string]struct{}),
+			Config: Config{
+				Retries:           runtimeCfg.Retries,
+				FailLimit:         runtimeCfg.FailLimit,
+				HealthEvery:       runtimeCfg.HealthEvery,
+				HealthBackoffMin:  runtimeCfg.HealthBackoffMin,
+				HealthBackoffMax:  runtimeCfg.HealthBackoffMax,
+				HealthConcurrency: runtimeCfg.HealthConcurrency,
+				WindowSize:        runtimeCfg.WindowSize,
+				AlphaErr:          runtimeCfg.AlphaErr,
+				BetaLatency:       runtimeCfg.BetaLatency,
+				Cooldown:          runtimeCfg.Cooldown,
+				MinHealthy:        runtimeCfg.MinHealthy,
+			},
+			Nodes:     make(map[string]*Node),
+			FailedSet: make(map[string]struct{}),
 		}
 
 		defaultAccount := &Account{
@@ -480,9 +575,21 @@ func (b *Builder) Build() (*Server, error) {
 			Password:    "default123",
 			ProxyAPIKey: defaultProxyKey,
 			IsAdmin:     false,
-			Config:      Config{Retries: runtimeCfg.Retries, FailLimit: runtimeCfg.FailLimit, HealthEvery: runtimeCfg.HealthEvery, WindowSize: runtimeCfg.WindowSize, AlphaErr: runtimeCfg.AlphaErr, BetaLatency: runtimeCfg.BetaLatency, Cooldown: runtimeCfg.Cooldown, MinHealthy: runtimeCfg.MinHealthy},
-			Nodes:       make(map[string]*Node),
-			FailedSet:   make(map[string]struct{}),
+			Config: Config{
+				Retries:           runtimeCfg.Retries,
+				FailLimit:         runtimeCfg.FailLimit,
+				HealthEvery:       runtimeCfg.HealthEvery,
+				HealthBackoffMin:  runtimeCfg.HealthBackoffMin,
+				HealthBackoffMax:  runtimeCfg.HealthBackoffMax,
+				HealthConcurrency: runtimeCfg.HealthConcurrency,
+				WindowSize:        runtimeCfg.WindowSize,
+				AlphaErr:          runtimeCfg.AlphaErr,
+				BetaLatency:       runtimeCfg.BetaLatency,
+				Cooldown:          runtimeCfg.Cooldown,
+				MinHealthy:        runtimeCfg.MinHealthy,
+			},
+			Nodes:     make(map[string]*Node),
+			FailedSet: make(map[string]struct{}),
 		}
 
 		node := &Node{

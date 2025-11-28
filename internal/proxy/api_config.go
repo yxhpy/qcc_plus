@@ -39,6 +39,9 @@ func (p *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 			"retries":             cfg.Retries,
 			"fail_limit":          cfg.FailLimit,
 			"health_interval_sec": int(cfg.HealthEvery.Seconds()),
+			"window_size":         cfg.WindowSize,
+			"alpha_err":           cfg.AlphaErr,
+			"beta_latency":        cfg.BetaLatency,
 		})
 	case http.MethodPut:
 		var req struct {
@@ -80,7 +83,19 @@ func (p *Server) getConfig() Config {
 	if health == 0 {
 		health = 30 * time.Second
 	}
-	return Config{Retries: retries, FailLimit: fail, HealthEvery: health}
+	windowSize := p.windowSize
+	if windowSize == 0 {
+		windowSize = 200
+	}
+	alphaErr := p.alphaErr
+	if alphaErr == 0 {
+		alphaErr = 5.0
+	}
+	betaLat := p.betaLatency
+	if betaLat == 0 {
+		betaLat = 0.5
+	}
+	return Config{Retries: retries, FailLimit: fail, HealthEvery: health, WindowSize: windowSize, AlphaErr: alphaErr, BetaLatency: betaLat}
 }
 
 func (p *Server) updateConfigForAccount(acc *Account, retries, failLimit int, healthEvery time.Duration) error {
@@ -92,7 +107,11 @@ func (p *Server) updateConfigForAccount(acc *Account, retries, failLimit int, he
 	}
 
 	p.mu.Lock()
-	acc.Config = Config{Retries: retries, FailLimit: failLimit, HealthEvery: healthEvery}
+	cfg := acc.Config
+	cfg.Retries = retries
+	cfg.FailLimit = failLimit
+	cfg.HealthEvery = healthEvery
+	acc.Config = cfg
 	active := acc.ActiveID
 	if acc.ID == store.DefaultAccountID {
 		if rt, ok := p.transport.(*retryTransport); ok {

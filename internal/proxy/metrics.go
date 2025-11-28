@@ -58,6 +58,9 @@ func (p *Server) recordMetrics(nodeID string, start time.Time, mw *metricsWriter
 		healthAt     time.Time
 		method       string
 		accountID    string
+		statusCode   int
+		latencyMS    int64
+		success      bool
 	)
 
 	p.mu.Lock()
@@ -96,6 +99,41 @@ func (p *Server) recordMetrics(nodeID string, start time.Time, mw *metricsWriter
 			delete(acc.FailedSet, nodeID)
 		}
 	}
+	statusCode = http.StatusOK
+	if mw != nil && mw.status != 0 {
+		statusCode = mw.status
+	}
+	latency := end.Sub(start)
+	if mw != nil && !mw.lastAt.IsZero() {
+		latency = mw.lastAt.Sub(start)
+	}
+	latencyMS = latency.Milliseconds()
+	success = statusCode == http.StatusOK
+	windowSize := 200
+	alphaErr := 5.0
+	betaLat := 0.5
+	if acc != nil {
+		if acc.Config.WindowSize > 0 {
+			windowSize = acc.Config.WindowSize
+		}
+		if acc.Config.AlphaErr != 0 {
+			alphaErr = acc.Config.AlphaErr
+		}
+		if acc.Config.BetaLatency != 0 {
+			betaLat = acc.Config.BetaLatency
+		}
+	}
+	node.windowMu.Lock()
+	if node.Window == nil {
+		node.Window = NewMetricsWindow(windowSize)
+	}
+	if node.Window != nil {
+		node.Window.Record(success, latencyMS)
+		node.Score = CalculateScore(node, alphaErr, betaLat)
+	} else {
+		node.Score = float64(node.Weight)
+	}
+	node.windowMu.Unlock()
 	if p.store != nil {
 		nodeRec = toRecord(node)
 		metricsRec = buildMetricsRecord(accountID, nodeID, start, end, mw, u)

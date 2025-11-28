@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,6 +27,9 @@ type Builder struct {
 	failLimit          int
 	healthEvery        time.Duration
 	healthAllInterval  time.Duration
+	windowSize         int
+	alphaErr           float64
+	betaLatency        float64
 	storeDSN           string
 	adminKey           string
 	defaultAccountName string
@@ -35,7 +39,7 @@ type Builder struct {
 
 // NewBuilder 构建带默认监听地址和日志的 Builder。
 func NewBuilder() *Builder {
-	return &Builder{listenAddr: ":8000", logger: log.Default(), upstreamName: "default", retries: 3, failLimit: 3, healthEvery: 30 * time.Second}
+	return &Builder{listenAddr: ":8000", logger: log.Default(), upstreamName: "default", retries: 3, failLimit: 3, healthEvery: 30 * time.Second, windowSize: 200, alphaErr: 5.0, betaLatency: 0.5}
 }
 
 func chooseNonEmpty(vals ...string) string {
@@ -223,6 +227,40 @@ func (b *Builder) Build() (*Server, error) {
 	healthRT := transport
 	transport = &retryTransport{base: transport, attempts: b.retries, logger: logger}
 
+	windowSize := b.windowSize
+	if windowSize <= 0 {
+		windowSize = 200
+	}
+	if v := os.Getenv("QCC_WINDOW_SIZE"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			windowSize = n
+		} else {
+			logger.Printf("invalid QCC_WINDOW_SIZE=%s, fallback to %d", v, windowSize)
+		}
+	}
+	alphaErr := b.alphaErr
+	if alphaErr == 0 {
+		alphaErr = 5.0
+	}
+	if v := os.Getenv("QCC_SCORE_ALPHA_ERR"); v != "" {
+		if n, err := strconv.ParseFloat(v, 64); err == nil {
+			alphaErr = n
+		} else {
+			logger.Printf("invalid QCC_SCORE_ALPHA_ERR=%s, fallback to %.2f", v, alphaErr)
+		}
+	}
+	betaLatency := b.betaLatency
+	if betaLatency == 0 {
+		betaLatency = 0.5
+	}
+	if v := os.Getenv("QCC_SCORE_BETA_LAT"); v != "" {
+		if n, err := strconv.ParseFloat(v, 64); err == nil {
+			betaLatency = n
+		} else {
+			logger.Printf("invalid QCC_SCORE_BETA_LAT=%s, fallback to %.2f", v, betaLatency)
+		}
+	}
+
 	var st *store.Store
 	if b.storeDSN != "" {
 		st, err = store.Open(b.storeDSN)
@@ -274,6 +312,9 @@ func (b *Builder) Build() (*Server, error) {
 		sessionMgr:       NewSessionManager(defaultSessionTTL),
 		metricsScheduler: metricsScheduler,
 		wsHub:            hub,
+		windowSize:       windowSize,
+		alphaErr:         alphaErr,
+		betaLatency:      betaLatency,
 	}
 
 	if st != nil {
@@ -292,10 +333,10 @@ func (b *Builder) Build() (*Server, error) {
 		rt.notifyMgr = srv.notifyMgr
 	}
 
-	defaultCfg := store.Config{Retries: b.retries, FailLimit: b.failLimit, HealthEvery: b.healthEvery}
-	srv.retries = defaultCfg.Retries
-	srv.failLimit = defaultCfg.FailLimit
-	srv.healthEvery = defaultCfg.HealthEvery
+	runtimeCfg := Config{Retries: b.retries, FailLimit: b.failLimit, HealthEvery: b.healthEvery, WindowSize: windowSize, AlphaErr: alphaErr, BetaLatency: betaLatency}
+	srv.retries = runtimeCfg.Retries
+	srv.failLimit = runtimeCfg.FailLimit
+	srv.healthEvery = runtimeCfg.HealthEvery
 
 	if srv.settingsCache != nil {
 		srv.settingsCache.OnChange(func(key string, value any) {
@@ -389,7 +430,7 @@ func (b *Builder) Build() (*Server, error) {
 
 		// default 账号自动创建已禁用，避免重启后恢复已手动删除的 default 账号。如需该账号，请在存储层手动创建。
 
-		if err := srv.loadAccountsFromStore(parsed, defaultCfg, b.upstreamKey); err != nil {
+		if err := srv.loadAccountsFromStore(parsed, runtimeCfg, b.upstreamKey); err != nil {
 			return nil, err
 		}
 	} else {
@@ -400,7 +441,7 @@ func (b *Builder) Build() (*Server, error) {
 			Password:    "admin123",
 			ProxyAPIKey: adminKey,
 			IsAdmin:     true,
-			Config:      Config{Retries: defaultCfg.Retries, FailLimit: defaultCfg.FailLimit, HealthEvery: defaultCfg.HealthEvery},
+			Config:      Config{Retries: runtimeCfg.Retries, FailLimit: runtimeCfg.FailLimit, HealthEvery: runtimeCfg.HealthEvery, WindowSize: runtimeCfg.WindowSize, AlphaErr: runtimeCfg.AlphaErr, BetaLatency: runtimeCfg.BetaLatency},
 			Nodes:       make(map[string]*Node),
 			FailedSet:   make(map[string]struct{}),
 		}
@@ -411,7 +452,7 @@ func (b *Builder) Build() (*Server, error) {
 			Password:    "default123",
 			ProxyAPIKey: defaultProxyKey,
 			IsAdmin:     false,
-			Config:      Config{Retries: defaultCfg.Retries, FailLimit: defaultCfg.FailLimit, HealthEvery: defaultCfg.HealthEvery},
+			Config:      Config{Retries: runtimeCfg.Retries, FailLimit: runtimeCfg.FailLimit, HealthEvery: runtimeCfg.HealthEvery, WindowSize: runtimeCfg.WindowSize, AlphaErr: runtimeCfg.AlphaErr, BetaLatency: runtimeCfg.BetaLatency},
 			Nodes:       make(map[string]*Node),
 			FailedSet:   make(map[string]struct{}),
 		}
@@ -424,7 +465,9 @@ func (b *Builder) Build() (*Server, error) {
 			AccountID: defaultAccount.ID,
 			CreatedAt: time.Now(),
 			Weight:    1,
+			Window:    NewMetricsWindow(runtimeCfg.WindowSize),
 		}
+		node.Score = CalculateScore(node, runtimeCfg.AlphaErr, runtimeCfg.BetaLatency)
 		defaultAccount.Nodes[node.ID] = node
 		defaultAccount.ActiveID = node.ID
 

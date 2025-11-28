@@ -2,11 +2,11 @@
 - 必须保证本文件简洁、准确，并且保证文件实时更新
 
 ## 最后更新
-- **更新日期**: 2025-11-27
+- **更新日期**: 2025-11-28
 - **更新人**: Claude Code
-- **当前版本**: v1.7.1
-- **最新功能**: Claude Code 快速配置
-- **最新更新**: 统一快速配置页面样式与系统风格一致
+- **当前版本**: v1.8.0（开发中）
+- **最新功能**: 滑窗指标与多维评分机制（Phase 1.1）
+- **最新更新**: 实现基于滑窗的节点性能监控和多维评分，节点选择考虑成功率和延迟
 - **GitHub**: https://github.com/yxhpy/qcc_plus
 - **Docker Hub**: https://hub.docker.com/r/yxhpy520/qcc_plus
 
@@ -106,8 +106,13 @@ docker compose up -d
 | **TUNNEL_SUBDOMAIN** | 隧道子域名 | - |
 | **TUNNEL_ZONE** | Cloudflare Zone（域名） | - |
 | **TUNNEL_ENABLED** | 启用隧道功能 | false |
+| **QCC_WINDOW_SIZE** | 节点评分滑窗大小（请求次数） | 200 |
+| **QCC_SCORE_ALPHA_ERR** | 节点评分错误率权重 | 5.0 |
+| **QCC_SCORE_BETA_LAT** | 节点评分延迟权重 | 0.5 |
 
 ⚠️ **安全警告**：生产环境必须修改 `ADMIN_API_KEY` 和 `DEFAULT_PROXY_API_KEY`！
+
+**节点评分说明**：v1.8.0+ 引入基于滑窗的多维评分机制，评分公式为 `score = weight + α×(1-成功率) + β×(P95延迟/1000)`，评分越低优先级越高。设置 α=0 或 β=0 可禁用对应维度的惩罚。
 
 管理界面与管理 API 通过 `/login` 登录获得的 `session_token` Cookie 认证，不再使用 `x-admin-key` 头。
 

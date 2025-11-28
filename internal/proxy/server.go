@@ -38,6 +38,9 @@ type Server struct {
 	retries          int
 	failLimit        int
 	healthEvery      time.Duration
+	windowSize       int
+	alphaErr         float64
+	betaLatency      float64
 	healthRT         http.RoundTripper
 	cliRunner        CliRunner
 	store            *store.Store
@@ -182,13 +185,26 @@ func (p *Server) applySettingsFromCache() {
 
 // 创建默认账号及默认节点（如必要）。
 func (p *Server) createDefaultAccount(defaultUpstream *url.URL, defaultCfg store.Config, name, proxyKey, upstreamKey string) error {
+	windowSize := p.windowSize
+	if windowSize == 0 {
+		windowSize = 200
+	}
+	alphaErr := p.alphaErr
+	if alphaErr == 0 {
+		alphaErr = 5.0
+	}
+	betaLat := p.betaLatency
+	if betaLat == 0 {
+		betaLat = 0.5
+	}
+	cfg := Config{Retries: defaultCfg.Retries, FailLimit: defaultCfg.FailLimit, HealthEvery: defaultCfg.HealthEvery, WindowSize: windowSize, AlphaErr: alphaErr, BetaLatency: betaLat}
 	acc := &Account{
 		ID:          store.DefaultAccountID,
 		Name:        chooseNonEmpty(name, "default"),
 		Password:    "default123",
 		ProxyAPIKey: proxyKey,
 		IsAdmin:     true,
-		Config:      Config{Retries: defaultCfg.Retries, FailLimit: defaultCfg.FailLimit, HealthEvery: defaultCfg.HealthEvery},
+		Config:      cfg,
 		Nodes:       make(map[string]*Node),
 		FailedSet:   make(map[string]struct{}),
 	}
@@ -209,7 +225,9 @@ func (p *Server) createDefaultAccount(defaultUpstream *url.URL, defaultCfg store
 		AccountID:         acc.ID,
 		CreatedAt:         time.Now(),
 		Weight:            1,
+		Window:            NewMetricsWindow(cfg.WindowSize),
 	}
+	node.Score = CalculateScore(node, cfg.AlphaErr, cfg.BetaLatency)
 	acc.Nodes[node.ID] = node
 	acc.ActiveID = node.ID
 	p.registerAccount(acc)
@@ -225,7 +243,7 @@ func (p *Server) createDefaultAccount(defaultUpstream *url.URL, defaultCfg store
 }
 
 // 从持久层加载账号、节点与配置。
-func (p *Server) loadAccountsFromStore(defaultUpstream *url.URL, defaultCfg store.Config, defaultUpstreamKey string) error {
+func (p *Server) loadAccountsFromStore(defaultUpstream *url.URL, defaultCfg Config, defaultUpstreamKey string) error {
 	if p.store == nil {
 		return nil
 	}
@@ -240,7 +258,16 @@ func (p *Server) loadAccountsFromStore(defaultUpstream *url.URL, defaultCfg stor
 		return nil
 	}
 	for _, a := range accounts {
-		cfg := Config{Retries: defaultCfg.Retries, FailLimit: defaultCfg.FailLimit, HealthEvery: defaultCfg.HealthEvery}
+		cfg := defaultCfg
+		if cfg.WindowSize == 0 {
+			cfg.WindowSize = 200
+		}
+		if cfg.AlphaErr == 0 {
+			cfg.AlphaErr = 5.0
+		}
+		if cfg.BetaLatency == 0 {
+			cfg.BetaLatency = 0.5
+		}
 		// 加载节点与活动节点
 		recs, cfgLoaded, active, err := p.store.LoadAllByAccount(ctx, a.ID)
 		if err != nil {
@@ -293,7 +320,9 @@ func (p *Server) loadAccountsFromStore(defaultUpstream *url.URL, defaultCfg stor
 				AccountID:         acc.ID,
 				CreatedAt:         time.Now(),
 				Weight:            1,
+				Window:            NewMetricsWindow(cfg.WindowSize),
 			}
+			node.Score = CalculateScore(node, cfg.AlphaErr, cfg.BetaLatency)
 			acc.Nodes[node.ID] = node
 			acc.ActiveID = node.ID
 			_ = p.store.UpsertNode(context.Background(), store.NodeRecord{ID: node.ID, Name: node.Name, BaseURL: node.URL.String(), HealthCheckMethod: node.HealthCheckMethod, AccountID: acc.ID, Weight: node.Weight, CreatedAt: node.CreatedAt})
@@ -318,6 +347,7 @@ func (p *Server) loadAccountsFromStore(defaultUpstream *url.URL, defaultCfg stor
 					Failed:            r.Failed,
 					Disabled:          r.Disabled,
 					LastError:         r.LastError,
+					Window:            NewMetricsWindow(cfg.WindowSize),
 					Metrics: metrics{
 						Requests:          r.Requests,
 						FailCount:         r.FailCount,
@@ -332,6 +362,7 @@ func (p *Server) loadAccountsFromStore(defaultUpstream *url.URL, defaultCfg stor
 						LastHealthCheckAt: r.LastHealthCheckAt,
 					},
 				}
+				n.Score = CalculateScore(n, cfg.AlphaErr, cfg.BetaLatency)
 				acc.Nodes[n.ID] = n
 				// 重启后恢复失败节点到 FailedSet，确保健康检查能够探活这些节点
 				if n.Failed {
@@ -372,6 +403,21 @@ func (p *Server) registerAccount(acc *Account) {
 		p.retries = acc.Config.Retries
 		p.failLimit = acc.Config.FailLimit
 		p.healthEvery = acc.Config.HealthEvery
+		if acc.Config.WindowSize > 0 {
+			p.windowSize = acc.Config.WindowSize
+		} else if p.windowSize == 0 {
+			p.windowSize = 200
+		}
+		if acc.Config.AlphaErr != 0 {
+			p.alphaErr = acc.Config.AlphaErr
+		} else if p.alphaErr == 0 {
+			p.alphaErr = 5.0
+		}
+		if acc.Config.BetaLatency != 0 {
+			p.betaLatency = acc.Config.BetaLatency
+		} else if p.betaLatency == 0 {
+			p.betaLatency = 0.5
+		}
 	}
 	for id, n := range acc.Nodes {
 		p.nodeIndex[id] = n

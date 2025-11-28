@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"net/url"
+	"sync"
 	"time"
 )
 
@@ -19,6 +20,9 @@ type Node struct {
 	Failed            bool
 	Disabled          bool // 用户手动禁用
 	LastError         string
+	Window            *MetricsWindow
+	Score             float64
+	windowMu          sync.Mutex
 }
 
 // metrics 记录节点请求与健康状况统计。
@@ -47,6 +51,9 @@ type Config struct {
 	Retries     int
 	FailLimit   int
 	HealthEvery time.Duration
+	WindowSize  int
+	AlphaErr    float64
+	BetaLatency float64
 }
 
 // Account 表示一个租户，持有独立的节点与配置。

@@ -51,7 +51,20 @@ func (p *Server) addNodeWithMethod(acc *Account, name, rawURL, apiKey string, we
 		healthMethod = HealthCheckMethodHEAD
 	}
 	id := fmt.Sprintf("n-%d", time.Now().UnixNano())
-	node := &Node{ID: id, Name: name, URL: u, APIKey: apiKey, HealthCheckMethod: healthMethod, AccountID: acc.ID, CreatedAt: time.Now(), Weight: weight}
+	windowSize := acc.Config.WindowSize
+	if windowSize == 0 {
+		windowSize = 200
+	}
+	alphaErr := acc.Config.AlphaErr
+	if alphaErr == 0 {
+		alphaErr = 5.0
+	}
+	betaLat := acc.Config.BetaLatency
+	if betaLat == 0 {
+		betaLat = 0.5
+	}
+	node := &Node{ID: id, Name: name, URL: u, APIKey: apiKey, HealthCheckMethod: healthMethod, AccountID: acc.ID, CreatedAt: time.Now(), Weight: weight, Window: NewMetricsWindow(windowSize)}
+	node.Score = CalculateScore(node, alphaErr, betaLat)
 
 	p.mu.Lock()
 	acc.Nodes[id] = node
@@ -130,6 +143,24 @@ func (p *Server) updateNode(id, name, rawURL string, apiKey *string, weight int,
 	n.Weight = weight
 	n.HealthCheckMethod = desiredMethod
 	acc := p.nodeAccount[id]
+	windowSize := 200
+	alphaErr := 5.0
+	betaLat := 0.5
+	if acc != nil {
+		if acc.Config.WindowSize > 0 {
+			windowSize = acc.Config.WindowSize
+		}
+		if acc.Config.AlphaErr != 0 {
+			alphaErr = acc.Config.AlphaErr
+		}
+		if acc.Config.BetaLatency != 0 {
+			betaLat = acc.Config.BetaLatency
+		}
+	}
+	if n.Window == nil {
+		n.Window = NewMetricsWindow(windowSize)
+	}
+	n.Score = CalculateScore(n, alphaErr, betaLat)
 	p.mu.Unlock()
 
 	if p.store != nil {
@@ -268,13 +299,28 @@ func (p *Server) selectBestAndActivate(acc *Account, reason ...string) (*Node, e
 	prevNode := acc.Nodes[prevID]
 	bestID := ""
 	var bestNode *Node
+	var bestScore float64
+	effectiveScore := func(n *Node) float64 {
+		if n == nil {
+			return 0
+		}
+		if n.Window == nil {
+			return float64(n.Weight)
+		}
+		if n.Score == 0 {
+			return float64(n.Weight)
+		}
+		return n.Score
+	}
 	for id, n := range acc.Nodes {
 		if n.Failed || n.Disabled {
 			continue
 		}
-		if bestNode == nil || n.Weight < bestNode.Weight || (n.Weight == bestNode.Weight && n.CreatedAt.Before(bestNode.CreatedAt)) {
+		score := effectiveScore(n)
+		if bestNode == nil || score < bestScore || (score == bestScore && n.CreatedAt.Before(bestNode.CreatedAt)) {
 			bestNode = n
 			bestID = id
+			bestScore = score
 		}
 	}
 	if bestNode == nil {

@@ -206,12 +206,22 @@ func TestHandleConfigGetAndPut(t *testing.T) {
 	if resp.Code != http.StatusOK {
 		t.Fatalf("config GET status %d", resp.Code)
 	}
-	var cfgResp map[string]int
+	var cfgResp struct {
+		Retries           int     `json:"retries"`
+		FailLimit         int     `json:"fail_limit"`
+		HealthIntervalSec int     `json:"health_interval_sec"`
+		WindowSize        int     `json:"window_size"`
+		AlphaErr          float64 `json:"alpha_err"`
+		BetaLatency       float64 `json:"beta_latency"`
+	}
 	if err := json.NewDecoder(resp.Body).Decode(&cfgResp); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if cfgResp["retries"] != 2 || cfgResp["fail_limit"] != 2 || cfgResp["health_interval_sec"] != 2 {
+	if cfgResp.Retries != 2 || cfgResp.FailLimit != 2 || cfgResp.HealthIntervalSec != 2 {
 		t.Fatalf("unexpected config payload: %+v", cfgResp)
+	}
+	if cfgResp.WindowSize != 200 || cfgResp.AlphaErr != 5.0 || cfgResp.BetaLatency != 0.5 {
+		t.Fatalf("unexpected scoring config: %+v", cfgResp)
 	}
 
 	// PUT update
@@ -226,6 +236,9 @@ func TestHandleConfigGetAndPut(t *testing.T) {
 	newCfg := srv.getConfig()
 	if newCfg.Retries != 4 || newCfg.FailLimit != 5 || newCfg.HealthEvery != 9*time.Second {
 		t.Fatalf("config not updated: %+v", newCfg)
+	}
+	if newCfg.WindowSize != 200 || newCfg.AlphaErr != 5.0 || newCfg.BetaLatency != 0.5 {
+		t.Fatalf("scoring config changed unexpectedly: %+v", newCfg)
 	}
 	if rt, ok := srv.transport.(*retryTransport); ok {
 		if rt.attempts != 4 {
@@ -597,9 +610,32 @@ func TestNodeRecoveryAutoSwitch(t *testing.T) {
 	// Start health check loop
 	go srv.healthLoop()
 
+	waitForActive := func(expected string) {
+		t.Helper()
+		deadline := time.Now().Add(2 * time.Second)
+		for time.Now().Before(deadline) {
+			srv.mu.RLock()
+			activeID := srv.defaultAccount.ActiveID
+			n := srv.nodeIndex[expected]
+			failed := n != nil && n.Failed
+			srv.mu.RUnlock()
+			if !failed && activeID == expected {
+				return
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
+		srv.mu.RLock()
+		activeID := srv.defaultAccount.ActiveID
+		n := srv.nodeIndex[expected]
+		failed := n != nil && n.Failed
+		srv.mu.RUnlock()
+		t.Fatalf("expected %s to be active and healthy (failed=%v), got %s", expected, failed, activeID)
+	}
+
 	// Update default node to weight 1
 	def := srv.getNode("default")
-	if err := srv.updateNode("default", "node1", def.URL.String(), &def.APIKey, 1, nil); err != nil {
+	healthMethod := HealthCheckMethodHEAD
+	if err := srv.updateNode("default", "node1", def.URL.String(), &def.APIKey, 1, &healthMethod); err != nil {
 		t.Fatalf("update default: %v", err)
 	}
 
@@ -642,50 +678,20 @@ func TestNodeRecoveryAutoSwitch(t *testing.T) {
 	// Scenario 1: Node 3 recovers (should become active)
 	t.Log("Scenario 1: Node 3 recovers")
 	healthy3 = true
-	time.Sleep(800 * time.Millisecond) // Wait for health check
-
-	srv.mu.RLock()
-	activeID := srv.defaultAccount.ActiveID
-	node3Failed := srv.nodeIndex[node3.ID].Failed
-	srv.mu.RUnlock()
-	if node3Failed {
-		t.Errorf("node3 should be healthy after recovery")
-	}
-	if activeID != node3.ID {
-		t.Errorf("expected node3 to be active after recovery, got %s", activeID)
-	}
+	srv.checkNodeHealth(srv.defaultAccount, node3.ID, CheckSourceRecovery)
+	waitForActive(node3.ID)
 
 	// Scenario 2: Node 2 recovers (should switch to node2 due to lower weight)
 	t.Log("Scenario 2: Node 2 recovers")
 	healthy2 = true
-	time.Sleep(800 * time.Millisecond) // Wait for health check
-
-	srv.mu.RLock()
-	activeID = srv.defaultAccount.ActiveID
-	node2Failed := srv.nodeIndex[node2.ID].Failed
-	srv.mu.RUnlock()
-	if node2Failed {
-		t.Errorf("node2 should be healthy after recovery")
-	}
-	if activeID != node2.ID {
-		t.Errorf("expected node2 to be active after recovery (weight 2 < 3), got %s", activeID)
-	}
+	srv.checkNodeHealth(srv.defaultAccount, node2.ID, CheckSourceRecovery)
+	waitForActive(node2.ID)
 
 	// Scenario 3: Node 1 recovers (should switch to node1 due to lowest weight)
 	t.Log("Scenario 3: Node 1 recovers")
 	healthy1 = true
-	time.Sleep(800 * time.Millisecond) // Wait for health check
-
-	srv.mu.RLock()
-	activeID = srv.defaultAccount.ActiveID
-	node1Failed := srv.nodeIndex["default"].Failed
-	srv.mu.RUnlock()
-	if node1Failed {
-		t.Errorf("node1 should be healthy after recovery")
-	}
-	if activeID != "default" {
-		t.Errorf("expected node1 to be active after recovery (weight 1 is lowest), got %s", activeID)
-	}
+	srv.checkNodeHealth(srv.defaultAccount, "default", CheckSourceRecovery)
+	waitForActive("default")
 
 	// Reverse scenario: Node 1 fails again
 	t.Log("Scenario 4: Node 1 fails again")
@@ -695,12 +701,5 @@ func TestNodeRecoveryAutoSwitch(t *testing.T) {
 	srv.nodeIndex["default"].Metrics.FailStreak = 1
 	srv.mu.Unlock()
 	srv.handleFailure("default", "simulated failure")
-	time.Sleep(100 * time.Millisecond) // Small delay for processing
-
-	srv.mu.RLock()
-	activeID = srv.defaultAccount.ActiveID
-	srv.mu.RUnlock()
-	if activeID != node2.ID {
-		t.Errorf("expected node2 to be active after node1 fails, got %s", activeID)
-	}
+	waitForActive(node2.ID)
 }

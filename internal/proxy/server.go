@@ -41,6 +41,8 @@ type Server struct {
 	windowSize       int
 	alphaErr         float64
 	betaLatency      float64
+	cooldown         time.Duration
+	minHealthy       time.Duration
 	healthRT         http.RoundTripper
 	cliRunner        CliRunner
 	store            *store.Store
@@ -197,7 +199,15 @@ func (p *Server) createDefaultAccount(defaultUpstream *url.URL, defaultCfg store
 	if betaLat == 0 {
 		betaLat = 0.5
 	}
-	cfg := Config{Retries: defaultCfg.Retries, FailLimit: defaultCfg.FailLimit, HealthEvery: defaultCfg.HealthEvery, WindowSize: windowSize, AlphaErr: alphaErr, BetaLatency: betaLat}
+	cooldown := p.cooldown
+	if cooldown == 0 {
+		cooldown = 30 * time.Second
+	}
+	minHealthy := p.minHealthy
+	if minHealthy == 0 {
+		minHealthy = 15 * time.Second
+	}
+	cfg := Config{Retries: defaultCfg.Retries, FailLimit: defaultCfg.FailLimit, HealthEvery: defaultCfg.HealthEvery, WindowSize: windowSize, AlphaErr: alphaErr, BetaLatency: betaLat, Cooldown: cooldown, MinHealthy: minHealthy}
 	acc := &Account{
 		ID:          store.DefaultAccountID,
 		Name:        chooseNonEmpty(name, "default"),
@@ -403,6 +413,8 @@ func (p *Server) registerAccount(acc *Account) {
 		p.retries = acc.Config.Retries
 		p.failLimit = acc.Config.FailLimit
 		p.healthEvery = acc.Config.HealthEvery
+		p.cooldown = acc.Config.Cooldown
+		p.minHealthy = acc.Config.MinHealthy
 		if acc.Config.WindowSize > 0 {
 			p.windowSize = acc.Config.WindowSize
 		} else if p.windowSize == 0 {

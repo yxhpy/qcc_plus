@@ -22,6 +22,8 @@ type Node struct {
 	LastError         string
 	Window            *MetricsWindow
 	Score             float64
+	LastSwitchAt      time.Time
+	StableSince       time.Time
 	windowMu          sync.Mutex
 }
 
@@ -54,6 +56,8 @@ type Config struct {
 	WindowSize  int
 	AlphaErr    float64
 	BetaLatency float64
+	Cooldown    time.Duration
+	MinHealthy  time.Duration
 }
 
 // Account 表示一个租户，持有独立的节点与配置。

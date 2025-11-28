@@ -90,6 +90,7 @@ func (p *Server) recordMetrics(nodeID string, start time.Time, mw *metricsWriter
 	if mw != nil && mw.status != http.StatusOK {
 		node.Metrics.FailCount++
 		node.Metrics.FailStreak++
+		node.StableSince = time.Time{}
 	}
 	if mw != nil && mw.status == http.StatusOK {
 		node.Metrics.FailStreak = 0
@@ -97,6 +98,9 @@ func (p *Server) recordMetrics(nodeID string, start time.Time, mw *metricsWriter
 		node.Failed = false
 		if acc != nil {
 			delete(acc.FailedSet, nodeID)
+		}
+		if node.StableSince.IsZero() {
+			node.StableSince = time.Now()
 		}
 	}
 	statusCode = http.StatusOK

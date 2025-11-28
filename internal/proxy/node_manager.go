@@ -300,6 +300,7 @@ func (p *Server) selectBestAndActivate(acc *Account, reason ...string) (*Node, e
 	bestID := ""
 	var bestNode *Node
 	var bestScore float64
+	now := time.Now()
 	effectiveScore := func(n *Node) float64 {
 		if n == nil {
 			return 0
@@ -316,6 +317,9 @@ func (p *Server) selectBestAndActivate(acc *Account, reason ...string) (*Node, e
 		if n.Failed || n.Disabled {
 			continue
 		}
+		if acc.Config.Cooldown > 0 && !n.LastSwitchAt.IsZero() && now.Sub(n.LastSwitchAt) < acc.Config.Cooldown {
+			continue
+		}
 		score := effectiveScore(n)
 		if bestNode == nil || score < bestScore || (score == bestScore && n.CreatedAt.Before(bestNode.CreatedAt)) {
 			bestNode = n
@@ -327,6 +331,7 @@ func (p *Server) selectBestAndActivate(acc *Account, reason ...string) (*Node, e
 		p.mu.Unlock()
 		return nil, ErrNoActiveNode
 	}
+	bestNode.LastSwitchAt = now
 	acc.ActiveID = bestID
 	if p.store != nil {
 		_ = p.store.SetActive(context.Background(), acc.ID, bestID)

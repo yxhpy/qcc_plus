@@ -30,6 +30,8 @@ type Builder struct {
 	windowSize         int
 	alphaErr           float64
 	betaLatency        float64
+	cooldown           time.Duration
+	minHealthy         time.Duration
 	storeDSN           string
 	adminKey           string
 	defaultAccountName string
@@ -39,7 +41,7 @@ type Builder struct {
 
 // NewBuilder 构建带默认监听地址和日志的 Builder。
 func NewBuilder() *Builder {
-	return &Builder{listenAddr: ":8000", logger: log.Default(), upstreamName: "default", retries: 3, failLimit: 3, healthEvery: 30 * time.Second, windowSize: 200, alphaErr: 5.0, betaLatency: 0.5}
+	return &Builder{listenAddr: ":8000", logger: log.Default(), upstreamName: "default", retries: 3, failLimit: 3, healthEvery: 30 * time.Second, windowSize: 200, alphaErr: 5.0, betaLatency: 0.5, cooldown: 30 * time.Second, minHealthy: 15 * time.Second}
 }
 
 func chooseNonEmpty(vals ...string) string {
@@ -261,6 +263,30 @@ func (b *Builder) Build() (*Server, error) {
 		}
 	}
 
+	cooldown := b.cooldown
+	if cooldown == 0 {
+		cooldown = 30 * time.Second
+	}
+	if v := os.Getenv("QCC_SWITCH_COOLDOWN"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d >= 0 {
+			cooldown = d
+		} else {
+			logger.Printf("invalid QCC_SWITCH_COOLDOWN=%s, fallback to %v", v, cooldown)
+		}
+	}
+
+	minHealthy := b.minHealthy
+	if minHealthy == 0 {
+		minHealthy = 15 * time.Second
+	}
+	if v := os.Getenv("QCC_MIN_HEALTHY"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d >= 0 {
+			minHealthy = d
+		} else {
+			logger.Printf("invalid QCC_MIN_HEALTHY=%s, fallback to %v", v, minHealthy)
+		}
+	}
+
 	var st *store.Store
 	if b.storeDSN != "" {
 		st, err = store.Open(b.storeDSN)
@@ -315,6 +341,8 @@ func (b *Builder) Build() (*Server, error) {
 		windowSize:       windowSize,
 		alphaErr:         alphaErr,
 		betaLatency:      betaLatency,
+		cooldown:         cooldown,
+		minHealthy:       minHealthy,
 	}
 
 	if st != nil {
@@ -333,7 +361,7 @@ func (b *Builder) Build() (*Server, error) {
 		rt.notifyMgr = srv.notifyMgr
 	}
 
-	runtimeCfg := Config{Retries: b.retries, FailLimit: b.failLimit, HealthEvery: b.healthEvery, WindowSize: windowSize, AlphaErr: alphaErr, BetaLatency: betaLatency}
+	runtimeCfg := Config{Retries: b.retries, FailLimit: b.failLimit, HealthEvery: b.healthEvery, WindowSize: windowSize, AlphaErr: alphaErr, BetaLatency: betaLatency, Cooldown: cooldown, MinHealthy: minHealthy}
 	srv.retries = runtimeCfg.Retries
 	srv.failLimit = runtimeCfg.FailLimit
 	srv.healthEvery = runtimeCfg.HealthEvery
@@ -441,7 +469,7 @@ func (b *Builder) Build() (*Server, error) {
 			Password:    "admin123",
 			ProxyAPIKey: adminKey,
 			IsAdmin:     true,
-			Config:      Config{Retries: runtimeCfg.Retries, FailLimit: runtimeCfg.FailLimit, HealthEvery: runtimeCfg.HealthEvery, WindowSize: runtimeCfg.WindowSize, AlphaErr: runtimeCfg.AlphaErr, BetaLatency: runtimeCfg.BetaLatency},
+			Config:      Config{Retries: runtimeCfg.Retries, FailLimit: runtimeCfg.FailLimit, HealthEvery: runtimeCfg.HealthEvery, WindowSize: runtimeCfg.WindowSize, AlphaErr: runtimeCfg.AlphaErr, BetaLatency: runtimeCfg.BetaLatency, Cooldown: runtimeCfg.Cooldown, MinHealthy: runtimeCfg.MinHealthy},
 			Nodes:       make(map[string]*Node),
 			FailedSet:   make(map[string]struct{}),
 		}
@@ -452,7 +480,7 @@ func (b *Builder) Build() (*Server, error) {
 			Password:    "default123",
 			ProxyAPIKey: defaultProxyKey,
 			IsAdmin:     false,
-			Config:      Config{Retries: runtimeCfg.Retries, FailLimit: runtimeCfg.FailLimit, HealthEvery: runtimeCfg.HealthEvery, WindowSize: runtimeCfg.WindowSize, AlphaErr: runtimeCfg.AlphaErr, BetaLatency: runtimeCfg.BetaLatency},
+			Config:      Config{Retries: runtimeCfg.Retries, FailLimit: runtimeCfg.FailLimit, HealthEvery: runtimeCfg.HealthEvery, WindowSize: runtimeCfg.WindowSize, AlphaErr: runtimeCfg.AlphaErr, BetaLatency: runtimeCfg.BetaLatency, Cooldown: runtimeCfg.Cooldown, MinHealthy: runtimeCfg.MinHealthy},
 			Nodes:       make(map[string]*Node),
 			FailedSet:   make(map[string]struct{}),
 		}

@@ -95,7 +95,15 @@ func (p *Server) getConfig() Config {
 	if betaLat == 0 {
 		betaLat = 0.5
 	}
-	return Config{Retries: retries, FailLimit: fail, HealthEvery: health, WindowSize: windowSize, AlphaErr: alphaErr, BetaLatency: betaLat}
+	cooldown := p.cooldown
+	if cooldown == 0 {
+		cooldown = 30 * time.Second
+	}
+	minHealthy := p.minHealthy
+	if minHealthy == 0 {
+		minHealthy = 15 * time.Second
+	}
+	return Config{Retries: retries, FailLimit: fail, HealthEvery: health, WindowSize: windowSize, AlphaErr: alphaErr, BetaLatency: betaLat, Cooldown: cooldown, MinHealthy: minHealthy}
 }
 
 func (p *Server) updateConfigForAccount(acc *Account, retries, failLimit int, healthEvery time.Duration) error {

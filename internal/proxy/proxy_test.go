@@ -379,6 +379,14 @@ func TestDisableActiveTriggersImmediateSwitch(t *testing.T) {
 		t.Fatalf("build proxy: %v", err)
 	}
 
+	// Disable debounce mechanisms for testing
+	srv.mu.Lock()
+	if srv.defaultAccount != nil {
+		srv.defaultAccount.Config.Cooldown = 0
+		srv.defaultAccount.Config.MinHealthy = 0
+	}
+	srv.mu.Unlock()
+
 	def := srv.getNode("default")
 	if def == nil {
 		t.Fatalf("default node missing")
@@ -418,6 +426,14 @@ func TestEnableNodeAutoSwitchesByPriority(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build proxy: %v", err)
 	}
+
+	// Disable debounce mechanisms for testing
+	srv.mu.Lock()
+	if srv.defaultAccount != nil {
+		srv.defaultAccount.Config.Cooldown = 0
+		srv.defaultAccount.Config.MinHealthy = 0
+	}
+	srv.mu.Unlock()
 
 	primary := srv.getNode("default")
 	if primary == nil {
@@ -606,6 +622,14 @@ func TestNodeRecoveryAutoSwitch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build proxy: %v", err)
 	}
+
+	// Disable debounce mechanisms for testing
+	srv.mu.Lock()
+	if srv.defaultAccount != nil {
+		srv.defaultAccount.Config.Cooldown = 0
+		srv.defaultAccount.Config.MinHealthy = 0
+	}
+	srv.mu.Unlock()
 
 	// Start health check loop
 	go srv.healthLoop()

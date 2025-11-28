@@ -54,6 +54,7 @@ func (p *Server) handleFailure(nodeID string, errMsg string) {
 	nodeName := node.Name
 	if failed {
 		node.Failed = true
+		node.StableSince = time.Time{}
 		if acc != nil {
 			acc.FailedSet[nodeID] = struct{}{}
 		}
@@ -201,6 +202,7 @@ func (p *Server) checkNodeHealth(acc *Account, id string, source string) {
 		nodeDisabled    bool
 		hasNode         bool
 		wasFailed       bool
+		recovered       bool
 	)
 
 	p.mu.Lock()
@@ -213,22 +215,39 @@ func (p *Server) checkNodeHealth(acc *Account, id string, source string) {
 			n.Metrics.LastPingMS = latency.Milliseconds()
 		}
 		if ok {
-			n.Failed = false
-			n.LastError = ""
-			n.Metrics.FailStreak = 0
-			n.Metrics.LastPingErr = ""
+			if n.StableSince.IsZero() {
+				n.StableSince = now
+			}
+			minHealthy := 15 * time.Second
 			if acc != nil {
-				delete(acc.FailedSet, id)
+				switch {
+				case acc.Config.MinHealthy > 0:
+					minHealthy = acc.Config.MinHealthy
+				case acc.Config.MinHealthy == 0:
+					minHealthy = 0
+				}
+			}
+			if minHealthy == 0 || now.Sub(n.StableSince) >= minHealthy {
+				n.Failed = false
+				n.LastError = ""
+				n.Metrics.FailStreak = 0
+				n.Metrics.LastPingErr = ""
+				if acc != nil {
+					delete(acc.FailedSet, id)
+				}
 			}
 			if p.store != nil {
 				rec = toRecord(n)
 				shouldPersist = true
 			}
-		} else if pingErr != "" {
-			n.Metrics.LastPingErr = pingErr
-			if p.store != nil {
-				rec = toRecord(n)
-				shouldPersist = true
+		} else {
+			n.StableSince = time.Time{}
+			if pingErr != "" {
+				n.Metrics.LastPingErr = pingErr
+				if p.store != nil {
+					rec = toRecord(n)
+					shouldPersist = true
+				}
 			}
 		}
 
@@ -238,12 +257,13 @@ func (p *Server) checkNodeHealth(acc *Account, id string, source string) {
 		nodeFailed = n.Failed
 		nodeDisabled = n.Disabled
 		metricsSnapshot = n.Metrics
+		recovered = wasFailed && !n.Failed
 	}
 	p.mu.Unlock()
 	if shouldPersist {
 		_ = p.store.UpsertNode(context.Background(), rec)
 	}
-	if ok && wasFailed {
+	if recovered {
 		// 恢复后重新在健康节点中选择最优的一个。
 		if p.notifyMgr != nil && acc != nil && n != nil {
 			p.notifyMgr.Publish(notify.Event{

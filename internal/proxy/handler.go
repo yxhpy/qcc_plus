@@ -175,7 +175,47 @@ func (p *Server) handler() http.Handler {
 			return
 		}
 
-		// Proxy endpoints (unchanged)
+		// 只代理 /v1/messages 接口，其他请求透传到上游
+		if path == "/v1/messages" {
+			// Proxy endpoints for /v1/messages
+			proxyKey := extractAPIKey(r)
+			account := p.getAccountByProxyKey(proxyKey)
+			if account == nil {
+				account = p.defaultAccount
+			}
+			if account == nil {
+				http.Error(w, "account not found", http.StatusUnauthorized)
+				return
+			}
+
+			node, err := p.getActiveNodeForAccount(account)
+			if err != nil {
+				http.Error(w, "no active upstream node", http.StatusServiceUnavailable)
+				return
+			}
+
+			usage := &usage{}
+			proxy := p.newReverseProxy(node, usage)
+			p.logger.Printf("%s %s via %s (account=%s)", r.Method, r.URL.String(), node.Name, account.ID)
+
+			start := time.Now()
+			mw := &metricsWriter{ResponseWriter: w, status: http.StatusOK}
+			ctx := context.WithValue(r.Context(), accountContextKey{}, account)
+			ctx = context.WithValue(ctx, nodeContextKey{}, node)
+			proxy.ServeHTTP(mw, r.WithContext(ctx))
+
+			p.recordMetrics(node.ID, start, mw, usage)
+			if mw.status != http.StatusOK {
+				errMsg := mw.Header().Get("X-Retry-Error")
+				if errMsg == "" {
+					errMsg = fmt.Sprintf("status %d", mw.status)
+				}
+				p.handleFailure(node.ID, errMsg)
+			}
+			return
+		}
+
+		// 其他请求透传到上游（不做任何处理）
 		proxyKey := extractAPIKey(r)
 		account := p.getAccountByProxyKey(proxyKey)
 		if account == nil {
@@ -185,31 +225,14 @@ func (p *Server) handler() http.Handler {
 			http.Error(w, "account not found", http.StatusUnauthorized)
 			return
 		}
-
 		node, err := p.getActiveNodeForAccount(account)
 		if err != nil {
 			http.Error(w, "no active upstream node", http.StatusServiceUnavailable)
 			return
 		}
-
-		usage := &usage{}
-		proxy := p.newReverseProxy(node, usage)
-		p.logger.Printf("%s %s via %s (account=%s)", r.Method, r.URL.String(), node.Name, account.ID)
-
-		start := time.Now()
-		mw := &metricsWriter{ResponseWriter: w, status: http.StatusOK}
-		ctx := context.WithValue(r.Context(), accountContextKey{}, account)
-		ctx = context.WithValue(ctx, nodeContextKey{}, node)
-		proxy.ServeHTTP(mw, r.WithContext(ctx))
-
-		p.recordMetrics(node.ID, start, mw, usage)
-		if mw.status != http.StatusOK {
-			errMsg := mw.Header().Get("X-Retry-Error")
-			if errMsg == "" {
-				errMsg = fmt.Sprintf("status %d", mw.status)
-			}
-			p.handleFailure(node.ID, errMsg)
-		}
+		// 透传代理：不记录指标，不处理失败
+		proxy := p.newPassthroughProxy(node)
+		proxy.ServeHTTP(w, r)
 	})
 }
 

@@ -291,3 +291,27 @@ func (p *Server) newReverseProxy(node *Node, u *usage) *httputil.ReverseProxy {
 
 	return proxy
 }
+
+// newPassthroughProxy 创建一个简单的透传代理，不做任何额外处理（不记录指标、不处理工具定义）。
+func (p *Server) newPassthroughProxy(node *Node) *httputil.ReverseProxy {
+	proxy := httputil.NewSingleHostReverseProxy(node.URL)
+	proxy.Transport = p.transport
+	proxy.FlushInterval = -1
+
+	originalDirector := proxy.Director
+	proxy.Director = func(req *http.Request) {
+		originalDirector(req)
+		req.Host = node.URL.Host
+		if node.APIKey != "" {
+			req.Header.Set("x-api-key", node.APIKey)
+			req.Header.Set("Authorization", "Bearer "+node.APIKey)
+		}
+	}
+
+	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+		p.logger.Printf("passthrough proxy error %s %s: %v", r.Method, r.URL.String(), err)
+		http.Error(w, "upstream error", http.StatusBadGateway)
+	}
+
+	return proxy
+}

@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -15,6 +16,9 @@ func Open(dsn string) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
+	db.SetMaxOpenConns(30)
+	db.SetMaxIdleConns(10)
+	db.SetConnMaxLifetime(2 * time.Minute)
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 	if err := db.PingContext(ctx); err != nil {

@@ -84,7 +84,8 @@ func (h *HealthScheduler) checkLoop() {
 	defer h.wg.Done()
 	defer h.recoverPanic("check loop")
 
-	// 立即执行一次，启动后尽快获取全量状态。
+	// 延迟 30 秒后执行首次检查，避免启动时负载峰值。
+	time.Sleep(30 * time.Second)
 	h.checkAllNodes()
 
 	ticker := time.NewTicker(h.interval)

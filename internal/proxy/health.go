@@ -490,7 +490,8 @@ func (p *Server) healthCheckViaCLI(ctx context.Context, node Node) (bool, string
 	}
 
 	start := time.Now()
-	out, err := runner(ctx, "claude", env, "hi", model)
+	// 使用简短的 prompt 让模型只回复 "ok"，减少输出 token 数量
+	out, err := runner(ctx, "claude", env, "say ok", model)
 	latency := time.Since(start)
 	if err != nil {
 		// 不再返回 fallback 标志，直接返回错误
@@ -560,7 +561,8 @@ func defaultCLIRunner(ctx context.Context, image string, env map[string]string, 
 
 	// 使用 -p/--print 来获取非交互式输出
 	// 超时通过 context 控制（在 healthCheckViaCLI 中设置）
-	args := []string{"-p", prompt}
+	// --tools "" 禁用所有工具，避免加载工具定义，加速响应
+	args := []string{"-p", prompt, "--tools", ""}
 
 	// 如果指定了模型，添加 --model 参数
 	if model != "" {

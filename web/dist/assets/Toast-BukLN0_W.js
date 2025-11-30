@@ -1,0 +1,1 @@
+import{j as r}from"./vendor-HVpYYIdB.js";function e({message:s,type:n="success"}){return s?r.jsxs("div",{className:`toast show ${n==="error"?"error":""}`,children:[r.jsx("span",{children:n==="error"?"⚠️":"✅"}),r.jsx("span",{children:s})]}):null}export{e as T};

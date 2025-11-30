@@ -1,0 +1,1 @@
+import{j as s}from"./vendor-HVpYYIdB.js";function i({title:r,extra:a,children:d,className:c}){return s.jsxs("section",{className:`card${c?" "+c:""}`,children:[(r||a)&&s.jsxs("div",{className:"card-head",children:[r&&s.jsx("h3",{className:"card-title",children:r}),a&&s.jsx("div",{className:"card-extra",children:a})]}),d]})}export{i as C};

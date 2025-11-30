@@ -32,24 +32,21 @@ export default defineConfig({
     chunkSizeWarningLimit: 900,
     rollupOptions: {
       output: {
-        // Keep core libs separate so first screen loads leaner bundles
+        // Simplified chunk strategy to avoid React duplication issues
         manualChunks(id) {
           if (!id.includes('node_modules')) return undefined
-          if (
-            /[\\/]node_modules[\\/]react(?:-dom)?[\\/]/.test(id) ||
-            /[\\/]node_modules[\\/]react-router-dom[\\/]/.test(id)
-          ) {
+
+          // Bundle all React ecosystem together to prevent hook conflicts
+          if (id.includes('react') || id.includes('@dnd-kit')) {
             return 'vendor'
           }
-          if (id.includes('chart.js') || id.includes('react-chartjs-2')) return 'charts'
-          if (
-            id.includes('@dnd-kit') ||
-            id.includes('react-markdown') ||
-            id.includes('remark-gfm')
-          ) {
-            return 'ui'
+
+          // Separate chart.js (large independent library)
+          if (id.includes('chart.js')) {
+            return 'charts'
           }
-          // Let Rollup decide for the rest
+
+          // Let Rollup auto-chunk the rest
           return undefined
         },
       },

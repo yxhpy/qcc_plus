@@ -143,6 +143,12 @@ func (h *HealthScheduler) checkAllNodes() {
 
 	p := h.server
 
+	// 检查是否跳过禁用节点
+	skipDisabled := true // 默认跳过
+	if p.settingsCache != nil {
+		skipDisabled = p.settingsCache.GetBool("health.skip_disabled_nodes", true)
+	}
+
 	p.mu.RLock()
 	accs := make([]*Account, 0, len(p.accountByID))
 	for _, acc := range p.accountByID {
@@ -159,7 +165,11 @@ func (h *HealthScheduler) checkAllNodes() {
 	for _, acc := range accs {
 		p.mu.RLock()
 		ids := make([]string, 0, len(acc.Nodes))
-		for id := range acc.Nodes {
+		for id, node := range acc.Nodes {
+			// 如果启用了跳过禁用节点，则跳过
+			if skipDisabled && node.Disabled {
+				continue
+			}
 			ids = append(ids, id)
 		}
 		p.mu.RUnlock()

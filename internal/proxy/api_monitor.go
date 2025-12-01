@@ -111,6 +111,12 @@ func (p *Server) buildMonitorDashboardResponse(ctx context.Context, target *Acco
 		return nil
 	}
 
+	// 检查是否隐藏禁用节点
+	hideDisabled := true // 默认隐藏
+	if p.settingsCache != nil {
+		hideDisabled = p.settingsCache.GetBool("monitor.hide_disabled_nodes", true)
+	}
+
 	var (
 		snapshots   []nodeSnapshot
 		activeID    string
@@ -124,6 +130,10 @@ func (p *Server) buildMonitorDashboardResponse(ctx context.Context, target *Acco
 	accountID = target.ID
 	accountName = target.Name
 	for _, n := range target.Nodes {
+		// 如果启用了隐藏禁用节点，则跳过
+		if hideDisabled && n.Disabled {
+			continue
+		}
 		urlStr := ""
 		if n.URL != nil {
 			urlStr = n.URL.String()

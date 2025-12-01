@@ -159,6 +159,12 @@ func (p *Server) healthInterval() time.Duration {
 }
 
 func (p *Server) checkFailedNodes() {
+	// 检查是否跳过禁用节点
+	skipDisabled := true // 默认跳过
+	if p.settingsCache != nil {
+		skipDisabled = p.settingsCache.GetBool("health.skip_disabled_nodes", true)
+	}
+
 	p.mu.RLock()
 	accs := make([]*Account, 0, len(p.accountByID))
 	for _, acc := range p.accountByID {
@@ -169,6 +175,12 @@ func (p *Server) checkFailedNodes() {
 		p.mu.RLock()
 		ids := make([]string, 0, len(acc.FailedSet))
 		for id := range acc.FailedSet {
+			// 如果启用了跳过禁用节点，检查节点是否禁用
+			if skipDisabled {
+				if node := acc.Nodes[id]; node != nil && node.Disabled {
+					continue
+				}
+			}
 			ids = append(ids, id)
 		}
 		p.mu.RUnlock()

@@ -73,18 +73,6 @@ export default function HealthTimeline({ nodeId, refreshKey = 0, latest, shareTo
 		x: number
 		y: number
 	} | null>(null)
-	const [expanded, setExpanded] = useState(false)
-
-	const handleToggle = useCallback(() => {
-		if (expanded && abortRef.current) {
-			abortRef.current.abort()
-			setLoading(false)
-		}
-		if (!expanded) {
-			setError(null)
-		}
-		setExpanded((v) => !v)
-	}, [expanded])
 
 	const abortRef = useRef<AbortController | null>(null)
 	const lastRefreshKeyRef = useRef(refreshKey)
@@ -94,7 +82,6 @@ export default function HealthTimeline({ nodeId, refreshKey = 0, latest, shareTo
 
 	const fetchHistory = useCallback(
 		async (force = false) => {
-			if (!expanded) return
 			const now = Date.now()
 			const cached = !force ? historyCache.get(cacheKey) : undefined
 			if (cached && now - cached.ts < CACHE_TTL) {
@@ -154,7 +141,7 @@ export default function HealthTimeline({ nodeId, refreshKey = 0, latest, shareTo
 				if (!controller.signal.aborted) setLoading(false)
 			}
 		},
-		[cacheKey, expanded, nodeId, range, shareToken, source],
+		[cacheKey, nodeId, range, shareToken, source],
 	)
 
 	useEffect(() => {
@@ -166,14 +153,13 @@ export default function HealthTimeline({ nodeId, refreshKey = 0, latest, shareTo
 	}, [])
 
 	useEffect(() => {
-		if (!expanded) return
 		const force = refreshKey !== lastRefreshKeyRef.current
 		lastRefreshKeyRef.current = refreshKey
 		fetchHistory(force)
-	}, [expanded, fetchHistory, refreshKey])
+	}, [fetchHistory, refreshKey])
 
 	useEffect(() => {
-		if (!expanded || !latest || latest.node_id !== nodeId) return
+		if (!latest || latest.node_id !== nodeId) return
 		setHistory((prev) => {
 			if (!prev) return prev
 			const normalized = normalizeRecord(nodeId, latest)
@@ -197,11 +183,7 @@ export default function HealthTimeline({ nodeId, refreshKey = 0, latest, shareTo
 				checks: filtered,
 			}
 		})
-	}, [expanded, latest, nodeId, range])
-
-	useEffect(() => {
-		if (!expanded) setHover(null)
-	}, [expanded])
+	}, [latest, nodeId, range])
 
 	const stats = useMemo(() => {
 		const checks = history?.checks || []
@@ -216,7 +198,7 @@ export default function HealthTimeline({ nodeId, refreshKey = 0, latest, shareTo
 	}, [history])
 
 	const renderTooltip = () => {
-		if (!expanded || !hover) return null
+		if (!hover) return null
 		const { rec, x, y } = hover
 		const status = rec.success ? '在线' : '离线'
 		const tooltip = (
@@ -233,10 +215,10 @@ export default function HealthTimeline({ nodeId, refreshKey = 0, latest, shareTo
 		return createPortal(tooltip, document.body)
 	}
 
-	const checks = expanded && history ? history.checks || [] : []
+	const checks = history?.checks || []
 
 	return (
-		<div className={`health-timeline ${expanded ? '' : 'health-timeline--collapsed'}`}>
+		<div className="health-timeline">
 			<div className="health-timeline__header">
 				<div className="health-timeline__left">
 					<span className="health-timeline__title">健康检查</span>
@@ -256,37 +238,28 @@ export default function HealthTimeline({ nodeId, refreshKey = 0, latest, shareTo
 				<div className="health-timeline__stats">
 					<span className="pill ok">在线 {stats.ok}</span>
 					<span className="pill fail">离线 {stats.fail}</span>
-					<button type="button" className="chip" onClick={handleToggle}>
-						{expanded ? '收起历史' : '展开加载'}
-					</button>
 				</div>
 			</div>
 
-			{expanded ? (
-				<>
-					<div className={`health-track ${loading ? 'loading' : ''}`}>
-						{loading && <div className="health-track__skeleton" />}
-						{!loading && checks.length === 0 && <div className="health-empty">暂无数据</div>}
-						{!loading &&
-							checks.map((rec, idx) => {
-								const color = rec.success ? 'ok' : 'fail'
-								return (
-									<div
-										key={`${rec.check_time}-${idx}`}
-										className={`health-dot ${color}`}
-										onMouseEnter={(e) => setHover({ rec, x: e.clientX, y: e.clientY })}
-										onMouseLeave={() => setHover(null)}
-										title={formatBeijingTime(rec.check_time)}
-									/>
-								)
-							})}
-					</div>
-					{error && <div className="health-error">{error}</div>}
-					{renderTooltip()}
-				</>
-			) : (
-				<div className="health-track collapsed-hint">点击“展开加载”查看健康历史</div>
-			)}
+			<div className={`health-track ${loading ? 'loading' : ''}`}>
+				{loading && <div className="health-track__skeleton" />}
+				{!loading && checks.length === 0 && <div className="health-empty">暂无数据</div>}
+				{!loading &&
+					checks.map((rec, idx) => {
+						const color = rec.success ? 'ok' : 'fail'
+						return (
+							<div
+								key={`${rec.check_time}-${idx}`}
+								className={`health-dot ${color}`}
+								onMouseEnter={(e) => setHover({ rec, x: e.clientX, y: e.clientY })}
+								onMouseLeave={() => setHover(null)}
+								title={formatBeijingTime(rec.check_time)}
+							/>
+						)
+					})}
+			</div>
+			{error && <div className="health-error">{error}</div>}
+			{renderTooltip()}
 		</div>
 	)
 }

@@ -2,8 +2,8 @@
 
 ## 元信息
 - **更新日期**: 2025-12-02
-- **当前版本**: v1.7.7
-- **最新功能**: 🔴 紧急修复熔断器死锁，解决健康节点无法被选中的问题
+- **当前版本**: v1.8.0
+- **最新功能**: 重试超时优化配置（总超时25s + 递减超时12/6/3s）+ 修复 request body 重用问题
 - **GitHub**: https://github.com/yxhpy/qcc_plus
 - **Docker Hub**: https://hub.docker.com/r/yxhpy520/qcc_plus
 

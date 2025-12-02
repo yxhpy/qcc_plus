@@ -109,8 +109,11 @@ log "building with VERSION=$VERSION GIT_COMMIT=$GIT_COMMIT BUILD_DATE=$BUILD_DAT
 log "validating docker compose config ($COMPOSE_FILE)"
 $DOCKER_COMPOSE -p "$PROJECT_NAME" -f "$COMPOSE_FILE" config >/dev/null
 
+log "stopping existing containers (volumes preserved)"
+$DOCKER_COMPOSE -p "$PROJECT_NAME" -f "$COMPOSE_FILE" down --remove-orphans || true
+
 log "building and deploying containers"
-$DOCKER_COMPOSE -p "$PROJECT_NAME" -f "$COMPOSE_FILE" up -d --build --remove-orphans
+$DOCKER_COMPOSE -p "$PROJECT_NAME" -f "$COMPOSE_FILE" up -d --build --force-recreate
 
 wait_for_service() {
   local url="$1"

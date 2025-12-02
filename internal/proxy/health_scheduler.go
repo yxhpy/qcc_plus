@@ -11,21 +11,24 @@ const (
 	defaultHealthAllInterval = 10 * time.Minute
 	// 默认并发 2：兼顾 2 核 / 2GB 小机型，避免同时拉起过多 CLI 进程导致 OOM。
 	defaultHealthCheckConcurrency = 2
+	// CLI 健康检查开销更大（外部进程 + 15s 超时），默认再收紧到 1。
+	defaultCLIHealthCheckConcurrency = 1
 )
 
 // HealthScheduler 定期探活所有节点（包括健康节点），避免状态盲区。
 type HealthScheduler struct {
-	server   *Server
-	logger   *log.Logger
-	stopCh   chan struct{}
-	wg       sync.WaitGroup
-	interval time.Duration
-	stopOnce sync.Once
-	workers  int
+	server     *Server
+	logger     *log.Logger
+	stopCh     chan struct{}
+	wg         sync.WaitGroup
+	interval   time.Duration
+	stopOnce   sync.Once
+	workers    int
+	cliWorkers int
 }
 
 // NewHealthScheduler 创建全量健康检查调度器。
-func NewHealthScheduler(server *Server, interval time.Duration, workers int, logger *log.Logger) *HealthScheduler {
+func NewHealthScheduler(server *Server, interval time.Duration, workers int, cliWorkers int, logger *log.Logger) *HealthScheduler {
 	if logger == nil {
 		logger = log.Default()
 	}
@@ -33,12 +36,14 @@ func NewHealthScheduler(server *Server, interval time.Duration, workers int, log
 		interval = defaultHealthAllInterval
 	}
 	workers = normalizeHealthCheckWorkers(workers, logger)
+	cliWorkers = normalizeCLIHealthCheckWorkers(cliWorkers, workers, logger)
 	return &HealthScheduler{
-		server:   server,
-		logger:   logger,
-		stopCh:   make(chan struct{}),
-		interval: interval,
-		workers:  workers,
+		server:     server,
+		logger:     logger,
+		stopCh:     make(chan struct{}),
+		interval:   interval,
+		workers:    workers,
+		cliWorkers: cliWorkers,
 	}
 }
 
@@ -70,6 +75,23 @@ func normalizeHealthCheckWorkers(workers int, logger *log.Logger) int {
 	if workers < 1 {
 		workers = 1
 	}
+	return workers
+}
+
+// normalizeCLIHealthCheckWorkers 将 CLI 并发限制在 [1, workers]，默认更保守（1）。
+func normalizeCLIHealthCheckWorkers(workers int, overall int, logger *log.Logger) int {
+	if workers <= 0 {
+		workers = defaultCLIHealthCheckConcurrency
+	}
+
+	if workers > overall {
+		workers = overall
+	}
+
+	if workers < 1 {
+		workers = 1
+	}
+
 	return workers
 }
 
@@ -179,14 +201,18 @@ func (h *HealthScheduler) checkAllNodes() {
 	}
 
 	total := len(tasks)
-	h.logger.Printf("[HealthScheduler] total nodes to check: %d (concurrency=%d)", total, h.workers)
+	h.logger.Printf("[HealthScheduler] total nodes to check: %d (concurrency=%d, cli_concurrency=%d)", total, h.workers, h.cliWorkers)
 
 	if total == 0 {
 		h.logger.Printf("[HealthScheduler] full health check finished in %v (nodes=%d)", time.Since(start), total)
 		return
 	}
 
-	sem := make(chan struct{}, h.workers)
+	semAll := make(chan struct{}, h.workers)
+	semCLI := semAll
+	if h.cliWorkers > 0 && h.cliWorkers < h.workers {
+		semCLI = make(chan struct{}, h.cliWorkers)
+	}
 	var wg sync.WaitGroup
 
 	for _, task := range tasks {
@@ -199,8 +225,38 @@ func (h *HealthScheduler) checkAllNodes() {
 				}
 			}()
 
-			sem <- struct{}{}
-			defer func() { <-sem }()
+			method := func() string {
+				if t.acc == nil {
+					return ""
+				}
+				p.mu.RLock()
+				n := t.acc.Nodes[t.id]
+				p.mu.RUnlock()
+				if n == nil {
+					return ""
+				}
+				return normalizeHealthCheckMethod(n.HealthCheckMethod)
+			}()
+
+			release := func() func() {
+				if method == HealthCheckMethodCLI {
+					// 双层信号量：总并发 + CLI 专用并发
+					if semCLI != nil && semCLI != semAll {
+						semCLI <- struct{}{}
+					}
+					semAll <- struct{}{}
+					return func() {
+						<-semAll
+						if semCLI != nil && semCLI != semAll {
+							<-semCLI
+						}
+					}
+				}
+
+				semAll <- struct{}{}
+				return func() { <-semAll }
+			}()
+			defer release()
 
 			p.checkNodeHealth(t.acc, t.id, CheckSourceScheduled)
 		}(task)

@@ -17,17 +17,16 @@ qcc_plus 实现了自动故障检测和恢复机制，通过监控节点的请�
 系统会定期对所有节点（包括健康节点）执行全量健康检查，避免状态盲区：
 
 ```
-定时器触发（默认每 10 分钟） → 收集所有节点 → 并发检查（限制并发数 10） → 更新状态
+定时器触发（默认每 10 分钟） → 收集所有节点 → 并发检查（默认并发 2，上限 4） → 更新状态
 ```
 
 #### 并发控制机制
-- **并发数限制**：使用 semaphore（channel）限制同时执行的健康检查数量，默认 10
-- **性能提升**：100 个节点检查时间从 25 分钟缩短到 2.5 分钟（**10倍**提升）
-- **资源保护**：并发进程数固定为 10，避免资源耗尽导致宕机
-- **Panic 恢复**：每个 goroutine 都有 panic recover，确保单个检查失败不影响其他检查
+- **并发数限制**：使用 semaphore（channel）限制同时执行的健康检查数量，默认 2，且经过 `normalizeHealthCheckWorkers` 限制上限 `min(4, CPU*2)`，在 2C 主机上最多 4，并适配 1C 小机型。
+- **资源保护**：CLI 健康检查需要启动外部进程，默认 2 并发可以避免瞬间拉起过多 CLI 进程导致 OOM/CPU 飙升。
+- **Panic 恢复**：每个 goroutine 都有 panic recover，确保单个检查失败不影响其他检查。
 
 #### 配置参数
-- **并发数**：`HEALTH_CHECK_CONCURRENCY`（默认 10）
+- **并发数**：`HEALTH_CHECK_CONCURRENCY`（默认 2，受上限 4 保护）
 - **间隔**：`HEALTH_ALL_INTERVAL_MIN`（默认 10 分钟）
 
 #### 执行逻辑
@@ -41,7 +40,7 @@ for each account {
 }
 
 // 2. 使用 worker pool 并发执行
-sem := make(chan struct{}, 10)  // 限制并发数为 10
+sem := make(chan struct{}, 2)  // 默认 2，并会被 normalizeHealthCheckWorkers 调整到 1~4
 var wg sync.WaitGroup
 
 for each task {
@@ -245,7 +244,7 @@ if recoveredNode.Weight < currentActiveNode.Weight {
 | `PROXY_HEALTH_CHECK_MODE` ⭐ | 全局默认健康检查方式：`cli` / `api` / `head` | `cli` |
 | `health_check_method` (节点字段) | 节点级别健康检查方式（优先级高于全局） | 继承全局 |
 | `health_check_model` (节点字段) | CLI 健康检查使用的模型（仅 CLI 方式有效） | `claude-haiku-4-5-20251001` |
-| `HEALTH_CHECK_CONCURRENCY` ⭐ | 全量健康检查并发数（同时检查的节点数） | `10` |
+| `HEALTH_CHECK_CONCURRENCY` ⭐ | 全量健康检查并发数（同时检查的节点数，自动限制 1~4） | `2` |
 | `HEALTH_ALL_INTERVAL_MIN` ⭐ | 全量健康检查间隔（分钟） | `10` |
 
 ### 健康检查方式对比

@@ -27,22 +27,23 @@ const (
 
 // Builder 使用流式接口构建 Server 实例。
 type Builder struct {
-	upstreamRaw            string
-	upstreamKey            string
-	upstreamName           string
-	listenAddr             string
-	transport              http.RoundTripper
-	logger                 *log.Logger
-	retries                int
-	failLimit              int
-	healthEvery            time.Duration
-	healthAllInterval      time.Duration
-	healthCheckConcurrency int
-	storeDSN               string
-	adminKey               string
-	defaultAccountName     string
-	defaultProxyKey        string
-	cliRunner              CliRunner
+	upstreamRaw               string
+	upstreamKey               string
+	upstreamName              string
+	listenAddr                string
+	transport                 http.RoundTripper
+	logger                    *log.Logger
+	retries                   int
+	failLimit                 int
+	healthEvery               time.Duration
+	healthAllInterval         time.Duration
+	healthCheckConcurrency    int
+	healthCheckConcurrencyCLI int
+	storeDSN                  string
+	adminKey                  string
+	defaultAccountName        string
+	defaultProxyKey           string
+	cliRunner                 CliRunner
 }
 
 // NewBuilder 构建带默认监听地址和日志的 Builder。
@@ -315,6 +316,19 @@ func (b *Builder) Build() (*Server, error) {
 		}
 	}
 	healthCheckConcurrency = normalizeHealthCheckWorkers(healthCheckConcurrency, logger)
+
+	healthCheckConcurrencyCLI := b.healthCheckConcurrencyCLI
+	if healthCheckConcurrencyCLI <= 0 {
+		healthCheckConcurrencyCLI = defaultCLIHealthCheckConcurrency
+		if raw := os.Getenv("HEALTH_CHECK_CONCURRENCY_CLI"); raw != "" {
+			if n, err := strconv.Atoi(raw); err == nil && n > 0 {
+				healthCheckConcurrencyCLI = n
+			} else {
+				logger.Printf("invalid HEALTH_CHECK_CONCURRENCY_CLI=%s, fallback to %d", raw, defaultCLIHealthCheckConcurrency)
+			}
+		}
+	}
+	healthCheckConcurrencyCLI = normalizeCLIHealthCheckWorkers(healthCheckConcurrencyCLI, healthCheckConcurrency, logger)
 	healthRT := transport
 	transport = &retryTransport{base: transport, attempts: b.retries, logger: logger}
 
@@ -380,7 +394,7 @@ func (b *Builder) Build() (*Server, error) {
 	}
 
 	if healthAllInterval > 0 {
-		srv.healthScheduler = NewHealthScheduler(srv, healthAllInterval, healthCheckConcurrency, logger)
+		srv.healthScheduler = NewHealthScheduler(srv, healthAllInterval, healthCheckConcurrency, healthCheckConcurrencyCLI, logger)
 	}
 
 	if st != nil {

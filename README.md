@@ -154,7 +154,7 @@ curl http://localhost:8000/v1/messages \
 | PROXY_RETRY_MAX | 重试次数 | `3` |
 | PROXY_FAIL_THRESHOLD | 失败阈值（连续失败多少次标记失败） | `3` |
 | PROXY_HEALTH_INTERVAL_SEC | 探活间隔（秒） | `30` |
-| **HEALTH_CHECK_CONCURRENCY** ⭐ | 全量健康检查并发数（同时检查的节点数） | `10` |
+| **HEALTH_CHECK_CONCURRENCY** ⭐ | 全量健康检查并发数（同时检查的节点数） | `2` |
 | **HEALTH_ALL_INTERVAL_MIN** ⭐ | 全量健康检查间隔（分钟） | `10` |
 | PROXY_MYSQL_DSN | MySQL 连接字符串 | - |
 

@@ -11,6 +11,21 @@ import (
 	"time"
 )
 
+// buildServerNoWarmup builds a server for tests and disables warmup to avoid
+// spawning external CLI processes or waiting on real network calls.
+func buildServerNoWarmup(t *testing.T, b *Builder) *Server {
+	t.Helper()
+	prevMethod := defaultHealthCheckMethod
+	defaultHealthCheckMethod = HealthCheckMethodHEAD
+	t.Cleanup(func() { defaultHealthCheckMethod = prevMethod })
+	srv, err := b.Build()
+	if err != nil {
+		t.Fatalf("build proxy: %v", err)
+	}
+	srv.warmupConfig.Enabled = false
+	return srv
+}
+
 func TestBuilderMissingUpstream(t *testing.T) {
 	_, err := NewBuilder().Build()
 	if err == nil {
@@ -38,14 +53,10 @@ func TestProxyForwardsRequests(t *testing.T) {
 	}
 	defer listener.Close()
 
-	srv, err := NewBuilder().
+	srv := buildServerNoWarmup(t, NewBuilder().
 		WithUpstream(upstream.URL).
 		WithAPIKey("test-proxy").
-		WithListenAddr(listener.Addr().String()).
-		Build()
-	if err != nil {
-		t.Fatalf("build proxy: %v", err)
-	}
+		WithListenAddr(listener.Addr().String()))
 
 	go http.Serve(listener, srv.Handler())
 
@@ -83,14 +94,10 @@ func TestProxySwitchActiveNode(t *testing.T) {
 	}
 	defer listener.Close()
 
-	srv, err := NewBuilder().
+	srv := buildServerNoWarmup(t, NewBuilder().
 		WithUpstream(upA.URL).
 		WithAPIKey("client-key").
-		WithNodeName("A").
-		Build()
-	if err != nil {
-		t.Fatalf("build proxy: %v", err)
-	}
+		WithNodeName("A"))
 
 	if _, err := srv.addNode("B", upB.URL, "kB", 1); err != nil {
 		t.Fatalf("add node: %v", err)
@@ -143,15 +150,11 @@ func TestRetryOnNon200(t *testing.T) {
 	}
 	defer listener.Close()
 
-	srv, err := NewBuilder().
+	srv := buildServerNoWarmup(t, NewBuilder().
 		WithUpstream(up.URL).
 		WithAPIKey("client-key").
 		WithRetry(3).
-		WithListenAddr(listener.Addr().String()).
-		Build()
-	if err != nil {
-		t.Fatalf("build proxy: %v", err)
-	}
+		WithListenAddr(listener.Addr().String()))
 
 	go http.Serve(listener, srv.Handler())
 
@@ -184,16 +187,12 @@ func TestHandleConfigGetAndPut(t *testing.T) {
 	}
 	defer listener.Close()
 
-	srv, err := NewBuilder().
+	srv := buildServerNoWarmup(t, NewBuilder().
 		WithUpstream(up.URL).
 		WithRetry(2).
 		WithFailLimit(2).
-		WithHealthEvery(2 * time.Second).
-		WithListenAddr(listener.Addr().String()).
-		Build()
-	if err != nil {
-		t.Fatalf("build proxy: %v", err)
-	}
+		WithHealthEvery(2*time.Second).
+		WithListenAddr(listener.Addr().String()))
 
 	go http.Serve(listener, srv.Handler())
 	sess := srv.sessionMgr.Create(srv.defaultAccount.ID, true)
@@ -261,17 +260,13 @@ func TestAutoFailoverByWeight(t *testing.T) {
 	}
 	defer listener.Close()
 
-	srv, err := NewBuilder().
+	srv := buildServerNoWarmup(t, NewBuilder().
 		WithUpstream(upA.URL).
 		WithAPIKey("client-key").
 		WithRetry(1).
 		WithFailLimit(1).
-		WithHealthEvery(200 * time.Millisecond).
-		WithListenAddr(listener.Addr().String()).
-		Build()
-	if err != nil {
-		t.Fatalf("build proxy: %v", err)
-	}
+		WithHealthEvery(200*time.Millisecond).
+		WithListenAddr(listener.Addr().String()))
 
 	if _, err := srv.addNode("backup", upB.URL, "", 1); err != nil {
 		t.Fatalf("add node: %v", err)
@@ -280,7 +275,7 @@ func TestAutoFailoverByWeight(t *testing.T) {
 	go http.Serve(listener, srv.Handler())
 
 	// 第一次请求失败并熔断 default 节点。
-	reqFail, _ := http.NewRequest(http.MethodGet, "http://"+listener.Addr().String()+"/fails", nil)
+	reqFail, _ := http.NewRequest(http.MethodPost, "http://"+listener.Addr().String()+"/v1/messages", strings.NewReader("{}"))
 	reqFail.Header.Set("x-api-key", "client-key")
 	resp, _ := http.DefaultClient.Do(reqFail)
 	if resp == nil || resp.StatusCode == http.StatusOK {
@@ -288,7 +283,7 @@ func TestAutoFailoverByWeight(t *testing.T) {
 	}
 
 	// 等待健康检查把 failed 节点保持失败，选择权重最低的健康节点（backup）。
-	reqOk, _ := http.NewRequest(http.MethodGet, "http://"+listener.Addr().String()+"/ok", nil)
+	reqOk, _ := http.NewRequest(http.MethodPost, "http://"+listener.Addr().String()+"/v1/messages", strings.NewReader("{}"))
 	reqOk.Header.Set("x-api-key", "client-key")
 	resp2, err := http.DefaultClient.Do(reqOk)
 	if err != nil {
@@ -317,10 +312,7 @@ func TestGetActiveSwitchesToLowerWeight(t *testing.T) {
 	}))
 	defer up.Close()
 
-	srv, err := NewBuilder().WithUpstream(up.URL).Build()
-	if err != nil {
-		t.Fatalf("build proxy: %v", err)
-	}
+	srv := buildServerNoWarmup(t, NewBuilder().WithUpstream(up.URL))
 
 	primary := srv.getNode("default")
 	if primary == nil {
@@ -361,10 +353,7 @@ func TestDisableActiveTriggersImmediateSwitch(t *testing.T) {
 	}))
 	defer upB.Close()
 
-	srv, err := NewBuilder().WithUpstream(upA.URL).Build()
-	if err != nil {
-		t.Fatalf("build proxy: %v", err)
-	}
+	srv := buildServerNoWarmup(t, NewBuilder().WithUpstream(upA.URL))
 
 	def := srv.getNode("default")
 	if def == nil {
@@ -401,10 +390,7 @@ func TestEnableNodeAutoSwitchesByPriority(t *testing.T) {
 	}))
 	defer up.Close()
 
-	srv, err := NewBuilder().WithUpstream(up.URL).Build()
-	if err != nil {
-		t.Fatalf("build proxy: %v", err)
-	}
+	srv := buildServerNoWarmup(t, NewBuilder().WithUpstream(up.URL))
 
 	primary := srv.getNode("default")
 	if primary == nil {
@@ -441,10 +427,7 @@ func TestAccountsCreateStoresPassword(t *testing.T) {
 	}))
 	defer up.Close()
 
-	srv, err := NewBuilder().WithUpstream(up.URL).Build()
-	if err != nil {
-		t.Fatalf("build proxy: %v", err)
-	}
+	srv := buildServerNoWarmup(t, NewBuilder().WithUpstream(up.URL))
 
 	var adminAcc *Account
 	srv.mu.RLock()
@@ -492,10 +475,7 @@ func TestLoginWithUsernamePassword(t *testing.T) {
 	}))
 	defer up.Close()
 
-	srv, err := NewBuilder().WithUpstream(up.URL).Build()
-	if err != nil {
-		t.Fatalf("build proxy: %v", err)
-	}
+	srv := buildServerNoWarmup(t, NewBuilder().WithUpstream(up.URL))
 
 	req := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader("username=admin&password=admin123"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -523,10 +503,7 @@ func TestLoginEmptyPasswordShowsError(t *testing.T) {
 	}))
 	defer up.Close()
 
-	srv, err := NewBuilder().WithUpstream(up.URL).Build()
-	if err != nil {
-		t.Fatalf("build proxy: %v", err)
-	}
+	srv := buildServerNoWarmup(t, NewBuilder().WithUpstream(up.URL))
 
 	req := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader("username=admin&password="))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -584,15 +561,11 @@ func TestNodeRecoveryAutoSwitch(t *testing.T) {
 	defer up3.Close()
 
 	// Create proxy server with fast health check
-	srv, err := NewBuilder().
+	srv := buildServerNoWarmup(t, NewBuilder().
 		WithUpstream(up1.URL).
 		WithAPIKey("test-key").
 		WithFailLimit(1).
-		WithHealthEvery(300 * time.Millisecond).
-		Build()
-	if err != nil {
-		t.Fatalf("build proxy: %v", err)
-	}
+		WithHealthEvery(300*time.Millisecond))
 
 	// Start health check loop
 	go srv.healthLoop()

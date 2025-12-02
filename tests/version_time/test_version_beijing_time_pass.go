@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	fmt.Println("=== 版本时间转换测试 ===\n")
+	fmt.Println("=== 版本时间转换测试 ===")
 
 	// 测试1: 空值
 	version.BuildDate = ""

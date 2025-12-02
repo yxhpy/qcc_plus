@@ -255,15 +255,15 @@ func (p *Server) handler() http.Handler {
 					return
 				}
 
-				if !shouldRetry {
-					return
-				}
-
 				errMsg := extractErrorMessage(mw, statusForRetry)
 				if p.shouldFail(node.ID, errMsg) {
 					p.handleFailure(node.ID, errMsg)
 				}
 				skipNodes[node.ID] = true
+
+				if !shouldRetry {
+					return
+				}
 
 				if attempt < p.retryConfig.MaxAttempts-1 {
 					p.logger.Printf("retry attempt %d/%d, node %s failed: %s", attempt+1, p.retryConfig.MaxAttempts, node.Name, errMsg)

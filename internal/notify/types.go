@@ -17,9 +17,9 @@ const (
 	EventNodeHealthCheckError = "node.health_check_failed"
 
 	// 请求相关
-	EventRequestFailed       = "request.failed"
-	EventRequestUpstreamErr  = "request.upstream_error"
-	EventRequestProxyError   = "request.proxy_error"
+	EventRequestFailed      = "request.failed"
+	EventRequestUpstreamErr = "request.upstream_error"
+	EventRequestProxyError  = "request.proxy_error"
 
 	// 账号相关
 	EventAccountQuotaWarning = "account.quota_warning"
@@ -43,21 +43,21 @@ const (
 
 // Event 表示一条需要发送的通知事件。
 type Event struct {
-	AccountID string
-	EventType string
-	Title     string
-	Content   string
-	DedupKey  string
+	AccountID  string
+	EventType  string
+	Title      string
+	Content    string
+	DedupKey   string
 	OccurredAt time.Time
 }
 
 // ManagerConfig 控制通知管理器的运行参数。
 type ManagerConfig struct {
-	QueueSize    int
-	WorkerCount  int
-	DedupWindow  time.Duration
-	Logger       Logger
-	SendTimeout  time.Duration
+	QueueSize   int
+	WorkerCount int
+	DedupWindow time.Duration
+	Logger      Logger
+	SendTimeout time.Duration
 }
 
 // Logger 抽象日志接口，兼容标准 log.Logger。

@@ -10,7 +10,7 @@ import (
 type WarmupConfig struct {
 	Enabled         bool          // 是否启用预热，默认 true
 	Attempts        int           // 预热尝试次数，默认 2
-	Timeout         time.Duration // 单次预热超时，默认 5s
+	Timeout         time.Duration // 单次预热超时，默认 17s（CLI 健康检查 15s + 2s 余量）
 	RequiredSuccess int           // 至少成功次数，默认 1
 }
 
@@ -19,7 +19,7 @@ func loadWarmupConfig() WarmupConfig {
 	cfg := WarmupConfig{
 		Enabled:         true,
 		Attempts:        2,
-		Timeout:         5 * time.Second,
+		Timeout:         17 * time.Second, // CLI 健康检查 15s + 2s 余量
 		RequiredSuccess: 1,
 	}
 
@@ -59,7 +59,7 @@ func (p *Server) warmupNode(node *Node) (int, error) {
 	}
 	timeout := cfg.Timeout
 	if timeout <= 0 {
-		timeout = 5 * time.Second
+		timeout = 17 * time.Second // fallback 与默认值一致
 	}
 
 	acc := p.nodeAccount[node.ID]

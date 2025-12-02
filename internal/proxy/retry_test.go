@@ -113,7 +113,7 @@ func TestShouldRetryStatus(t *testing.T) {
 	}
 
 	tests := []struct {
-		status     int
+		status      int
 		shouldRetry bool
 		description string
 	}{

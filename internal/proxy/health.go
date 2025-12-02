@@ -229,7 +229,7 @@ func (p *Server) checkNodeHealth(acc *Account, id string, source string) {
 	timeout := 5 * time.Second
 	if method == HealthCheckMethodCLI {
 		// CLI 方式需要执行外部 CLI，需要更长的超时时间（进程+模型加载开销）
-		timeout = 15 * time.Second
+		timeout = 30 * time.Second
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)

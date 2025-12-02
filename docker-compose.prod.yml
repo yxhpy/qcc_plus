@@ -28,18 +28,70 @@ services:
         BUILD_DATE: ${BUILD_DATE:-unknown}
     container_name: qcc_prod_proxy
     environment:
+      # ========== 基础配置 ==========
       UPSTREAM_BASE_URL: https://api.anthropic.com
       UPSTREAM_API_KEY: changeme
       UPSTREAM_NAME: default
       LISTEN_ADDR: :8000
+      PROXY_HEALTH_CHECK_MODE: cli
+
+      # ========== 多租户与安全 ==========
+      ADMIN_API_KEY: admin
+      DEFAULT_ACCOUNT_NAME: default
+      DEFAULT_PROXY_API_KEY: default-proxy-key
+
+      # ========== 健康检查与预热 ==========
       PROXY_RETRY_MAX: 3
       PROXY_FAIL_THRESHOLD: 3
       PROXY_HEALTH_INTERVAL_SEC: 30
+      HEALTH_ALL_INTERVAL_MIN: 10
       HEALTH_CHECK_CONCURRENCY: 2
       HEALTH_CHECK_CONCURRENCY_CLI: 1
-      HEALTH_ALL_INTERVAL_MIN: 10
       WARMUP_CONCURRENCY: 1
+      WARMUP_ENABLED: 0
+      WARMUP_ATTEMPTS: 1
+      WARMUP_TIMEOUT_MS: 10000
+      WARMUP_REQUIRED_SUCCESS: 1
+
+      # ========== HTTP 重试细节 ==========
+      RETRY_MAX_ATTEMPTS: 3
+      RETRY_PER_REQUEST_TIMEOUT_SEC: 60
+      RETRY_TOTAL_TIMEOUT_SEC: 120
+      RETRY_PER_ATTEMPT_TIMEOUTS_SEC: 50,40,30
+      RETRY_BACKOFF_MIN_MS: 100
+      RETRY_BACKOFF_MAX_MS: 500
+      RETRY_ON_STATUS: 502,503,504
+
+      # ========== 传输层连接池 ==========
+      PROXY_TRANSPORT_MAX_IDLE_CONNS: 200
+      PROXY_TRANSPORT_MAX_IDLE_CONNS_PER_HOST: 50
+      PROXY_TRANSPORT_MAX_CONNS_PER_HOST: 100
+      PROXY_TRANSPORT_IDLE_CONN_TIMEOUT: 90s
+      PROXY_TRANSPORT_TLS_HANDSHAKE_TIMEOUT: 10s
+      PROXY_TRANSPORT_RESPONSE_HEADER_TIMEOUT: 30s
+      PROXY_TRANSPORT_EXPECT_CONTINUE_TIMEOUT: 1s
+      PROXY_TRANSPORT_DISABLE_COMPRESSION: false
+      PROXY_TRANSPORT_FORCE_HTTP2: true
+
+      # ========== 熔断保护 ==========
+      CB_ENABLED: 1
+      CB_WINDOW_SECONDS: 120
+      CB_FAILURE_RATE: 0.8
+      CB_CONSECUTIVE_FAILS: 10
+      CB_COOLDOWN_SECONDS: 60
+      CB_HALFOPEN_MAX_CALLS: 5
+
+      # ========== 指标调度 ==========
+      METRICS_SCHEDULER_ENABLED: 1
+      METRICS_AGGREGATE_INTERVAL: 1h
+      METRICS_CLEANUP_INTERVAL: 24h
+
+      # ========== MySQL 持久化 ==========
       PROXY_MYSQL_DSN: qcc:example@tcp(mysql:3306)/qcc_proxy?parseTime=true
+      MYSQL_MAX_OPEN_CONNS: 25
+      MYSQL_MAX_IDLE_CONNS: 10
+      MYSQL_CONN_MAX_LIFETIME: 300
+      MYSQL_CONN_MAX_IDLE_TIME: 180
     ports:
       - "8000:8000"
     depends_on:

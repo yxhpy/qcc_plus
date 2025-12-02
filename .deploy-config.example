@@ -1,0 +1,17 @@
+# 部署服务器配置示例
+# 复制此文件为 .deploy-config 并填入真实信息
+# .deploy-config 已加入 .gitignore，不会被提交
+
+# 测试服务器
+TEST_SERVER_HOST=your-test-server-ip
+TEST_SERVER_USER=ubuntu
+TEST_SERVER_SSH_KEY=~/.ssh/your_key
+
+# 生产服务器
+PROD_SERVER_HOST=your-prod-server-ip
+PROD_SERVER_USER=ubuntu
+PROD_SERVER_SSH_KEY=~/.ssh/your_key
+
+# Docker 容器名称
+TEST_CONTAINER=qcc_test_proxy
+PROD_CONTAINER=qcc_prod_proxy

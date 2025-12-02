@@ -12,11 +12,13 @@ import (
 
 // RetryConfig 重试配置
 type RetryConfig struct {
-	MaxAttempts       int           // 最大重试次数（包含首次），默认 3
-	BackoffMin        time.Duration // 最小退避时间，默认 10ms
-	BackoffMax        time.Duration // 最大退避时间，默认 100ms
-	RetryOnStatus     []int         // 需要重试的状态码，默认 [502, 503, 504]
-	PerRequestTimeout time.Duration // 单次请求超时，默认 30s
+	MaxAttempts        int             // 最大重试次数（包含首次），默认 3
+	BackoffMin         time.Duration   // 最小退避时间，默认 10ms
+	BackoffMax         time.Duration   // 最大退避时间，默认 100ms
+	RetryOnStatus      []int           // 需要重试的状态码，默认 [502, 503, 504]
+	PerRequestTimeout  time.Duration   // 单次请求超时，默认 30s
+	TotalTimeout       time.Duration   // 所有重试的总超时，0 表示关闭
+	PerAttemptTimeouts []time.Duration // 覆盖每次尝试的超时，缺省使用 PerRequestTimeout
 }
 
 const (
@@ -34,6 +36,7 @@ func loadRetryConfig() RetryConfig {
 		BackoffMax:        defaultBackoffMax,
 		RetryOnStatus:     []int{http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout},
 		PerRequestTimeout: defaultPerRequestTO,
+		TotalTimeout:      0,
 	}
 
 	if v := os.Getenv("RETRY_MAX_ATTEMPTS"); v != "" {
@@ -74,6 +77,25 @@ func loadRetryConfig() RetryConfig {
 	if v := os.Getenv("RETRY_PER_REQUEST_TIMEOUT_SEC"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
 			cfg.PerRequestTimeout = time.Duration(n) * time.Second
+		}
+	}
+
+	if v := os.Getenv("RETRY_TOTAL_TIMEOUT_SEC"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			cfg.TotalTimeout = time.Duration(n) * time.Second
+		}
+	}
+
+	if v := os.Getenv("RETRY_PER_ATTEMPT_TIMEOUTS_SEC"); v != "" {
+		parts := strings.Split(v, ",")
+		for _, p := range parts {
+			p = strings.TrimSpace(p)
+			if p == "" {
+				continue
+			}
+			if n, err := strconv.Atoi(p); err == nil && n > 0 {
+				cfg.PerAttemptTimeouts = append(cfg.PerAttemptTimeouts, time.Duration(n)*time.Second)
+			}
 		}
 	}
 

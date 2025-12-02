@@ -74,6 +74,55 @@ docker compose up -d
 
 详细流程见 @docs/claude/git-workflow.md 和 @docs/claude/release-policy.md
 
+## 测试部署流程
+
+### 自动部署到测试环境
+
+```bash
+# 1. 确认在 test 分支
+git checkout test
+
+# 2. 提交代码
+git add .
+git commit -m "fix: 描述修复内容"
+
+# 3. 推送触发自动部署
+git push origin test
+
+# GitHub Actions 会自动：
+# - 构建前端
+# - 构建 Docker 镜像
+# - 部署到测试服务器（端口 8001）
+# - 执行健康检查
+```
+
+### 连接测试服务器
+
+**配置文件**：
+- 复制 `.deploy-config.example` 为 `.deploy-config`（已加入 .gitignore）
+- 填入服务器信息（见私有文档）
+
+**私有配置**：
+- 详见 `docs/claude/deployment-private.md`（仅本地，已加入 .gitignore）
+- 包含服务器 IP、SSH 密钥、快速命令等
+
+**快速命令模板**：
+```bash
+# 查看日志
+ssh -i <ssh-key> <user>@<server> "docker logs <container> -f"
+
+# 查看容器状态
+ssh -i <ssh-key> <user>@<server> "docker ps -a"
+
+# 重启服务
+ssh -i <ssh-key> <user>@<server> "docker restart <container>"
+```
+
+**注意**：
+- ⚠️ 测试服务器信息是私有的，不要提交到公开仓库
+- ✅ 使用 `.deploy-config` 存储本地配置
+- ✅ 使用 SSH 密钥而非密码认证
+
 ## 任务执行速查
 
 1. 理解需求 → 2. 查阅文档 → 3. 分析设计 → 4. **使用 Codex Skill 编写代码** → 5. 测试验证 → 6. 更新文档
@@ -116,6 +165,7 @@ docker compose up -d
 - @docs/claude/release-policy.md - 版本发布规范
 - @docs/claude/debug-playbook.md - 调试排查手册
 - @docs/claude/lessons-learned.md - 踩坑记录
+- @docs/claude/deployment-private.md - 🔒 私有部署配置（仅本地，已 ignore）
 
 ### 项目文档
 - @README.md - 项目主页

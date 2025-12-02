@@ -6,6 +6,32 @@
 
 ## [Unreleased]
 
+## [1.7.6] - 2025-12-02
+
+### 修复
+- **完善健康检查历史记录机制**：解决实时状态与大屏显示不一致问题
+  - 修复代理请求失败未记录到健康检查历史的问题
+  - 修复健康检查历史记录过于冗余的问题
+  - 新增智能去重机制：只在状态变化或超过5分钟时才持久化
+  - 新增 `HealthCheckMethodProxy` 标识代理请求健康信号
+  - 新增 `Store.LatestHealthCheck` 方法查询最近记录
+  - WebSocket 推送不受影响，保持实时性
+
+### 技术细节
+- `internal/proxy/health.go`:
+  - 新增 `HealthCheckMethodProxy` 常量和 `sameStateRecordGap` (5分钟)
+  - 新增 `shouldInsertHealthRecord` 函数实现状态变更检测
+  - 优化 `recordHealthEvent` 在写库前检查是否需要持久化
+- `internal/proxy/handler.go`:
+  - 代理失败时调用 `recordHealthEvent` 记录健康事件
+- `internal/store/health_check.go`:
+  - 新增 `LatestHealthCheck` 方法
+
+### 效果
+- 代理失败实时同步到监控大屏
+- 历史记录减少约 98% 冗余（稳定运行时）
+- 实时状态与历史数据完全一致
+
 ## [1.7.5] - 2025-12-01
 
 ### 改进

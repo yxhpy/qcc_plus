@@ -274,13 +274,8 @@ func (p *Server) selectHealthyNodeExcluding(acc *Account, skipNodes map[string]b
 			continue
 		}
 
-		// 检查熔断器状态
-		if p.cbConfig.Enabled {
-			cb := p.getOrCreateCircuitBreaker(id)
-			if cb.GetState() == StateOpen {
-				continue // 跳过熔断中的节点
-			}
-		}
+		// 不在选择阶段过滤熔断器状态，交由请求阶段的 AllowRequest() 控制
+		// 这样熔断器可以在冷却后进入 Half-Open 状态进行试探
 
 		if bestNode == nil || n.Weight < bestNode.Weight {
 			bestNode = n

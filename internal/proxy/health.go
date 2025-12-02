@@ -296,6 +296,12 @@ func (p *Server) checkNodeHealth(acc *Account, id string, source string) {
 			if acc != nil {
 				delete(acc.FailedSet, id)
 			}
+			// 恢复后同步清理熔断器状态，避免 Open/Half-Open 残留
+			if p.cbConfig.Enabled {
+				if cb := p.getOrCreateCircuitBreaker(id); cb != nil {
+					cb.Reset()
+				}
+			}
 			if p.store != nil {
 				rec = toRecord(n)
 				shouldPersist = true

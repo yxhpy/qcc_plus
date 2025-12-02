@@ -52,6 +52,40 @@ func (s *Store) InsertHealthCheck(ctx context.Context, record *HealthCheckRecord
 	return err
 }
 
+// LatestHealthCheck 返回指定节点最近一条健康检查记录；若不存在返回 nil。
+func (s *Store) LatestHealthCheck(ctx context.Context, accountID, nodeID string) (*HealthCheckRecord, error) {
+	if s == nil || s.db == nil {
+		return nil, errors.New("store not initialized")
+	}
+	if nodeID == "" {
+		return nil, errors.New("node_id required")
+	}
+
+	accountID = normalizeAccount(accountID)
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
+	row := s.db.QueryRowContext(ctx, `SELECT id, account_id, node_id, check_time, success, response_time_ms, error_message, check_method, check_source, created_at
+		FROM health_check_history
+		WHERE account_id=? AND node_id=?
+		ORDER BY check_time DESC
+		LIMIT 1`, accountID, nodeID)
+
+	var rec HealthCheckRecord
+	var resp sql.NullInt64
+	switch err := row.Scan(&rec.ID, &rec.AccountID, &rec.NodeID, &rec.CheckTime, &rec.Success, &resp, &rec.ErrorMessage, &rec.CheckMethod, &rec.CheckSource, &rec.CreatedAt); err {
+	case nil:
+		if resp.Valid {
+			rec.ResponseTimeMs = int(resp.Int64)
+		}
+		return &rec, nil
+	case sql.ErrNoRows:
+		return nil, nil
+	default:
+		return nil, err
+	}
+}
+
 // QueryHealthChecks 查询健康检查历史，返回最新的 limit 条记录，按时间正序排列（用于显示）。
 func (s *Store) QueryHealthChecks(ctx context.Context, params QueryHealthCheckParams) ([]HealthCheckRecord, error) {
 	if s == nil || s.db == nil {

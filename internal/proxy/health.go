@@ -18,9 +18,10 @@ import (
 )
 
 const (
-	HealthCheckMethodAPI  = "api"  // POST /v1/messages
-	HealthCheckMethodHEAD = "head" // HEAD 请求
-	HealthCheckMethodCLI  = "cli"  // Claude Code CLI 无头模式
+	HealthCheckMethodAPI   = "api"   // POST /v1/messages
+	HealthCheckMethodHEAD  = "head"  // HEAD 请求
+	HealthCheckMethodCLI   = "cli"   // Claude Code CLI 无头模式
+	HealthCheckMethodProxy = "proxy" // 通过代理请求的健康信号
 )
 
 // 默认 CLI 健康检查模型（低成本）。
@@ -31,6 +32,9 @@ const (
 	CheckSourceRecovery  = "recovery"
 	CheckSourceProxyFail = "proxy_fail"
 )
+
+// 相同状态的健康检查最小持久化间隔，避免历史记录过于冗余。
+const sameStateRecordGap = 5 * time.Minute
 
 // 默认健康检查方式（可被环境变量覆盖）；从 API 变更为 CLI，以便在无 HTTP 端点时也能探活。
 var defaultHealthCheckMethod = HealthCheckMethodCLI
@@ -570,22 +574,26 @@ func (p *Server) recordHealthEvent(accountID, nodeID, method, source string, suc
 		respMs = 0
 	}
 
+	rec := store.HealthCheckRecord{
+		AccountID:      accountID,
+		NodeID:         nodeID,
+		CheckTime:      checkTime,
+		Success:        success,
+		ResponseTimeMs: respMs,
+		ErrorMessage:   errMsg,
+		CheckMethod:    method,
+		CheckSource:    source,
+	}
+
 	if p.store != nil {
-		rec := store.HealthCheckRecord{
-			AccountID:      accountID,
-			NodeID:         nodeID,
-			CheckTime:      checkTime,
-			Success:        success,
-			ResponseTimeMs: respMs,
-			ErrorMessage:   errMsg,
-			CheckMethod:    method,
-			CheckSource:    source,
-		}
-		go func() {
+		go func(rec store.HealthCheckRecord) {
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancel()
+			if !p.shouldInsertHealthRecord(ctx, rec.AccountID, rec.NodeID, rec.Success, rec.CheckTime) {
+				return
+			}
 			_ = p.store.InsertHealthCheck(ctx, &rec)
-		}()
+		}(rec)
 	}
 
 	if p.wsHub != nil {
@@ -600,6 +608,40 @@ func (p *Server) recordHealthEvent(accountID, nodeID, method, source string, suc
 		}
 		p.wsHub.Broadcast(accountID, "health_check", payload)
 	}
+}
+
+func (p *Server) shouldInsertHealthRecord(ctx context.Context, accountID, nodeID string, success bool, checkTime time.Time) bool {
+	if p == nil || p.store == nil {
+		return false
+	}
+	if checkTime.IsZero() {
+		checkTime = time.Now().UTC()
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	last, err := p.store.LatestHealthCheck(ctx, accountID, nodeID)
+	if err != nil {
+		if p.logger != nil {
+			p.logger.Printf("health history lookup failed for node %s: %v", nodeID, err)
+		}
+		return true // 出错时保守写入，避免数据缺失
+	}
+	if last == nil {
+		return true
+	}
+	// 如果当前记录早于已存在的最新记录，跳过以避免乱序。
+	if checkTime.Before(last.CheckTime) {
+		return false
+	}
+	if last.Success != success {
+		return true
+	}
+	if checkTime.Sub(last.CheckTime) >= sameStateRecordGap {
+		return true
+	}
+	return false
 }
 
 type CliRunner func(ctx context.Context, image string, env map[string]string, prompt string, model string) (string, error)

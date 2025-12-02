@@ -256,6 +256,9 @@ func (p *Server) handler() http.Handler {
 				}
 
 				errMsg := extractErrorMessage(mw, statusForRetry)
+				if account != nil {
+					p.recordHealthEvent(account.ID, node.ID, HealthCheckMethodProxy, CheckSourceProxyFail, false, time.Since(start), errMsg, time.Now().UTC())
+				}
 				if p.shouldFail(node.ID, errMsg) {
 					p.handleFailure(node.ID, errMsg)
 				}

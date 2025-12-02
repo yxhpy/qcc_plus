@@ -29,6 +29,9 @@ cccli_bin
 .codex_*.txt
 .codex_*.md
 
+# Debug files
+debugs/
+
 # IDE and editor files
 .DS_Store
 .vscode/*

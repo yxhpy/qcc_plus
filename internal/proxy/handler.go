@@ -203,7 +203,11 @@ func (p *Server) handler() http.Handler {
 				bodyBytes, _ = io.ReadAll(r.Body)
 				r.Body.Close()
 			}
-			for attempt := 0; attempt < p.retryConfig.MaxAttempts; attempt++ {
+
+			// attempt 只计算真正发送请求的次数，maxLoops 防止无限循环
+			attempt := 0
+			maxLoops := p.retryConfig.MaxAttempts * 3 // 允许跳过一些熔断节点
+			for loops := 0; loops < maxLoops && attempt < p.retryConfig.MaxAttempts; loops++ {
 				reqForAttempt := r.Clone(baseCtx)
 				if len(bodyBytes) > 0 {
 					reqForAttempt.Body = io.NopCloser(bytes.NewReader(bodyBytes))
@@ -219,9 +223,9 @@ func (p *Server) handler() http.Handler {
 				if p.cbConfig.Enabled {
 					cb = p.getOrCreateCircuitBreaker(node.ID)
 					if !cb.AllowRequest() {
-						p.logger.Printf("node %s circuit breaker is open, skipping", node.Name)
+						p.logger.Printf("node %s circuit breaker is open, skipping (loop %d, attempt %d)", node.Name, loops+1, attempt)
 						skipNodes[node.ID] = true
-						continue // 跳过此节点，尝试下一个
+						continue // 跳过此节点，不计入 attempt
 					}
 				}
 
@@ -254,6 +258,9 @@ func (p *Server) handler() http.Handler {
 				proxy.ServeHTTP(wrapFirstByteFlush(mw, streamState), reqForAttempt)
 				cancel()
 
+				// 真正发送了请求，计数器+1
+				attempt++
+
 				upstreamStatus := extractUpstreamStatus(mw)
 				statusForRetry := upstreamStatus
 				if statusForRetry == 0 {
@@ -262,7 +269,7 @@ func (p *Server) handler() http.Handler {
 
 				failed := mw.status != http.StatusOK || statusForRetry >= http.StatusInternalServerError
 
-				if attempt == 0 && failed {
+				if attempt == 1 && failed {
 					firstAttemptFailed = true
 				}
 
@@ -271,12 +278,12 @@ func (p *Server) handler() http.Handler {
 				}
 
 				shouldRetry := failed && statusForRetry >= http.StatusInternalServerError && shouldRetryStatus(statusForRetry, p.retryConfig)
-				isLastAttempt := attempt == p.retryConfig.MaxAttempts-1
+				isLastAttempt := attempt >= p.retryConfig.MaxAttempts
 				finalAttempt := !failed || !shouldRetry || isLastAttempt
 
 				var retryAttemptsTotal int64
 				if finalAttempt {
-					retryAttemptsTotal = int64(attempt + 1)
+					retryAttemptsTotal = int64(attempt)
 				}
 				var retrySuccess int64
 				if finalAttempt && !failed && firstAttemptFailed {

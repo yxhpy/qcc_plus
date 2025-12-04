@@ -205,9 +205,13 @@ func (p *Server) handler() http.Handler {
 			}
 
 			// attempt 只计算真正发送请求的次数，maxLoops 防止无限循环
+			// maxLoops = 节点数量 * 2，确保即使有熔断器也能尝试所有节点
 			attempt := 0
-			maxLoops := p.retryConfig.MaxAttempts * 3 // 允许跳过一些熔断节点
-			for loops := 0; loops < maxLoops && attempt < p.retryConfig.MaxAttempts; loops++ {
+			maxLoops := len(account.Nodes) * 2
+			if maxLoops < 20 {
+				maxLoops = 20 // 至少尝试 20 次循环
+			}
+			for loops := 0; loops < maxLoops; loops++ {
 				reqForAttempt := r.Clone(baseCtx)
 				if len(bodyBytes) > 0 {
 					reqForAttempt.Body = io.NopCloser(bytes.NewReader(bodyBytes))
@@ -223,7 +227,7 @@ func (p *Server) handler() http.Handler {
 				if p.cbConfig.Enabled {
 					cb = p.getOrCreateCircuitBreaker(node.ID)
 					if !cb.AllowRequest() {
-						p.logger.Printf("node %s circuit breaker is open, skipping (loop %d, attempt %d)", node.Name, loops+1, attempt)
+						p.logger.Printf("node %s circuit breaker is open, skipping (loop %d/%d, tried %d nodes)", node.Name, loops+1, maxLoops, attempt)
 						skipNodes[node.ID] = true
 						continue // 跳过此节点，不计入 attempt
 					}
@@ -231,7 +235,7 @@ func (p *Server) handler() http.Handler {
 
 				usage := &usage{}
 				proxy, streamState := p.newReverseProxy(node, usage)
-				p.logger.Printf("%s %s via %s (account=%s, attempt=%d/%d)", r.Method, r.URL.String(), node.Name, account.ID, attempt+1, p.retryConfig.MaxAttempts)
+				p.logger.Printf("%s %s via %s (account=%s, node %d/%d)", r.Method, r.URL.String(), node.Name, account.ID, attempt+1, len(account.Nodes))
 
 				start := time.Now()
 				mw := &metricsWriter{ResponseWriter: w, status: http.StatusOK}
@@ -314,9 +318,10 @@ func (p *Server) handler() http.Handler {
 					return
 				}
 
-				if attempt < p.retryConfig.MaxAttempts-1 {
-					p.logger.Printf("retry attempt %d/%d, node %s failed: %s", attempt+1, p.retryConfig.MaxAttempts, node.Name, errMsg)
-					backoff := calculateBackoff(attempt, p.retryConfig)
+				// 如果还有可尝试的节点，记录日志并继续
+				if shouldRetry {
+					p.logger.Printf("retrying with next node (tried %d/%d nodes), %s failed: %s", attempt, len(account.Nodes), node.Name, errMsg)
+					backoff := calculateBackoff(attempt-1, p.retryConfig)
 					time.Sleep(backoff)
 				}
 			}

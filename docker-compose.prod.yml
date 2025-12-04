@@ -60,7 +60,7 @@ services:
       RETRY_PER_ATTEMPT_TIMEOUTS_SEC: 60,60
       RETRY_BACKOFF_MIN_MS: 100
       RETRY_BACKOFF_MAX_MS: 500
-      RETRY_ON_STATUS: 502,503,504
+      RETRY_ON_STATUS:
 
       # ========== 传输层连接池 ==========
       PROXY_TRANSPORT_MAX_IDLE_CONNS: 200

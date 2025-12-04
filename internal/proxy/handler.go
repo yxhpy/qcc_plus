@@ -294,7 +294,12 @@ func (p *Server) handler() http.Handler {
 					p.recordHealthEvent(account.ID, node.ID, HealthCheckMethodProxy, CheckSourceProxyFail, false, time.Since(start), errMsg, time.Now().UTC())
 				}
 				if p.shouldFail(node.ID, errMsg) {
-					p.handleFailure(node.ID, errMsg)
+					// 仅在最后一次尝试失败时才把节点标记为全局失败，避免单请求重试耗尽所有节点
+					if isLastAttempt {
+						p.handleFailure(node.ID, errMsg)
+					} else {
+						p.logger.Printf("[retry] node %s failed in attempt %d, will try other nodes", node.Name, attempt+1)
+					}
 				}
 				skipNodes[node.ID] = true
 

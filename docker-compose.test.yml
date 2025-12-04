@@ -33,7 +33,7 @@ services:
       UPSTREAM_API_KEY: changeme
       UPSTREAM_NAME: default
       LISTEN_ADDR: :8001
-      PROXY_HEALTH_CHECK_MODE: cli
+      PROXY_HEALTH_CHECK_MODE: head      # 默认使用 HEAD 探活，避免 CLI 误判
 
       # ========== 多租户与安全 ==========
       ADMIN_API_KEY: admin
@@ -41,11 +41,11 @@ services:
       DEFAULT_PROXY_API_KEY: default-proxy-key
 
       # ========== 健康检查与预热 ==========
-      PROXY_RETRY_MAX: 4                 # 额外一次重试，减少短暂抖动导致的失败
-      PROXY_FAIL_THRESHOLD: 5            # 连续 5 次失败才判定节点失败，更容错
-      PROXY_HEALTH_INTERVAL_SEC: 45      # 探活频率放缓，避免瞬时波动
-      HEALTH_ALL_INTERVAL_MIN: 15        # 全量探活间隔拉长，降低误报
-      HEALTH_CHECK_CONCURRENCY: 2
+      PROXY_RETRY_MAX: 5                 # 额外增加一次重试，更多容错
+      PROXY_FAIL_THRESHOLD: 6            # 连续 6 次失败才判定节点失败
+      PROXY_HEALTH_INTERVAL_SEC: 60      # 探活频率放缓
+      HEALTH_ALL_INTERVAL_MIN: 20        # 全量探活间隔再放宽
+      HEALTH_CHECK_CONCURRENCY: 1        # 降低并发，避免上游被同时打爆
       HEALTH_CHECK_CONCURRENCY_CLI: 1
       WARMUP_CONCURRENCY: 1
       WARMUP_ENABLED: 0
@@ -54,32 +54,32 @@ services:
       WARMUP_REQUIRED_SUCCESS: 1
 
       # ========== HTTP 重试细节 ==========
-      RETRY_MAX_ATTEMPTS: 4              # 与 PROXY_RETRY_MAX 对齐
-      RETRY_PER_REQUEST_TIMEOUT_SEC: 20  # 单次尝试更宽裕
-      RETRY_TOTAL_TIMEOUT_SEC: 40        # 总超时同步放宽
-      RETRY_PER_ATTEMPT_TIMEOUTS_SEC: 18,12,6,3
+      RETRY_MAX_ATTEMPTS: 5              # 与 PROXY_RETRY_MAX 对齐
+      RETRY_PER_REQUEST_TIMEOUT_SEC: 22  # 单次尝试更宽裕
+      RETRY_TOTAL_TIMEOUT_SEC: 60        # 总超时再放宽
+      RETRY_PER_ATTEMPT_TIMEOUTS_SEC: 20,14,8,4,2
       RETRY_BACKOFF_MIN_MS: 200
-      RETRY_BACKOFF_MAX_MS: 1500
-      RETRY_ON_STATUS: 408,429,502,503,504
+      RETRY_BACKOFF_MAX_MS: 2000
+      RETRY_ON_STATUS: 408,429,500,502,503,504,522,524
 
       # ========== 传输层连接池 ==========
       PROXY_TRANSPORT_MAX_IDLE_CONNS: 200
       PROXY_TRANSPORT_MAX_IDLE_CONNS_PER_HOST: 50
       PROXY_TRANSPORT_MAX_CONNS_PER_HOST: 100
       PROXY_TRANSPORT_IDLE_CONN_TIMEOUT: 90s
-      PROXY_TRANSPORT_TLS_HANDSHAKE_TIMEOUT: 15s
-      PROXY_TRANSPORT_RESPONSE_HEADER_TIMEOUT: 45s
+      PROXY_TRANSPORT_TLS_HANDSHAKE_TIMEOUT: 20s
+      PROXY_TRANSPORT_RESPONSE_HEADER_TIMEOUT: 60s
       PROXY_TRANSPORT_EXPECT_CONTINUE_TIMEOUT: 1s
       PROXY_TRANSPORT_DISABLE_COMPRESSION: false
       PROXY_TRANSPORT_FORCE_HTTP2: true
 
       # ========== 熔断保护 ==========
       CB_ENABLED: 1
-      CB_WINDOW_SECONDS: 180            # 统计窗口更长，避免短时抖动触发
-      CB_FAILURE_RATE: 0.9              # 允许更高失败率再熔断
-      CB_CONSECUTIVE_FAILS: 15          # 连续失败阈值抬高
-      CB_COOLDOWN_SECONDS: 90           # 冷却期略延长，保护恢复过程
-      CB_HALFOPEN_MAX_CALLS: 8          # 半开探测多几次，减少误判
+      CB_WINDOW_SECONDS: 240            # 统计窗口再加长
+      CB_FAILURE_RATE: 0.95             # 允许更高失败率再熔断
+      CB_CONSECUTIVE_FAILS: 20          # 连续失败阈值更高
+      CB_COOLDOWN_SECONDS: 120          # 冷却期延长，防抖
+      CB_HALFOPEN_MAX_CALLS: 12         # 半开探测次数增加，避免误判
 
       # ========== 指标调度 ==========
       METRICS_SCHEDULER_ENABLED: 1

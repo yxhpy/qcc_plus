@@ -259,15 +259,12 @@ func (p *Server) checkNodeHealth(acc *Account, id string, source string) {
 		rec           store.NodeRecord
 		shouldPersist bool
 
-		metricsSnapshot metrics
-		nodeName        string
-		nodeID          string
-		nodeFailed      bool
-		nodeDisabled    bool
-		hasNode         bool
-		wasFailed       bool
-		activeID        string
-		activeWeight    int
+		nodeName     string
+		nodeDisabled bool
+		hasNode      bool
+		wasFailed    bool
+		activeID     string
+		activeWeight int
 	)
 
 	// 默认使用最大 int 作为哨兵值，表示“无活跃节点”
@@ -354,10 +351,7 @@ func (p *Server) checkNodeHealth(acc *Account, id string, source string) {
 
 		hasNode = true
 		nodeName = n.Name
-		nodeID = n.ID
-		nodeFailed = n.Failed
 		nodeDisabled = n.Disabled
-		metricsSnapshot = n.Metrics
 	}
 	p.mu.Unlock()
 
@@ -395,40 +389,7 @@ func (p *Server) checkNodeHealth(acc *Account, id string, source string) {
 	if shouldPromote && !isWarmup {
 		p.maybePromoteRecovered(n)
 	}
-
-	if p.wsHub != nil && acc != nil && hasNode {
-		healthInterval := acc.Config.HealthEvery
-		if healthInterval <= 0 {
-			healthInterval = p.healthEvery
-		}
-		health := summarizeHealth(metricsSnapshot, method, healthInterval, time.Now())
-		traffic := summarizeTraffic(metricsSnapshot)
-
-		status := "unknown"
-		if nodeDisabled {
-			status = "disabled"
-		} else if nodeFailed || health.Status == "down" {
-			status = "offline"
-		} else if health.Status == "stale" {
-			status = "degraded"
-		} else {
-			status = "online"
-		}
-
-		timestamp := timeutil.FormatBeijingTime(time.Now())
-		if health.LastCheckAt != nil {
-			timestamp = *health.LastCheckAt
-		}
-
-		p.wsHub.Broadcast(acc.ID, "node_metrics", map[string]interface{}{
-			"node_id":   nodeID,
-			"node_name": nodeName,
-			"status":    status,
-			"traffic":   traffic,
-			"health":    health,
-			"timestamp": timestamp,
-		})
-	}
+	// node_metrics 已在 recordHealthEvent 中推送，此处不再重复
 }
 
 func (p *Server) maybePromoteRecovered(n *Node) {
@@ -602,7 +563,39 @@ func (p *Server) recordHealthEvent(accountID, nodeID, method, source string, suc
 		}(rec)
 	}
 
+	// 更新节点 Metrics 并推送 node_metrics 事件到大屏
+	var (
+		nodeName     string
+		nodeDisabled bool
+		metricsSnap  metrics
+		acc          *Account
+		hasNode      bool
+	)
+
+	p.mu.Lock()
+	n := p.nodeIndex[nodeID]
+	if n != nil {
+		hasNode = true
+		nodeName = n.Name
+		nodeDisabled = n.Disabled
+
+		// 更新节点的健康检查指标
+		n.Metrics.LastHealthCheckAt = checkTime
+		if latency > 0 {
+			n.Metrics.LastPingMS = latency.Milliseconds()
+		}
+		if success {
+			n.Metrics.LastPingErr = ""
+		} else {
+			n.Metrics.LastPingErr = errMsg
+		}
+		metricsSnap = n.Metrics
+		acc = p.nodeAccount[nodeID]
+	}
+	p.mu.Unlock()
+
 	if p.wsHub != nil {
+		// 推送 health_check 事件（健康检查历史记录）
 		payload := map[string]interface{}{
 			"node_id":          nodeID,
 			"check_time":       timeutil.FormatBeijingTime(checkTime),
@@ -613,6 +606,42 @@ func (p *Server) recordHealthEvent(accountID, nodeID, method, source string, suc
 			"check_source":     source,
 		}
 		p.wsHub.Broadcast(accountID, "health_check", payload)
+
+		// 推送 node_metrics 事件（大屏节点状态更新）
+		if hasNode && acc != nil {
+			healthInterval := acc.Config.HealthEvery
+			if healthInterval <= 0 {
+				healthInterval = p.healthEvery
+			}
+			health := summarizeHealth(metricsSnap, method, healthInterval, time.Now())
+			traffic := summarizeTraffic(metricsSnap)
+
+			// 使用 success 参数决定状态，而非 nodeFailed（可能是旧值）
+			status := "unknown"
+			if nodeDisabled {
+				status = "disabled"
+			} else if !success || health.Status == "down" {
+				status = "offline"
+			} else if health.Status == "stale" {
+				status = "degraded"
+			} else {
+				status = "online"
+			}
+
+			timestamp := timeutil.FormatBeijingTime(time.Now())
+			if health.LastCheckAt != nil {
+				timestamp = *health.LastCheckAt
+			}
+
+			p.wsHub.Broadcast(accountID, "node_metrics", map[string]interface{}{
+				"node_id":   nodeID,
+				"node_name": nodeName,
+				"status":    status,
+				"traffic":   traffic,
+				"health":    health,
+				"timestamp": timestamp,
+			})
+		}
 	}
 }
 

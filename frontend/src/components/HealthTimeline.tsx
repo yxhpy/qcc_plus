@@ -161,10 +161,20 @@ export default function HealthTimeline({ nodeId, refreshKey = 0, latest, shareTo
 	useEffect(() => {
 		if (!latest || latest.node_id !== nodeId) return
 		setHistory((prev) => {
-			if (!prev) return prev
 			const normalized = normalizeRecord(nodeId, latest)
 			const checkedAt = parseToDate(normalized.check_time)?.getTime() || Date.now()
 			const earliest = Date.now() - RANGE_WINDOWS[range]
+
+			// 如果 history 还未加载，创建一个初始结构
+			if (!prev) {
+				return {
+					node_id: nodeId,
+					from: new Date(earliest).toISOString(),
+					to: new Date(checkedAt).toISOString(),
+					total: 1,
+					checks: [normalized],
+				}
+			}
 
 			const exists = prev.checks.some((c) => c.check_time === normalized.check_time)
 			if (exists) return prev

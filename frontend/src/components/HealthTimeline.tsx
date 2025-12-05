@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { request } from '../services/api'
 import type { HealthCheckRecord, HealthHistory } from '../types'
-import { parseToDate } from '../utils/date'
+import { formatBeijingTime, parseToDate } from '../utils/date'
 import './HealthTimeline.css'
 
 type RangeKey = '24h'
@@ -63,8 +64,13 @@ function normalizeRecord(nodeId: string, rec: HealthCheckRecord): HealthCheckRec
 export default function HealthTimeline({ nodeId, refreshKey = 0, latest, shareToken, source = '' }: HealthTimelineProps) {
 	const range: RangeKey = '24h' // 固定使用 24h
 	const [history, setHistory] = useState<HealthHistory | null>(null)
-	const [, setLoading] = useState(false) // loading 状态供内部 fetch 控制使用
+	const [loading, setLoading] = useState(false)
 	const [error, setError] = useState<string | null>(null)
+	const [hover, setHover] = useState<{
+		rec: HealthCheckRecord
+		x: number
+		y: number
+	} | null>(null)
 
 	const abortRef = useRef<AbortController | null>(null)
 	const lastRefreshKeyRef = useRef(refreshKey)
@@ -202,6 +208,24 @@ export default function HealthTimeline({ nodeId, refreshKey = 0, latest, shareTo
 		return { ...result, healthRate }
 	}, [history])
 
+	const renderTooltip = () => {
+		if (!hover) return null
+		const { rec, x, y } = hover
+		const status = rec.success ? '在线' : '离线'
+		const tooltip = (
+			<div className="health-tooltip" style={{ left: x + 12, top: y - 10 }}>
+				<div className="health-tooltip__time">{formatBeijingTime(rec.check_time)}</div>
+				<div className="health-tooltip__row">状态：{status}</div>
+				<div className="health-tooltip__row">耗时：{rec.response_time_ms || 0} ms</div>
+				<div className="health-tooltip__row">方式：{rec.check_method || 'api'}</div>
+				{rec.error_message && <div className="health-tooltip__row">错误：{rec.error_message}</div>}
+			</div>
+		)
+
+		if (typeof document === 'undefined') return tooltip
+		return createPortal(tooltip, document.body)
+	}
+
 	const checks = history?.checks || []
 	// 判断最新状态：使用最后一次检查的 success 字段
 	const latestCheck = checks.length > 0 ? checks[checks.length - 1] : null
@@ -221,7 +245,26 @@ export default function HealthTimeline({ nodeId, refreshKey = 0, latest, shareTo
 					)}
 				</div>
 			</div>
+
+			<div className={`health-track ${loading ? 'loading' : ''}`}>
+				{loading && <div className="health-track__skeleton" />}
+				{!loading && checks.length === 0 && <div className="health-empty">暂无数据</div>}
+				{!loading &&
+					checks.map((rec, idx) => {
+						const color = rec.success ? 'ok' : 'fail'
+						return (
+							<div
+								key={`${rec.check_time}-${idx}`}
+								className={`health-dot ${color}`}
+								onMouseEnter={(e) => setHover({ rec, x: e.clientX, y: e.clientY })}
+								onMouseLeave={() => setHover(null)}
+								title={formatBeijingTime(rec.check_time)}
+							/>
+						)
+					})}
+			</div>
 			{error && <div className="health-error">{error}</div>}
+			{renderTooltip()}
 		</div>
 	)
 }

@@ -1,16 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { request } from '../services/api'
 import type { HealthCheckRecord, HealthHistory } from '../types'
-import { formatBeijingTime, parseToDate } from '../utils/date'
+import { parseToDate } from '../utils/date'
 import './HealthTimeline.css'
 
-type RangeKey = '24h' | '7d' | '30d'
+type RangeKey = '24h'
 
 const RANGE_WINDOWS: Record<RangeKey, number> = {
 	'24h': 24 * 60 * 60 * 1000,
-	'7d': 7 * 24 * 60 * 60 * 1000,
-	'30d': 30 * 24 * 60 * 60 * 1000,
 }
 
 const CACHE_TTL = 60 * 1000 // keep recent results for 1 minute to smooth bursts
@@ -64,15 +61,10 @@ function normalizeRecord(nodeId: string, rec: HealthCheckRecord): HealthCheckRec
 }
 
 export default function HealthTimeline({ nodeId, refreshKey = 0, latest, shareToken, source = '' }: HealthTimelineProps) {
-	const [range, setRange] = useState<RangeKey>('24h')
+	const range: RangeKey = '24h' // 固定使用 24h
 	const [history, setHistory] = useState<HealthHistory | null>(null)
-	const [loading, setLoading] = useState(false)
+	const [, setLoading] = useState(false) // loading 状态供内部 fetch 控制使用
 	const [error, setError] = useState<string | null>(null)
-	const [hover, setHover] = useState<{
-		rec: HealthCheckRecord
-		x: number
-		y: number
-	} | null>(null)
 
 	const abortRef = useRef<AbortController | null>(null)
 	const lastRefreshKeyRef = useRef(refreshKey)
@@ -197,7 +189,7 @@ export default function HealthTimeline({ nodeId, refreshKey = 0, latest, shareTo
 
 	const stats = useMemo(() => {
 		const checks = history?.checks || []
-		return checks.reduce(
+		const result = checks.reduce(
 			(acc, cur) => {
 				if (!cur.success) acc.fail += 1
 				else acc.ok += 1
@@ -205,71 +197,31 @@ export default function HealthTimeline({ nodeId, refreshKey = 0, latest, shareTo
 			},
 			{ ok: 0, fail: 0 },
 		)
+		const total = result.ok + result.fail
+		const healthRate = total > 0 ? ((result.ok / total) * 100).toFixed(1) : null
+		return { ...result, healthRate }
 	}, [history])
 
-	const renderTooltip = () => {
-		if (!hover) return null
-		const { rec, x, y } = hover
-		const status = rec.success ? '在线' : '离线'
-		const tooltip = (
-			<div className="health-tooltip" style={{ left: x + 12, top: y - 10 }}>
-				<div className="health-tooltip__time">{formatBeijingTime(rec.check_time)}</div>
-				<div className="health-tooltip__row">状态：{status}</div>
-				<div className="health-tooltip__row">耗时：{rec.response_time_ms || 0} ms</div>
-				<div className="health-tooltip__row">方式：{rec.check_method || 'api'}</div>
-				{rec.error_message && <div className="health-tooltip__row">错误：{rec.error_message}</div>}
-			</div>
-		)
-
-		if (typeof document === 'undefined') return tooltip
-		return createPortal(tooltip, document.body)
-	}
-
 	const checks = history?.checks || []
+	// 判断最新状态：使用最后一次检查的 success 字段
+	const latestCheck = checks.length > 0 ? checks[checks.length - 1] : null
+	const isOnline = latestCheck ? latestCheck.success : false
 
 	return (
-		<div className="health-timeline">
+		<div className="health-timeline health-timeline--compact">
 			<div className="health-timeline__header">
-				<div className="health-timeline__left">
-					<span className="health-timeline__title">健康检查</span>
-					<div className="health-timeline__chips">
-						{(['24h', '7d', '30d'] as RangeKey[]).map((key) => (
-							<button
-								key={key}
-								type="button"
-								className={`chip ${range === key ? 'active' : ''}`}
-								onClick={() => setRange(key)}
-							>
-								{key}
-							</button>
-						))}
-					</div>
+				<div className="health-timeline__status">
+					<span className={`status-dot ${isOnline ? 'online' : 'offline'}`} />
+					<span className={`status-text ${isOnline ? 'online' : 'offline'}`}>{isOnline ? '在线' : '离线'}</span>
+					{stats.healthRate !== null && (
+						<>
+							<span className="sep">·</span>
+							<span className="health-rate">24h健康率 <strong>{stats.healthRate}%</strong></span>
+						</>
+					)}
 				</div>
-				<div className="health-timeline__stats">
-					<span className="pill ok">在线 {stats.ok}</span>
-					<span className="pill fail">离线 {stats.fail}</span>
-				</div>
-			</div>
-
-			<div className={`health-track ${loading ? 'loading' : ''}`}>
-				{loading && <div className="health-track__skeleton" />}
-				{!loading && checks.length === 0 && <div className="health-empty">暂无数据</div>}
-				{!loading &&
-					checks.map((rec, idx) => {
-						const color = rec.success ? 'ok' : 'fail'
-						return (
-							<div
-								key={`${rec.check_time}-${idx}`}
-								className={`health-dot ${color}`}
-								onMouseEnter={(e) => setHover({ rec, x: e.clientX, y: e.clientY })}
-								onMouseLeave={() => setHover(null)}
-								title={formatBeijingTime(rec.check_time)}
-							/>
-						)
-					})}
 			</div>
 			{error && <div className="health-error">{error}</div>}
-			{renderTooltip()}
 		</div>
 	)
 }

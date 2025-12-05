@@ -688,7 +688,8 @@ func defaultCLIRunner(ctx context.Context, image string, env map[string]string, 
 	// 使用 -p/--print 来获取非交互式输出
 	// 超时通过 context 控制（在 healthCheckViaCLI 中设置）
 	// --tools "" 禁用所有工具，避免加载工具定义，加速响应
-	args := []string{"-p", prompt, "--tools", ""}
+	// --setting-sources "" 禁用配置文件加载，减少启动时间（约 25% 提升）
+	args := []string{"-p", prompt, "--tools", "", "--setting-sources", ""}
 
 	// 如果指定了模型，添加 --model 参数
 	if model != "" {

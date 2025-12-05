@@ -18,7 +18,7 @@ const historyCache = new Map<string, { data: HealthHistory; ts: number }>()
 const inFlightCache = new Map<string, { controller: AbortController; promise: Promise<HealthHistory> }>()
 
 function buildCacheKey(nodeId: string, range: RangeKey, shareToken?: string, source?: string) {
-	return [nodeId, range, shareToken || '', source || 'scheduled'].join('__')
+	return [nodeId, range, shareToken || '', source || ''].join('__')
 }
 
 async function fetchHistoryWithAbort(
@@ -48,7 +48,7 @@ interface HealthTimelineProps {
 	refreshKey?: number
 	latest?: HealthCheckRecord | null
 	shareToken?: string
-	/** 数据来源过滤：scheduled(周期检查)/recovery(故障恢复)/proxy_fail(代理失败)，默认 scheduled */
+	/** 数据来源过滤：scheduled(周期检查)/recovery(故障恢复)/proxy_fail(代理失败)，空字符串表示所有来源 */
 	source?: string
 }
 
@@ -63,7 +63,7 @@ function normalizeRecord(nodeId: string, rec: HealthCheckRecord): HealthCheckRec
 	}
 }
 
-export default function HealthTimeline({ nodeId, refreshKey = 0, latest, shareToken, source = 'scheduled' }: HealthTimelineProps) {
+export default function HealthTimeline({ nodeId, refreshKey = 0, latest, shareToken, source = '' }: HealthTimelineProps) {
 	const [range, setRange] = useState<RangeKey>('24h')
 	const [history, setHistory] = useState<HealthHistory | null>(null)
 	const [loading, setLoading] = useState(false)

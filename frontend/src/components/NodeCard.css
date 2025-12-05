@@ -21,6 +21,11 @@
   box-shadow: var(--shadow-lg, var(--shadow-md));
 }
 
+.node-card--circuit-open {
+  border: 3px solid var(--color-warning-500, #f59e0b);
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.3);
+}
+
 .node-card__header {
   display: flex;
   justify-content: space-between;
@@ -148,6 +153,12 @@
   background: var(--color-bg-card);
   color: var(--color-text-muted);
   border-color: var(--color-divider);
+}
+
+.badge-warning {
+  background: var(--color-warning-500, #f59e0b);
+  color: #fff;
+  border-color: var(--color-warning-500, #f59e0b);
 }
 
 .node-card__error-badge {

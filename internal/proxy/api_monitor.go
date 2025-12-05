@@ -35,17 +35,18 @@ type HealthSummary struct {
 }
 
 type MonitorNode struct {
-	ID        string        `json:"id"`
-	Name      string        `json:"name"`
-	URL       string        `json:"url"`
-	Status    string        `json:"status"` // 综合状态: online/degraded/offline/unknown/disabled
-	Weight    int           `json:"weight"`
-	IsActive  bool          `json:"is_active"`
-	Disabled  bool          `json:"disabled"`
-	LastError string        `json:"last_error"`
-	Traffic   ProxySummary  `json:"traffic"` // 代理流量指标
-	Health    HealthSummary `json:"health"`  // 健康检查指标
-	Trend24h  []TrendPoint  `json:"trend_24h"`
+	ID          string        `json:"id"`
+	Name        string        `json:"name"`
+	URL         string        `json:"url"`
+	Status      string        `json:"status"` // 综合状态: online/degraded/offline/unknown/disabled
+	Weight      int           `json:"weight"`
+	IsActive    bool          `json:"is_active"`
+	CircuitOpen bool          `json:"circuit_open"` // 熔断器是否打开
+	Disabled    bool          `json:"disabled"`
+	LastError   string        `json:"last_error"`
+	Traffic     ProxySummary  `json:"traffic"` // 代理流量指标
+	Health      HealthSummary `json:"health"`  // 健康检查指标
+	Trend24h    []TrendPoint  `json:"trend_24h"`
 }
 
 type TrendPoint struct {
@@ -204,18 +205,25 @@ func (p *Server) buildMonitorDashboardResponse(ctx context.Context, target *Acco
 			lastError = snap.Metrics.LastPingErr
 		}
 
+		// 检查熔断器状态
+		circuitOpen := false
+		if cb := p.getCircuitBreaker(snap.ID); cb != nil {
+			circuitOpen = cb.GetState() == StateOpen
+		}
+
 		nodes = append(nodes, MonitorNode{
-			ID:        snap.ID,
-			Name:      snap.Name,
-			URL:       snap.URL,
-			Status:    status,
-			Weight:    snap.Weight,
-			IsActive:  snap.ID == activeID,
-			Disabled:  snap.Disabled,
-			LastError: lastError,
-			Traffic:   traffic,
-			Health:    health,
-			Trend24h:  buildTrendPoints(trendRecords[snap.ID]),
+			ID:          snap.ID,
+			Name:        snap.Name,
+			URL:         snap.URL,
+			Status:      status,
+			Weight:      snap.Weight,
+			IsActive:    snap.ID == activeID,
+			CircuitOpen: circuitOpen,
+			Disabled:    snap.Disabled,
+			LastError:   lastError,
+			Traffic:     traffic,
+			Health:      health,
+			Trend24h:    buildTrendPoints(trendRecords[snap.ID]),
 		})
 	}
 

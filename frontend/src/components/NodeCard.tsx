@@ -27,8 +27,14 @@ export default function NodeCard({ node, historyRefreshKey, healthEvent, shareTo
     ? node.health.last_check_at.replace(/^\d{4}年\d{2}月\d{2}日\s*/, '')
     : '--'
 
+  const cardClass = node.circuit_open
+    ? 'node-card node-card--circuit-open'
+    : node.is_active
+      ? 'node-card node-card--active'
+      : 'node-card'
+
   return (
-    <div className={`node-card ${node.is_active ? 'node-card--active' : ''}`}>
+    <div className={cardClass}>
       {lastError && (
         <div className="node-card__error-badge">
           <Tooltip content={lastError} trigger="both" maxWidth="300px">
@@ -81,6 +87,8 @@ export default function NodeCard({ node, historyRefreshKey, healthEvent, shareTo
       {/* Footer - 单行 */}
       <div className="node-card__footer">
         <div className="node-card__badges">
+          {node.circuit_open && <span className="badge badge-warning">熔断中</span>}
+          {node.is_active && !node.circuit_open && <span className="badge badge-primary">使用中</span>}
           {node.disabled && <span className="badge badge-muted">已停用</span>}
         </div>
       </div>

@@ -160,6 +160,7 @@ export interface MonitorNode {
   status: 'online' | 'offline' | 'degraded' | 'disabled' | 'unknown';
   weight: number;
   is_active: boolean;
+  circuit_open: boolean;
   disabled: boolean;
   last_error?: string;
   traffic: ProxySummary;

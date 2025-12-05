@@ -150,6 +150,13 @@ func (p *Server) getOrCreateCircuitBreaker(nodeID string) *CircuitBreaker {
 	return cb
 }
 
+// getCircuitBreaker 获取节点的熔断器（只读，不创建）
+func (p *Server) getCircuitBreaker(nodeID string) *CircuitBreaker {
+	p.cbMu.RLock()
+	defer p.cbMu.RUnlock()
+	return p.circuitBreakers[nodeID]
+}
+
 // startSettingsWatcher 周期刷新设置缓存，用于跨实例热更新。
 func (p *Server) startSettingsWatcher(interval time.Duration) {
 	if p == nil || p.settingsCache == nil || interval <= 0 {

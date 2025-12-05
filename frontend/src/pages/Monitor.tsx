@@ -362,37 +362,49 @@ export default function Monitor({ shared = false }: MonitorProps) {
       <Card
         title="全局指标"
         extra={
-          <div className="badge gray">
-            总节点 {dashboard?.nodes.length ?? 0} · 在线 {aggregated.online} · 离线 {aggregated.offline}
-          </div>
+          loading || !dashboard ? null : (
+            <div className="badge gray">
+              总节点 {dashboard.nodes.length} · 在线 {aggregated.online} · 离线 {aggregated.offline}
+            </div>
+          )
         }
       >
-        <div className="kpi-grid">
-          <div className="stat-card glass">
-            <span className="muted-title">成功率</span>
-            <div className="kpi-main">{aggregated.successRate.toFixed(1)}%</div>
-            <div className={`badge ${aggregated.successRate < 90 ? 'warn' : 'green'}`}>
-              {aggregated.failedRequests.toLocaleString('en-US')} 失败
+        {loading || !dashboard ? (
+          <div className="kpi-grid">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div className="stat-card glass skeleton" key={i}>
+                <div className="skeleton-block" style={{ height: '80px' }} />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="kpi-grid">
+            <div className="stat-card glass">
+              <span className="muted-title">成功率</span>
+              <div className="kpi-main">{aggregated.successRate.toFixed(1)}%</div>
+              <div className={`badge ${aggregated.successRate < 90 ? 'warn' : 'green'}`}>
+                {aggregated.failedRequests.toLocaleString('en-US')} 失败
+              </div>
+            </div>
+            <div className="stat-card glass">
+              <span className="muted-title">平均响应</span>
+              <div className="kpi-main">{Math.round(aggregated.avgResponse)} ms</div>
+              <div className="badge gray">近 24h</div>
+            </div>
+            <div className="stat-card glass">
+              <span className="muted-title">请求总数</span>
+              <div className="kpi-main">{aggregated.totalRequests.toLocaleString('en-US')}</div>
+              <div className="badge gray">累计</div>
+            </div>
+            <div className="stat-card glass">
+              <span className="muted-title">状态分布</span>
+              <div className="kpi-main">
+                🟢 {aggregated.online} / 🔴 {aggregated.offline} / ⏸ {aggregated.disabled}
+              </div>
+              <div className="badge gray">在线 / 离线 / 停用</div>
             </div>
           </div>
-          <div className="stat-card glass">
-            <span className="muted-title">平均响应</span>
-            <div className="kpi-main">{Math.round(aggregated.avgResponse)} ms</div>
-            <div className="badge gray">近 24h</div>
-          </div>
-          <div className="stat-card glass">
-            <span className="muted-title">请求总数</span>
-            <div className="kpi-main">{aggregated.totalRequests.toLocaleString('en-US')}</div>
-            <div className="badge gray">累计</div>
-          </div>
-          <div className="stat-card glass">
-            <span className="muted-title">状态分布</span>
-            <div className="kpi-main">
-              🟢 {aggregated.online} / 🔴 {aggregated.offline} / ⏸ {aggregated.disabled}
-            </div>
-            <div className="badge gray">在线 / 离线 / 停用</div>
-          </div>
-        </div>
+        )}
       </Card>
 
       <Card title="节点实时状态" extra={<div className="badge gray">每 30 秒自动刷新 · WebSocket 增量更新</div>}>

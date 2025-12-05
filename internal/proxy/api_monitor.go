@@ -180,14 +180,17 @@ func (p *Server) buildMonitorDashboardResponse(ctx context.Context, target *Acco
 	}
 
 	now := time.Now()
-	healthInterval := target.Config.HealthEvery
-	if healthInterval <= 0 {
-		healthInterval = p.healthEvery
+	// 使用全量健康检查间隔来计算 stale 阈值，而不是单次探活间隔。
+	// 因为全量检查间隔可能是 5-10 分钟，如果用 2*healthEvery (60s) 作为阈值，
+	// 节点在两次全量检查之间必然被标记为 stale，导致状态显示不准确。
+	healthAllInterval := defaultHealthAllInterval
+	if p.healthScheduler != nil {
+		healthAllInterval = p.healthScheduler.Interval()
 	}
 	nodes := make([]MonitorNode, 0, len(snapshots))
 	for _, snap := range snapshots {
 		traffic := summarizeTraffic(snap.Metrics)
-		health := summarizeHealth(snap.Metrics, snap.Method, healthInterval, now)
+		health := summarizeHealth(snap.Metrics, snap.Method, healthAllInterval, now)
 
 		status := "unknown"
 		if snap.Disabled {

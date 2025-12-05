@@ -47,6 +47,14 @@ func NewHealthScheduler(server *Server, interval time.Duration, workers int, cli
 	}
 }
 
+// Interval 返回全量健康检查间隔。
+func (h *HealthScheduler) Interval() time.Duration {
+	if h == nil {
+		return defaultHealthAllInterval
+	}
+	return h.interval
+}
+
 // normalizeHealthCheckWorkers 限制健康检查的并发度，避免在小规格机器上把 CLI 健康检查同时拉起过多进程。
 // 策略：
 //  1. 默认值 fallback 到 defaultHealthCheckConcurrency（2）。

@@ -103,30 +103,20 @@ func (t *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		}
 	}
 	if lastResp != nil {
-		// 返回 502，包含最后一次状态信息。
-		msg := fmt.Sprintf("proxy retries exhausted: %v", lastErr)
-		errPayload := map[string]any{
-			"error": map[string]any{
-				"type":            "proxy_error",
-				"message":         lastErr.Error(),
-				"upstream_status": lastResp.StatusCode,
-				"retries":         attempts,
-			},
-		}
+		// 透传上游原始状态码，避免 502 触发客户端重试
+		// 保留原始响应体，让客户端看到真实的错误信息
+		var bodyBytes []byte
 		if len(lastRespBody) > 0 {
-			errPayload["error"].(map[string]any)["upstream_body"] = string(lastRespBody)
-		}
-		bodyBytes, marshalErr := json.Marshal(errPayload)
-		if marshalErr != nil {
-			bodyBytes = []byte(msg)
+			bodyBytes = lastRespBody
+		} else {
+			bodyBytes = []byte(fmt.Sprintf(`{"error":{"type":"upstream_error","message":"%s"}}`, lastErr.Error()))
 		}
 		return &http.Response{
-			StatusCode: http.StatusBadGateway,
+			StatusCode: lastResp.StatusCode,
 			Body:       io.NopCloser(bytes.NewBuffer(bodyBytes)),
 			Header: http.Header{
-				"Content-Type":      []string{"application/json"},
-				"X-Retry-Error":     []string{msg},
-				"X-Upstream-Status": []string{fmt.Sprintf("%d", lastResp.StatusCode)},
+				"Content-Type":  []string{"application/json"},
+				"X-Proxy-Error": []string{fmt.Sprintf("retries exhausted after %d attempts", attempts)},
 			},
 			Request: req,
 		}, nil
@@ -414,7 +404,9 @@ func (p *Server) newReverseProxy(node *Node, u *usage) (*httputil.ReverseProxy, 
 			}
 			return
 		}
-		http.Error(w, "upstream error", http.StatusBadGateway)
+		// 返回 503 而非 502，避免触发客户端重试
+		w.Header().Set("Content-Type", "application/json")
+		http.Error(w, fmt.Sprintf(`{"error":{"type":"upstream_connection_error","message":"%s"}}`, err.Error()), http.StatusServiceUnavailable)
 	}
 
 	return proxy, streamingState
@@ -438,7 +430,9 @@ func (p *Server) newPassthroughProxy(node *Node) *httputil.ReverseProxy {
 
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 		p.logger.Printf("passthrough proxy error %s %s: %v", r.Method, r.URL.String(), err)
-		http.Error(w, "upstream error", http.StatusBadGateway)
+		// 返回 503 而非 502，避免触发客户端重试
+		w.Header().Set("Content-Type", "application/json")
+		http.Error(w, fmt.Sprintf(`{"error":{"type":"upstream_connection_error","message":"%s"}}`, err.Error()), http.StatusServiceUnavailable)
 	}
 
 	return proxy

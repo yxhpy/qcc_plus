@@ -248,7 +248,7 @@ func (p *Server) handler() http.Handler {
 				if !overallDeadline.IsZero() {
 					remaining := time.Until(overallDeadline)
 					if remaining <= 0 {
-						http.Error(w, "all nodes failed after retry", http.StatusBadGateway)
+						http.Error(w, `{"error":{"type":"proxy_timeout","message":"request timeout after all retries"}}`, http.StatusServiceUnavailable)
 						return
 					}
 					if remaining < timeout {
@@ -344,8 +344,9 @@ func (p *Server) handler() http.Handler {
 			// 检查响应是否已写入（避免重复调用 WriteHeader）
 			if _, ok := w.(interface{ Header() http.Header }); ok {
 				if w.Header().Get("Content-Type") == "" {
-					// 响应头未写入，可以安全调用 http.Error
-					http.Error(w, "all nodes failed after retry", http.StatusBadGateway)
+					// 响应头未写入，返回 503 表示服务暂时不可用（所有节点不可用）
+					w.Header().Set("Content-Type", "application/json")
+					http.Error(w, `{"error":{"type":"service_unavailable","message":"all nodes unavailable"}}`, http.StatusServiceUnavailable)
 				}
 			}
 			return

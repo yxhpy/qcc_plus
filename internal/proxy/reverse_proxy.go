@@ -43,12 +43,21 @@ func (t *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	var lastErr error
 	var lastRespBody []byte
 	for i := 0; i < attempts; i++ {
+		// 在重试前检查 context 是否已取消，避免无效请求
+		if err := req.Context().Err(); err != nil {
+			return nil, err // 直接返回 context 错误，不继续重试
+		}
+
 		cloned := req.Clone(req.Context())
 		if bodyCopy != nil {
 			cloned.Body = io.NopCloser(bytes.NewReader(bodyCopy))
 		}
 		resp, err := t.base.RoundTrip(cloned)
 		if err != nil {
+			// 如果是 context 取消/超时，立即返回，不继续重试
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return nil, err
+			}
 			lastErr = err
 		} else {
 			if resp.StatusCode == http.StatusOK {
@@ -371,7 +380,11 @@ func (p *Server) newReverseProxy(node *Node, u *usage) (*httputil.ReverseProxy, 
 	}
 
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
-		if p.notifyMgr != nil {
+		// 区分 context 取消/超时 和真正的上游错误
+		isContextError := errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+
+		// context 取消通常是客户端断开或请求超时，不需要告警
+		if !isContextError && p.notifyMgr != nil {
 			if acc := accountFromCtx(r); acc != nil {
 				nodeName := ""
 				if n := nodeFromCtx(r); n != nil {
@@ -386,7 +399,21 @@ func (p *Server) newReverseProxy(node *Node, u *usage) (*httputil.ReverseProxy, 
 				})
 			}
 		}
+
 		p.logger.Printf("proxy error %s %s: %v", r.Method, r.URL.String(), err)
+
+		// context 取消返回 499 (Client Closed Request) 或 504 (Gateway Timeout)
+		// 而不是 502，避免误判为上游错误
+		if isContextError {
+			if errors.Is(err, context.DeadlineExceeded) {
+				http.Error(w, "gateway timeout", http.StatusGatewayTimeout)
+			} else {
+				// 499 是非标准状态码，用 499 表示客户端关闭连接
+				w.WriteHeader(499)
+				w.Write([]byte("client closed request"))
+			}
+			return
+		}
 		http.Error(w, "upstream error", http.StatusBadGateway)
 	}
 

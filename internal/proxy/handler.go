@@ -271,17 +271,26 @@ func (p *Server) handler() http.Handler {
 					statusForRetry = mw.status
 				}
 
+				// 判断是否是 context 错误（499=客户端关闭，504=网关超时）
+				// context 错误不应该触发熔断器和节点失败标记
+				isContextError := mw.status == 499 || mw.status == http.StatusGatewayTimeout
+
 				failed := mw.status != http.StatusOK || statusForRetry >= http.StatusInternalServerError
 
 				if attempt == 1 && failed {
 					firstAttemptFailed = true
 				}
 
-				if cb != nil {
+				// context 错误不记录到熔断器
+				if cb != nil && !isContextError {
 					cb.RecordResult(!failed)
 				}
 
 				shouldRetry := failed && statusForRetry >= http.StatusInternalServerError && shouldRetryStatus(statusForRetry, p.retryConfig)
+				// context 错误不应该重试（客户端已断开或超时）
+				if isContextError {
+					shouldRetry = false
+				}
 				isLastAttempt := attempt >= p.retryConfig.MaxAttempts
 				finalAttempt := !failed || !shouldRetry || isLastAttempt
 
@@ -297,6 +306,12 @@ func (p *Server) handler() http.Handler {
 				p.recordMetrics(node.ID, start, mw, usage, retryAttemptsTotal, retrySuccess)
 
 				if !failed {
+					return
+				}
+
+				// context 错误不记录健康事件和节点失败
+				if isContextError {
+					p.logger.Printf("[context] request canceled/timeout for node %s, not marking as failure", node.Name)
 					return
 				}
 

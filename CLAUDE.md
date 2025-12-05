@@ -2,8 +2,8 @@
 
 ## 元信息
 - **更新日期**: 2025-12-05
-- **当前版本**: v1.8.3
-- **最新功能**: 区分 context canceled 和真正的上游错误，避免误触发熔断器 + CLI 健康检查速度优化约 25%
+- **当前版本**: v1.8.4
+- **最新功能**: 监控大屏显示熔断状态 + 透传上游状态码 + 健康检查历史显示所有来源
 - **GitHub**: https://github.com/yxhpy/qcc_plus
 - **Docker Hub**: https://hub.docker.com/r/yxhpy520/qcc_plus
 

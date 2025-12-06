@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { WSMessage } from '../types'
 
-// WebSocket hook with render-friendly message batching and resilient reconnects
+// WebSocket hook with resilient reconnects
+// Note: We intentionally do NOT batch messages here because:
+// 1. React 18 already batches state updates automatically
+// 2. Each WebSocket message (health_check, node_status, node_metrics) needs to be processed
+// 3. Using requestAnimationFrame batching causes message loss when multiple arrive in same frame
 export function useMonitorWebSocket(accountId?: string, token?: string) {
   const [connected, setConnected] = useState(false)
   const [lastMessage, setLastMessage] = useState<WSMessage | null>(null)
@@ -11,23 +15,6 @@ export function useMonitorWebSocket(accountId?: string, token?: string) {
   const reconnectAttemptsRef = useRef(0)
   const shouldReconnectRef = useRef(true)
   const connectRef = useRef<() => void>(() => {})
-
-  // Batch rapid-fire messages into a single render using rAF
-  const pendingMessageRef = useRef<WSMessage | null>(null)
-  const rafIdRef = useRef<number | null>(null)
-
-  const flushMessage = useCallback(() => {
-    if (pendingMessageRef.current) {
-      setLastMessage(pendingMessageRef.current)
-      pendingMessageRef.current = null
-    }
-    rafIdRef.current = null
-  }, [])
-
-  const scheduleFlush = useCallback(() => {
-    if (rafIdRef.current !== null) return
-    rafIdRef.current = window.requestAnimationFrame(flushMessage)
-  }, [flushMessage])
 
   const scheduleReconnect = useCallback(() => {
     if (!shouldReconnectRef.current) return
@@ -70,8 +57,7 @@ export function useMonitorWebSocket(accountId?: string, token?: string) {
       ws.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data) as WSMessage
-          pendingMessageRef.current = message
-          scheduleFlush()
+          setLastMessage(message)
         } catch (err) {
           console.error('[WS] Failed to parse message:', err)
         }
@@ -92,7 +78,7 @@ export function useMonitorWebSocket(accountId?: string, token?: string) {
       console.error('[WS] Failed to connect:', err)
       scheduleReconnect()
     }
-  }, [accountId, scheduleFlush, scheduleReconnect, token])
+  }, [accountId, scheduleReconnect, token])
 
   useEffect(() => {
     connectRef.current = connect
@@ -106,9 +92,6 @@ export function useMonitorWebSocket(accountId?: string, token?: string) {
       shouldReconnectRef.current = false
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current)
-      }
-      if (rafIdRef.current !== null) {
-        cancelAnimationFrame(rafIdRef.current)
       }
       if (wsRef.current) {
         wsRef.current.close()

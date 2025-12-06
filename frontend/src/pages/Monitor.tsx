@@ -187,6 +187,7 @@ export default function Monitor({ shared = false }: MonitorProps) {
       const nextNode: MonitorNode = {
         ...prevNode,
         status: (payload.status as MonitorNode['status'] | undefined) || prevNode.status,
+        is_active: payload.active !== undefined ? payload.active : prevNode.is_active,
         last_error: payload.error ?? prevNode.last_error,
         traffic: mergedTraffic,
         health: mergedHealth,

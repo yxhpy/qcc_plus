@@ -364,6 +364,29 @@ func (p *Server) selectBestAndActivate(acc *Account, reason ...string) (*Node, e
 		})
 	}
 
+	// 推送节点切换事件到 WebSocket
+	if p.wsHub != nil && acc != nil && prevID != bestID {
+		ts := timeutil.FormatBeijingTime(time.Now())
+		// 旧节点变为非激活
+		if prevNode != nil {
+			p.wsHub.Broadcast(acc.ID, "node_status", map[string]interface{}{
+				"node_id":   prevID,
+				"node_name": prevNode.Name,
+				"status":    p.resolveNodeStatus(prevNode),
+				"active":    false,
+				"timestamp": ts,
+			})
+		}
+		// 新节点变为激活
+		p.wsHub.Broadcast(acc.ID, "node_status", map[string]interface{}{
+			"node_id":   bestID,
+			"node_name": bestNode.Name,
+			"status":    "online",
+			"active":    true,
+			"timestamp": ts,
+		})
+	}
+
 	return bestNode, nil
 }
 
@@ -440,6 +463,27 @@ func (p *Server) selectBestAndActivateExcluding(acc *Account, skipNodes map[stri
 		})
 	}
 
+	// 推送节点切换事件到 WebSocket
+	if p.wsHub != nil && acc != nil && prevID != bestID {
+		ts := timeutil.FormatBeijingTime(time.Now())
+		if prevNode != nil {
+			p.wsHub.Broadcast(acc.ID, "node_status", map[string]interface{}{
+				"node_id":   prevID,
+				"node_name": prevNode.Name,
+				"status":    p.resolveNodeStatus(prevNode),
+				"active":    false,
+				"timestamp": ts,
+			})
+		}
+		p.wsHub.Broadcast(acc.ID, "node_status", map[string]interface{}{
+			"node_id":   bestID,
+			"node_name": bestNode.Name,
+			"status":    "online",
+			"active":    true,
+			"timestamp": ts,
+		})
+	}
+
 	return bestNode, nil
 }
 
@@ -471,6 +515,16 @@ func (p *Server) disableNode(id string) error {
 			Content:    fmt.Sprintf("**节点名称**: %s\n**操作**: 手动禁用", n.Name),
 			DedupKey:   n.ID,
 			OccurredAt: time.Now(),
+		})
+	}
+
+	// 推送节点禁用状态到 WebSocket
+	if p.wsHub != nil && acc != nil {
+		p.wsHub.Broadcast(acc.ID, "node_status", map[string]interface{}{
+			"node_id":   id,
+			"node_name": n.Name,
+			"status":    "disabled",
+			"timestamp": timeutil.FormatBeijingTime(time.Now()),
 		})
 	}
 
@@ -517,6 +571,16 @@ func (p *Server) enableNode(id string) error {
 		})
 	}
 
+	// 推送节点启用状态到 WebSocket
+	if p.wsHub != nil && acc != nil {
+		p.wsHub.Broadcast(acc.ID, "node_status", map[string]interface{}{
+			"node_id":   id,
+			"node_name": n.Name,
+			"status":    "online",
+			"timestamp": timeutil.FormatBeijingTime(time.Now()),
+		})
+	}
+
 	// 检查是否需要切换到刚启用的节点（如果其优先级更高）
 	cur, _ := p.getActiveNodeForAccount(acc)
 	if cur == nil || cur.Failed || n.Weight < cur.Weight {
@@ -531,4 +595,18 @@ func (p *Server) enableNode(id string) error {
 		p.logger.Printf("auto-switch to enabled node %s (weight %d)", n.Name, n.Weight)
 	}
 	return nil
+}
+
+// resolveNodeStatus 根据节点状态返回对应的状态字符串
+func (p *Server) resolveNodeStatus(n *Node) string {
+	if n == nil {
+		return "unknown"
+	}
+	if n.Disabled {
+		return "disabled"
+	}
+	if n.Failed {
+		return "offline"
+	}
+	return "online"
 }

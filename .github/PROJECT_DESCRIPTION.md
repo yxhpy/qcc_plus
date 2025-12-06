@@ -78,7 +78,7 @@ dashboard
 可以在 README.md 中使用的徽章：
 
 ```markdown
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/yxhpy/qcc_plus/releases/tag/v1.0.0)
+[![Version](https://img.shields.io/badge/version-1.8.5-blue.svg)](https://github.com/yxhpy/qcc_plus/releases/tag/v1.8.5)
 [![Go](https://img.shields.io/badge/Go-1.21+-00ADD8?logo=go)](https://go.dev/)
 [![Docker](https://img.shields.io/badge/docker-yxhpy520%2Fqcc__plus-blue?logo=docker)](https://hub.docker.com/r/yxhpy520/qcc_plus)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
@@ -129,4 +129,4 @@ Password: demo123
 
 ---
 
-**最后更新**: 2025-11-23
+**最后更新**: 2025-12-06

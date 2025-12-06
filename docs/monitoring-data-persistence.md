@@ -6,7 +6,7 @@
 
 **相关 Issue**: [#6](https://github.com/yxhpy/qcc_plus/issues/6)
 **实现日期**: 2025-11-25
-**版本**: v1.2.0+
+**版本**: v1.3.0+
 
 ## 架构设计
 

@@ -199,6 +199,7 @@ export type WSMessage =
         node_id: string;
         node_name: string;
         status?: string;
+        active?: boolean;
         error?: string;
         traffic?: Partial<ProxySummary>;
         health?: Partial<HealthSummary>;

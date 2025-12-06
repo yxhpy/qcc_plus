@@ -92,7 +92,9 @@ func (p *Server) recordMetrics(nodeID string, start time.Time, mw *metricsWriter
 	if mw != nil && mw.status != http.StatusOK {
 		node.Metrics.FailCount++
 	}
+	var wasFailedBeforeSuccess bool
 	if mw != nil && mw.status == http.StatusOK {
+		wasFailedBeforeSuccess = node.Failed
 		node.Metrics.FailStreak = 0
 		node.LastError = ""
 		node.Failed = false
@@ -162,6 +164,16 @@ func (p *Server) recordMetrics(nodeID string, start time.Time, mw *metricsWriter
 		timestamp := timeutil.FormatBeijingTime(time.Now())
 		if health.LastCheckAt != nil {
 			timestamp = *health.LastCheckAt
+		}
+
+		// 如果节点从失败状态恢复，推送 node_status 事件通知前端
+		if wasFailedBeforeSuccess {
+			p.wsHub.Broadcast(accountID, "node_status", map[string]interface{}{
+				"node_id":   nodeIDCopy,
+				"node_name": nodeName,
+				"status":    "online",
+				"timestamp": timestamp,
+			})
 		}
 
 		p.wsHub.Broadcast(accountID, "node_metrics", map[string]interface{}{

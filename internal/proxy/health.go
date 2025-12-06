@@ -306,6 +306,7 @@ func (p *Server) checkNodeHealth(acc *Account, id string, source string) {
 		} else {
 			n.Metrics.LastPingErr = pingErr
 			n.LastError = pingErr
+			wasFailed := n.Failed
 			n.Failed = true
 			if n.Metrics.FailStreak == 0 {
 				n.Metrics.FailStreak = 1
@@ -316,6 +317,16 @@ func (p *Server) checkNodeHealth(acc *Account, id string, source string) {
 			if p.store != nil {
 				rec = toRecord(n)
 				shouldPersist = true
+			}
+			// 对所有节点推送健康检查失败的状态变更（如果之前不是失败状态）
+			if acc != nil && p.wsHub != nil && !wasFailed {
+				p.wsHub.Broadcast(acc.ID, "node_status", map[string]interface{}{
+					"node_id":   n.ID,
+					"node_name": n.Name,
+					"status":    "offline",
+					"error":     pingErr,
+					"timestamp": timeutil.FormatBeijingTime(time.Now()),
+				})
 			}
 			// 如果是当前活跃节点且健康检查失败，立即触发节点切换
 			if acc != nil && id == acc.ActiveID {
@@ -334,16 +345,6 @@ func (p *Server) checkNodeHealth(acc *Account, id string, source string) {
 						Content:    fmt.Sprintf("**节点名称**: %s\n**错误信息**: %s\n**检测时间**: %s", n.Name, pingErr, timeutil.FormatBeijingTime(time.Now())),
 						DedupKey:   n.ID,
 						OccurredAt: time.Now(),
-					})
-				}
-				// 发送 WebSocket 事件
-				if p.wsHub != nil {
-					p.wsHub.Broadcast(acc.ID, "node_status", map[string]interface{}{
-						"node_id":   n.ID,
-						"node_name": n.Name,
-						"status":    "offline",
-						"error":     pingErr,
-						"timestamp": timeutil.FormatBeijingTime(time.Now()),
 					})
 				}
 			}

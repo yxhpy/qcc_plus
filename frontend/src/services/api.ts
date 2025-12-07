@@ -15,6 +15,10 @@ import type {
   CreateMonitorShareRequest,
   HealthHistory,
   ClaudeConfigTemplate,
+  ModelPricing,
+  UsageLog,
+  UsageSummary,
+  UsageQueryParams,
 } from '../types'
 
 const defaultHeaders = { 'Content-Type': 'application/json' }
@@ -426,6 +430,72 @@ async function getClaudeConfigTemplate(params?: ClaudeTemplateParams): Promise<C
   return request<ClaudeConfigTemplate>(url)
 }
 
+// 定价管理 API
+async function getPricingList(activeOnly = false): Promise<ModelPricing[]> {
+  const url = activeOnly ? '/api/pricing?active_only=true' : '/api/pricing'
+  const data = await request<{ pricing: ModelPricing[] }>(url)
+  return data.pricing || []
+}
+
+async function getPricing(modelId: string): Promise<ModelPricing> {
+  return request<ModelPricing>(`/api/pricing?id=${encodeURIComponent(modelId)}`)
+}
+
+async function savePricing(pricing: Partial<ModelPricing>): Promise<string> {
+  const data = await request<{ model_id: string }>('/api/pricing', {
+    method: 'POST',
+    headers: defaultHeaders,
+    body: JSON.stringify(pricing),
+  })
+  return data.model_id
+}
+
+async function deletePricing(modelId: string): Promise<void> {
+  await request(`/api/pricing?id=${encodeURIComponent(modelId)}`, {
+    method: 'DELETE',
+  })
+}
+
+// 使用统计 API
+async function getUsageLogs(params: UsageQueryParams = {}): Promise<{ logs: UsageLog[]; count: number }> {
+  const search = new URLSearchParams()
+  if (params.account_id) search.set('account_id', params.account_id)
+  if (params.node_id) search.set('node_id', params.node_id)
+  if (params.model_id) search.set('model_id', params.model_id)
+  if (params.from) search.set('from', params.from)
+  if (params.to) search.set('to', params.to)
+  if (params.limit) search.set('limit', String(params.limit))
+  if (params.offset) search.set('offset', String(params.offset))
+  const qs = search.toString()
+  const url = qs ? `/api/usage/logs?${qs}` : '/api/usage/logs'
+  return request<{ logs: UsageLog[]; count: number }>(url)
+}
+
+async function getUsageSummary(params: UsageQueryParams = {}): Promise<UsageSummary | UsageSummary[]> {
+  const search = new URLSearchParams()
+  if (params.account_id) search.set('account_id', params.account_id)
+  if (params.node_id) search.set('node_id', params.node_id)
+  if (params.model_id) search.set('model_id', params.model_id)
+  if (params.from) search.set('from', params.from)
+  if (params.to) search.set('to', params.to)
+  if (params.group_by) search.set('group_by', params.group_by)
+  const qs = search.toString()
+  const url = qs ? `/api/usage/summary?${qs}` : '/api/usage/summary'
+  const result = await request<UsageSummary | { summaries: UsageSummary[] }>(url)
+  if ('summaries' in result) {
+    return result.summaries
+  }
+  return result
+}
+
+async function cleanupUsageLogs(retentionDays: number = 365): Promise<void> {
+  await request('/api/usage/cleanup', {
+    method: 'POST',
+    headers: defaultHeaders,
+    body: JSON.stringify({ retention_days: retentionDays }),
+  })
+}
+
 export default {
   login,
   logout,
@@ -465,4 +535,12 @@ export default {
   getEventTypes,
   testNotification,
   getClaudeConfigTemplate,
+  // 定价和使用统计
+  getPricingList,
+  getPricing,
+  savePricing,
+  deletePricing,
+  getUsageLogs,
+  getUsageSummary,
+  cleanupUsageLogs,
 }

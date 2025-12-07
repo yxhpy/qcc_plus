@@ -98,6 +98,11 @@ func (p *Server) handler() http.Handler {
 	apiMux.HandleFunc("/api/settings/", p.requireSession(settingsHandler.HandleSetting))
 	apiMux.HandleFunc("/api/claude-config/template", p.requireSession(p.handleClaudeConfigTemplate))
 	apiMux.HandleFunc("/api/claude-config/download/", p.handleClaudeConfigDownload)
+	// 定价和使用统计 API
+	apiMux.HandleFunc("/api/pricing", p.requireSession(p.handlePricing))
+	apiMux.HandleFunc("/api/usage/logs", p.requireSession(p.handleUsageLogs))
+	apiMux.HandleFunc("/api/usage/summary", p.requireSession(p.handleUsageSummary))
+	apiMux.HandleFunc("/api/usage/cleanup", p.requireSession(p.handleUsageCleanup))
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
@@ -150,6 +155,11 @@ func (p *Server) handler() http.Handler {
 		}
 
 		if strings.HasPrefix(path, "/api/settings") {
+			apiMux.ServeHTTP(w, r)
+			return
+		}
+
+		if strings.HasPrefix(path, "/api/pricing") || strings.HasPrefix(path, "/api/usage/") {
 			apiMux.ServeHTTP(w, r)
 			return
 		}
@@ -303,7 +313,7 @@ func (p *Server) handler() http.Handler {
 					retrySuccess = 1
 				}
 
-				p.recordMetrics(node.ID, start, mw, usage, retryAttemptsTotal, retrySuccess)
+				p.recordMetrics(r.Context(), node.ID, start, mw, usage, retryAttemptsTotal, retrySuccess, finalAttempt)
 
 				if !failed {
 					return
@@ -389,7 +399,9 @@ func (p *Server) requireSession(next http.HandlerFunc) http.HandlerFunc {
 			strings.HasPrefix(r.URL.Path, "/api/metrics/") ||
 			strings.HasPrefix(r.URL.Path, "/api/monitor/") ||
 			strings.HasPrefix(r.URL.Path, "/api/settings") ||
-			strings.HasPrefix(r.URL.Path, "/api/claude-config/")
+			strings.HasPrefix(r.URL.Path, "/api/claude-config/") ||
+			strings.HasPrefix(r.URL.Path, "/api/pricing") ||
+			strings.HasPrefix(r.URL.Path, "/api/usage/")
 
 		cookie, err := r.Cookie("session_token")
 		if err != nil || cookie.Value == "" {

@@ -71,3 +71,4 @@ Thumbs.db
 # Private deployment configuration (DO NOT COMMIT)
 .deploy-config
 docs/claude/deployment-private.md
+ccproxy

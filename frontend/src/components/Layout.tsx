@@ -92,6 +92,20 @@ const icons = {
       <path d="M7.5 12.5h3.5" />
     </svg>
   ),
+  pricing: (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10 3v14" />
+      <path d="M13.5 6H8.25a2.25 2.25 0 0 0 0 4.5h3.5a2.25 2.25 0 0 1 0 4.5H6" />
+      <path d="M8 3h4" />
+      <path d="M8 17h4" />
+    </svg>
+  ),
+  usage: (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 17V7l4-4 6 6 4-4v12" />
+      <path d="M3 13l4-4 6 6 4-4" />
+    </svg>
+  ),
   collapse: (
     <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="m11.5 5.5-4 4 4 4" />
@@ -142,7 +156,9 @@ const navItems: NavItem[] = [
 	{ path: '/admin/claude-config', label: '快速配置', icon: 'magic', group: 'core' },
 	{ path: '/admin/monitor', label: '监控大屏', icon: 'monitor', group: 'core' },
 	{ path: '/admin/nodes', label: '节点管理', icon: 'nodes', group: 'core' },
+	{ path: '/admin/usage', label: '使用统计', icon: 'usage', group: 'core' },
 	{ path: '/admin/accounts', label: '账号管理', icon: 'accounts', adminOnly: true, group: 'system' },
+	{ path: '/admin/pricing', label: '模型定价', icon: 'pricing', adminOnly: true, group: 'system' },
 	{ path: '/admin/monitor-shares', label: '分享链接', icon: 'share', group: 'system' },
 	{ path: '/admin/notifications', label: '通知管理', icon: 'notifications', group: 'system' },
 	{ path: '/settings', label: '系统设置', icon: 'settings', adminOnly: true, group: 'system' },

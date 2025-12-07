@@ -72,7 +72,17 @@ func (s *Store) migrate(ctx context.Context) error {
 	if err := s.migrateConfigToSettings(ctx); err != nil {
 		return err
 	}
-	return s.ensureMonitorSharesTable(ctx)
+	if err := s.ensureMonitorSharesTable(ctx); err != nil {
+		return err
+	}
+	// 模型定价和使用日志表
+	if err := s.ensurePricingTables(ctx); err != nil {
+		return err
+	}
+	if err := s.SeedDefaultPricing(ctx); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *Store) Close() error {

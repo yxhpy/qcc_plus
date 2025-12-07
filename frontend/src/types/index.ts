@@ -223,3 +223,53 @@ export type WSMessage =
         check_method?: string;
       };
     };
+
+// 模型定价相关类型
+export interface ModelPricing {
+  id: string;
+  model_id: string;
+  model_name: string;
+  input_price_mtok: number;  // 输入价格 $/MTok
+  output_price_mtok: number; // 输出价格 $/MTok
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// 使用日志记录
+export interface UsageLog {
+  id: number;
+  account_id: string;
+  node_id: string;
+  model_id: string;
+  input_tokens: number;
+  output_tokens: number;
+  cost_usd: number;
+  request_id?: string;
+  success: boolean;
+  created_at: string;
+}
+
+// 使用统计汇总
+export interface UsageSummary {
+  account_id?: string;
+  node_id?: string;
+  model_id?: string;
+  total_requests: number;
+  success_requests: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  total_cost_usd: number;
+}
+
+// 使用日志查询参数
+export interface UsageQueryParams {
+  account_id?: string;
+  node_id?: string;
+  model_id?: string;
+  from?: string;
+  to?: string;
+  limit?: number;
+  offset?: number;
+  group_by?: 'model' | 'node';
+}

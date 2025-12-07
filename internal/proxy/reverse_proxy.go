@@ -301,6 +301,15 @@ func (p *Server) newReverseProxy(node *Node, u *usage) (*httputil.ReverseProxy, 
 			resp.Request = resp.Request.WithContext(context.WithValue(resp.Request.Context(), usageContextKey{}, u))
 		}
 
+		// 捕获请求 ID（用于追踪计费）
+		if u != nil {
+			if reqID := resp.Header.Get("x-request-id"); reqID != "" {
+				u.requestID = reqID
+			} else if reqID := resp.Header.Get("request-id"); reqID != "" {
+				u.requestID = reqID
+			}
+		}
+
 		inputTokens := headerInt(resp.Header.Get("x-usage-input-tokens"))
 		outputTokens := headerInt(resp.Header.Get("x-usage-output-tokens"))
 		if u != nil {
@@ -346,6 +355,12 @@ func (p *Server) newReverseProxy(node *Node, u *usage) (*httputil.ReverseProxy, 
 				if err := json.Unmarshal(bodyBytes, &payload); err == nil {
 					if streamFlagEnabled(payload["stream"]) {
 						streaming = true
+					}
+					// 提取模型 ID 用于计费
+					if u != nil {
+						if modelID, ok := payload["model"].(string); ok && modelID != "" {
+							u.modelID = modelID
+						}
 					}
 				}
 

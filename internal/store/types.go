@@ -249,3 +249,52 @@ type QueryMonitorSharesParams struct {
 	Limit          int
 	Offset         int
 }
+
+// ModelPricingRecord 模型定价记录（按 MTok 计费，美元）
+type ModelPricingRecord struct {
+	ID              string    `json:"id"`
+	ModelID         string    `json:"model_id"`          // 模型 ID（如 claude-opus-4-5-20251101）
+	ModelName       string    `json:"model_name"`        // 显示名称（如 Claude Opus 4.5）
+	InputPriceMTok  float64   `json:"input_price_mtok"`  // 输入价格 $/MTok
+	OutputPriceMTok float64   `json:"output_price_mtok"` // 输出价格 $/MTok
+	IsActive        bool      `json:"is_active"`         // 是否启用
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+}
+
+// UsageLogRecord 使用日志记录
+type UsageLogRecord struct {
+	ID           int64     `json:"id"`
+	AccountID    string    `json:"account_id"`
+	NodeID       string    `json:"node_id"`
+	ModelID      string    `json:"model_id"`       // 使用的模型
+	InputTokens  int64     `json:"input_tokens"`   // 输入 tokens
+	OutputTokens int64     `json:"output_tokens"`  // 输出 tokens
+	CostUSD      float64   `json:"cost_usd"`       // 费用（美元）
+	RequestID    string    `json:"request_id"`     // 请求 ID（可选，用于追踪）
+	Success      bool      `json:"success"`        // 请求是否成功
+	CreatedAt    time.Time `json:"created_at"`
+}
+
+// UsageSummary 使用汇总统计
+type UsageSummary struct {
+	AccountID         string  `json:"account_id"`
+	NodeID            string  `json:"node_id,omitempty"`
+	ModelID           string  `json:"model_id,omitempty"`
+	TotalRequests     int64   `json:"total_requests"`
+	SuccessRequests   int64   `json:"success_requests"`
+	TotalInputTokens  int64   `json:"total_input_tokens"`
+	TotalOutputTokens int64   `json:"total_output_tokens"`
+	TotalCostUSD      float64 `json:"total_cost_usd"`
+}
+
+// QueryUsageParams 查询使用日志参数
+type QueryUsageParams struct {
+	AccountID string
+	NodeID    string
+	ModelID   string
+	From      time.Time
+	To        time.Time
+	Limit     int
+	Offset    int
+}

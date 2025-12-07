@@ -45,7 +45,7 @@ func (mw *metricsWriter) Write(b []byte) (int, error) {
 	return mw.ResponseWriter.Write(b)
 }
 
-func (p *Server) recordMetrics(nodeID string, start time.Time, mw *metricsWriter, u *usage, retryAttempts, retrySuccess int64) {
+func (p *Server) recordMetrics(ctx context.Context, nodeID string, start time.Time, mw *metricsWriter, u *usage, retryAttempts, retrySuccess int64, finalAttempt bool) {
 	end := time.Now()
 	var (
 		nodeRec      store.NodeRecord
@@ -121,9 +121,33 @@ func (p *Server) recordMetrics(nodeID string, start time.Time, mw *metricsWriter
 	p.mu.Unlock()
 
 	if p.store != nil {
-		_ = p.store.UpsertNode(context.Background(), nodeRec)
+		if err := p.store.UpsertNode(ctx, nodeRec); err != nil {
+			p.logger.Printf("[metrics] failed to upsert node %s: %v", nodeIDCopy, err)
+		}
 		if metricsRec != nil {
-			_ = p.store.InsertMetrics(context.Background(), *metricsRec)
+			if err := p.store.InsertMetrics(ctx, *metricsRec); err != nil {
+				p.logger.Printf("[metrics] failed to insert metrics for node %s: %v", nodeIDCopy, err)
+			}
+		}
+		// 记录使用日志（计费）- 仅在最终尝试时记录，避免重试导致重复计费
+		if finalAttempt && u != nil && u.modelID != "" && (u.input > 0 || u.output > 0) {
+			costUSD, err := p.store.CalculateCost(ctx, u.modelID, u.input, u.output)
+			if err != nil {
+				p.logger.Printf("[metrics] failed to calculate cost for model %s: %v", u.modelID, err)
+			}
+			usageLog := store.UsageLogRecord{
+				AccountID:    accountID,
+				NodeID:       nodeIDCopy,
+				ModelID:      u.modelID,
+				InputTokens:  u.input,
+				OutputTokens: u.output,
+				CostUSD:      costUSD,
+				Success:      mw == nil || mw.status == http.StatusOK,
+				RequestID:    u.requestID,
+			}
+			if err := p.store.InsertUsageLog(ctx, usageLog); err != nil {
+				p.logger.Printf("[metrics] failed to insert usage log for account %s, model %s: %v", accountID, u.modelID, err)
+			}
 		}
 	}
 
@@ -252,4 +276,15 @@ func parseUsage(b []byte) (int64, int64) {
 		}
 	}
 	return 0, 0
+}
+
+// parseModelFromRequest 从请求体中提取模型 ID
+func parseModelFromRequest(body []byte) string {
+	var payload struct {
+		Model string `json:"model"`
+	}
+	if err := json.Unmarshal(body, &payload); err == nil && payload.Model != "" {
+		return payload.Model
+	}
+	return ""
 }

@@ -39,8 +39,10 @@ type metrics struct {
 
 // usage 描述一次请求的 token 统计。
 type usage struct {
-	input  int64
-	output int64
+	input     int64
+	output    int64
+	modelID   string // 使用的模型 ID
+	requestID string // 请求 ID（用于追踪）
 }
 
 // Config 描述可运行时调整的系统配置。

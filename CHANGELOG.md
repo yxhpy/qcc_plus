@@ -6,6 +6,31 @@
 
 ## [Unreleased]
 
+## [1.9.0] - 2025-12-07
+
+### 新增
+- **使用量统计和计费功能**
+  - 新增 `usage_logs` 表记录每次请求的 token 使用量
+  - 支持按账号统计输入/输出 token 数
+  - 支持按时间范围查询使用量
+  - 为后续计费功能提供数据基础
+
+### 修复
+- **修复 usage_logs 查询 NULL 值处理问题**
+  - 解决统计查询中 NULL 值导致的错误
+
+- **修复 WebSocket 消息批处理导致 health_check 事件丢失的问题**
+  - 优化 WebSocket 消息推送机制
+  - 确保健康检查事件能够及时推送到前端
+
+- **补全节点状态变更的 WebSocket 事件推送**
+  - 节点状态变更时实时推送到前端
+  - 提升监控大屏的实时性
+
+- **修复节点状态变更未实时推送到前端的问题**
+  - 优化状态同步机制
+  - 确保前端及时获取最新节点状态
+
 ## [1.8.5] - 2025-12-05
 
 ### 改进
@@ -445,7 +470,8 @@
 - 前端：React 18, TypeScript, Vite, Chart.js
 - 部署：Docker Compose, Cloudflare Tunnel
 
-[unreleased]: https://github.com/yxhpy/qcc_plus/compare/v1.8.5...HEAD
+[unreleased]: https://github.com/yxhpy/qcc_plus/compare/v1.9.0...HEAD
+[1.9.0]: https://github.com/yxhpy/qcc_plus/compare/v1.8.5...v1.9.0
 [1.8.5]: https://github.com/yxhpy/qcc_plus/compare/v1.8.4...v1.8.5
 [1.8.4]: https://github.com/yxhpy/qcc_plus/compare/v1.8.3...v1.8.4
 [1.8.3]: https://github.com/yxhpy/qcc_plus/compare/v1.8.2...v1.8.3

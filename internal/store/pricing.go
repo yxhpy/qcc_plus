@@ -297,8 +297,8 @@ func (s *Store) GetUsageSummary(ctx context.Context, params QueryUsageParams) (*
 	defer cancel()
 
 	query := `SELECT
-		COUNT(*) as total_requests,
-		SUM(CASE WHEN success THEN 1 ELSE 0 END) as success_requests,
+		COALESCE(COUNT(*), 0) as total_requests,
+		COALESCE(SUM(CASE WHEN success THEN 1 ELSE 0 END), 0) as success_requests,
 		COALESCE(SUM(input_tokens), 0) as total_input_tokens,
 		COALESCE(SUM(output_tokens), 0) as total_output_tokens,
 		COALESCE(SUM(cost_usd), 0) as total_cost_usd
@@ -344,8 +344,8 @@ func (s *Store) GetUsageSummaryByModel(ctx context.Context, params QueryUsagePar
 
 	query := `SELECT
 		model_id,
-		COUNT(*) as total_requests,
-		SUM(CASE WHEN success THEN 1 ELSE 0 END) as success_requests,
+		COALESCE(COUNT(*), 0) as total_requests,
+		COALESCE(SUM(CASE WHEN success THEN 1 ELSE 0 END), 0) as success_requests,
 		COALESCE(SUM(input_tokens), 0) as total_input_tokens,
 		COALESCE(SUM(output_tokens), 0) as total_output_tokens,
 		COALESCE(SUM(cost_usd), 0) as total_cost_usd
@@ -397,8 +397,8 @@ func (s *Store) GetUsageSummaryByNode(ctx context.Context, params QueryUsagePara
 
 	query := `SELECT
 		node_id,
-		COUNT(*) as total_requests,
-		SUM(CASE WHEN success THEN 1 ELSE 0 END) as success_requests,
+		COALESCE(COUNT(*), 0) as total_requests,
+		COALESCE(SUM(CASE WHEN success THEN 1 ELSE 0 END), 0) as success_requests,
 		COALESCE(SUM(input_tokens), 0) as total_input_tokens,
 		COALESCE(SUM(output_tokens), 0) as total_output_tokens,
 		COALESCE(SUM(cost_usd), 0) as total_cost_usd

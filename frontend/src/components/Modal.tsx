@@ -10,6 +10,7 @@ interface ModalProps {
   footer?: ReactNode
   onClose?: () => void
   closeOnMask?: boolean
+  size?: 'sm' | 'md' | 'lg'
 }
 
 const FOCUSABLE_SELECTOR =
@@ -22,6 +23,7 @@ export default function Modal({
   footer,
   onClose,
   closeOnMask = true,
+  size = 'md',
 }: ModalProps) {
   const overlayRef = useRef<HTMLDivElement | null>(null)
   const modalRef = useRef<HTMLDivElement | null>(null)
@@ -86,7 +88,7 @@ export default function Modal({
       }}
     >
       <div
-        className="modal"
+        className={`modal modal-${size}`}
         role="dialog"
         aria-modal="true"
         aria-label={title || '对话框'}

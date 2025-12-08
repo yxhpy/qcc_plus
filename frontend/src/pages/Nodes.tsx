@@ -570,6 +570,7 @@ export default function Nodes() {
         open={!!detailNode}
         title="节点详情"
         onClose={() => setDetailNode(null)}
+        size="lg"
         footer={
           <div className="dialog-actions">
             <button className="btn ghost" type="button" onClick={() => setDetailNode(null)}>
@@ -626,6 +627,7 @@ export default function Nodes() {
         open={!!editingNode}
         title="编辑节点"
         onClose={() => (!saving ? setEditingNode(null) : null)}
+        size="lg"
         footer={
           <div className="dialog-actions">
             <button className="btn ghost" type="button" onClick={() => (!saving ? setEditingNode(null) : null)}>

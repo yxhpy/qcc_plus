@@ -79,7 +79,6 @@
   border-color: var(--color-primary);
   background: var(--color-bg-card);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 20%, transparent);
-  transform: translateY(-1px);
 }
 
 .settings-form input:hover {
@@ -201,13 +200,10 @@
 .btn.primary {
   background: var(--color-primary);
   color: var(--color-text-inverse);
-  box-shadow: var(--shadow-md);
 }
 
 .btn.primary:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
-  filter: brightness(1.03);
+  filter: brightness(1.05);
 }
 
 .btn.primary:active {
@@ -224,7 +220,6 @@
   background: var(--color-hover);
   border-color: var(--color-primary);
   color: var(--color-text-primary);
-  transform: translateY(-1px);
 }
 
 .btn.ghost:active {

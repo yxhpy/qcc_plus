@@ -42,11 +42,11 @@
   --radius-xl: 8px;
   --radius-full: 9999px;
 
-  /* Shadow */
+  /* Shadow - 极简风格，减少视觉噪音 */
   --shadow-none: none;
-  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.08), 0 1px 1px rgba(15, 23, 42, 0.04);
-  --shadow-md: 0 4px 8px rgba(15, 23, 42, 0.12), 0 2px 4px rgba(15, 23, 42, 0.08);
-  --shadow-lg: 0 12px 24px rgba(15, 23, 42, 0.16), 0 6px 12px rgba(15, 23, 42, 0.12);
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 1px 3px rgba(15, 23, 42, 0.06);
+  --shadow-lg: 0 2px 6px rgba(15, 23, 42, 0.08);
 
   /* Border */
   --border-width-hairline: 1px;
@@ -243,10 +243,10 @@
   /* Card */
   --card-bg: #FFFFFF;
   --card-text: #0F172A;
-  --card-border: #CBD5E1;
-  --card-shadow: 0 1px 2px rgba(15, 23, 42, 0.08), 0 1px 1px rgba(15, 23, 42, 0.04);
+  --card-border: #E2E8F0;
+  --card-shadow: none;
   --card-elevated-bg: #FFFFFF;
-  --card-elevated-shadow: 0 4px 8px rgba(15, 23, 42, 0.12), 0 2px 4px rgba(15, 23, 42, 0.08);
+  --card-elevated-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
 
   /* Sidebar */
   --sidebar-bg: #FFFFFF;
@@ -272,7 +272,7 @@
   --input-focus-border: #3B82F6;
   --input-disabled-bg: #F1F5F9;
   --input-disabled-text: #94A3B8;
-  --input-shadow: 0 1px 2px rgba(15, 23, 42, 0.08), 0 1px 1px rgba(15, 23, 42, 0.04);
+  --input-shadow: none;
 }
 
 /* Dark theme */
@@ -350,10 +350,10 @@
   /* Card */
   --card-bg: #0F172A;
   --card-text: #F8FAFC;
-  --card-border: #334155;
-  --card-shadow: 0 4px 8px rgba(15, 23, 42, 0.12), 0 2px 4px rgba(15, 23, 42, 0.08);
+  --card-border: #1E293B;
+  --card-shadow: none;
   --card-elevated-bg: #111827;
-  --card-elevated-shadow: 0 12px 24px rgba(15, 23, 42, 0.16), 0 6px 12px rgba(15, 23, 42, 0.12);
+  --card-elevated-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 
   /* Sidebar */
   --sidebar-bg: #0F172A;

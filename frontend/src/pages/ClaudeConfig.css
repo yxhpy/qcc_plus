@@ -97,12 +97,10 @@
   background: var(--color-primary);
   color: var(--color-text-inverse);
   border-color: var(--color-primary);
-  box-shadow: var(--shadow-md);
 }
 
 .btn.primary:hover:not(:disabled) {
   filter: brightness(1.05);
-  transform: translateY(-1px);
 }
 
 .btn.secondary {
@@ -121,7 +119,6 @@
   background: var(--color-hover);
   border-color: var(--color-primary);
   color: var(--color-text-primary);
-  transform: translateY(-1px);
 }
 
 .btn:disabled {
@@ -133,7 +130,6 @@
 .install-card {
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-border-default);
-  box-shadow: var(--shadow-md);
   color: var(--color-text-primary);
   border-radius: var(--radius-xl);
 }
@@ -212,8 +208,6 @@
   background: var(--color-primary);
   border-color: var(--color-primary);
   color: var(--color-text-inverse);
-  box-shadow: 0 8px 18px color-mix(in srgb, var(--color-primary) 28%, transparent);
-  transform: translateY(-1px);
 }
 
 .command-block {

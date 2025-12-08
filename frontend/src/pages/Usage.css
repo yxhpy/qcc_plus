@@ -100,8 +100,6 @@
 
 .stat-card:hover {
   border-color: var(--color-primary);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
 }
 
 .stat-value {
@@ -148,7 +146,6 @@
 .tab.active {
   background: var(--color-bg-card);
   color: var(--color-primary);
-  box-shadow: var(--shadow-sm);
 }
 
 /* Table */
@@ -221,12 +218,10 @@
 
 .status-dot.success {
   background: var(--color-success);
-  box-shadow: 0 0 4px var(--color-success);
 }
 
 .status-dot.failed {
   background: var(--color-danger);
-  box-shadow: 0 0 4px var(--color-danger);
 }
 
 /* Button Styles */

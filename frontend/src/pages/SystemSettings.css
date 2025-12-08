@@ -78,8 +78,6 @@
   background: var(--color-primary);
   border-color: var(--color-primary);
   color: var(--color-text-inverse);
-  box-shadow: 0 8px 18px color-mix(in srgb, var(--color-primary) 28%, transparent);
-  transform: translateY(-1px);
 }
 
 /* Search Box */

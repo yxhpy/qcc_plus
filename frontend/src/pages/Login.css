@@ -44,7 +44,6 @@ body:has(.login-page) #root {
   background: var(--color-bg-card);
   border: 1px solid var(--color-border-default);
   border-radius: 20px;
-  box-shadow: var(--shadow-lg);
 
   /* Animation */
   animation: fadeInUp 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
@@ -165,7 +164,6 @@ body:has(.login-page) #root {
   margin-top: 12px;
   text-transform: uppercase;
   letter-spacing: 1px;
-  box-shadow: var(--shadow-md);
   position: relative;
   overflow: hidden;
 }
@@ -186,9 +184,7 @@ body:has(.login-page) #root {
 }
 
 .btn-submit:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
-  filter: brightness(1.03);
+  filter: brightness(1.05);
 }
 
 .btn-submit:active {

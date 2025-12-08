@@ -83,7 +83,6 @@
   border-color: var(--color-primary);
   background: var(--color-bg-card);
   box-shadow: 0 0 0 3px rgba(100, 108, 255, 0.18);
-  transform: translateY(-1px);
 }
 
 .inline-form textarea,
@@ -131,12 +130,10 @@
 
 .btn.primary {
   background: var(--color-primary);
-  box-shadow: 0 6px 20px rgba(100, 108, 255, 0.35);
 }
 
 .btn.primary:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 28px rgba(100, 108, 255, 0.45);
+  filter: brightness(1.05);
 }
 
 .btn.ghost {
@@ -149,7 +146,6 @@
   background: rgba(239, 68, 68, 0.15);
   border: 1px solid rgba(239, 68, 68, 0.35);
   color: #fca5a5;
-  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.2);
 }
 
 .btn:disabled {
@@ -303,7 +299,6 @@
   border: 1px solid var(--color-divider);
   border-radius: 14px;
   padding: 14px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
 }
 
 .group-head {

@@ -16,7 +16,6 @@
     background: var(--color-bg-elevated);
     border: 1px solid var(--color-border-default);
     border-radius: 16px;
-    box-shadow: var(--shadow-lg);
     width: 100%;
     max-width: 500px;
     max-height: 90vh;

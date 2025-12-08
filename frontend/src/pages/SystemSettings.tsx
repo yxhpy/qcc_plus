@@ -1,140 +1,168 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Card from '../components/Card'
-import { useSettings } from '../contexts/SettingsContext'
+import api from '../services/api'
+import type { EnvVarCategory, EnvVarDefinition } from '../services/api'
 import './SystemSettings.css'
 
-// 配置分类
-const CATEGORIES = [
-  { key: 'monitor', label: '显示设置' },
-  { key: 'health', label: '监控设置' },
-  { key: 'performance', label: '性能设置' },
-  { key: 'notification', label: '通知设置' },
-]
-
 export default function SystemSettings() {
-  const { settings, loading, updateSetting, refresh } = useSettings()
-  const [activeCategory, setActiveCategory] = useState('monitor')
-  const [saving, setSaving] = useState<string | null>(null)
+  const [categories, setCategories] = useState<EnvVarCategory[]>([])
+  const [envvars, setEnvvars] = useState<EnvVarDefinition[]>([])
+  const [activeCategory, setActiveCategory] = useState<string>('')
+  const [loading, setLoading] = useState(true)
+  const [searchTerm, setSearchTerm] = useState('')
 
-  const handleChange = async (key: string, value: any) => {
-    setSaving(key)
-    try {
-      await updateSetting(key, value)
-    } catch (e: any) {
-      alert(e?.message || '保存失败')
-    } finally {
-      setSaving(null)
+  // 加载分类
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const cats = await api.getEnvVarCategories()
+        setCategories(cats)
+        if (cats.length > 0) {
+          setActiveCategory(cats[0].key)
+        }
+      } catch (err) {
+        console.error('Failed to load categories:', err)
+      }
     }
-  }
+    loadCategories()
+  }, [])
 
-  const filteredSettings = Object.values(settings).filter(s => s.category === activeCategory)
+  // 加载环境变量（仅在有效分类时触发，避免初次渲染重复请求）
+  useEffect(() => {
+    if (!activeCategory) return
+    const loadEnvVars = async () => {
+      setLoading(true)
+      try {
+        const vars = await api.getEnvVars(activeCategory)
+        setEnvvars(vars)
+      } catch (err) {
+        console.error('Failed to load env vars:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadEnvVars()
+  }, [activeCategory])
+
+  // 搜索过滤
+  const filteredEnvvars = envvars.filter(v => {
+    if (!searchTerm) return true
+    const term = searchTerm.toLowerCase()
+    return (
+      v.name.toLowerCase().includes(term) ||
+      v.description.toLowerCase().includes(term) ||
+      v.current_value.toLowerCase().includes(term)
+    )
+  })
+
+  const currentCategoryInfo = categories.find(c => c.key === activeCategory)
 
   return (
     <div className="system-settings-page">
       <div className="system-settings-header">
-        <h1>系统设置</h1>
-        <p className="sub">配置系统参数，包括监控、健康检查、性能等设置。</p>
+        <h1>环境变量配置</h1>
+        <p className="sub">查看当前系统的环境变量配置。这些值在服务启动时读取，修改需重启服务生效。</p>
       </div>
 
       <Card className="settings-card tabs-card">
         <div className="settings-toolbar">
           <div className="tab-group">
-            {CATEGORIES.map(cat => (
+            {categories.map(cat => (
               <button
                 key={cat.key}
                 type="button"
                 className={`tab-btn ${activeCategory === cat.key ? 'active' : ''}`}
                 onClick={() => setActiveCategory(cat.key)}
+                title={cat.description}
               >
                 {cat.label}
               </button>
             ))}
           </div>
           <div className="spacer" />
-          <button className="btn ghost" type="button" onClick={refresh} disabled={loading}>
-            刷新
-          </button>
+          <div className="search-box">
+            <input
+              type="text"
+              placeholder="搜索变量名或说明..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+            />
+            {searchTerm && (
+              <button className="clear-btn" onClick={() => setSearchTerm('')}>
+                &times;
+              </button>
+            )}
+          </div>
         </div>
       </Card>
 
+      {currentCategoryInfo && (
+        <div className="category-description">
+          {currentCategoryInfo.description}
+        </div>
+      )}
+
       <Card className="settings-card">
-        <div className="settings-list">
+        <div className="envvar-table-container">
           {loading ? (
             <div className="settings-loading">加载中...</div>
-          ) : filteredSettings.length === 0 ? (
-            <div className="no-settings">该分类暂无配置项</div>
+          ) : filteredEnvvars.length === 0 ? (
+            <div className="no-settings">
+              {searchTerm ? '没有匹配的环境变量' : '该分类暂无环境变量'}
+            </div>
           ) : (
-            filteredSettings.map(setting => (
-              <div key={setting.key} className={`setting-item ${saving === setting.key ? 'saving' : ''}`}>
-                <div className="setting-info">
-                  <div className="setting-key">{setting.key}</div>
-                  <div className="setting-desc">{setting.description || '-'}</div>
-                </div>
-                <div className="setting-control">
-                  {renderControl(setting, handleChange, saving === setting.key)}
-                </div>
-              </div>
-            ))
+            <table className="envvar-table">
+              <thead>
+                <tr>
+                  <th className="col-name">变量名</th>
+                  <th className="col-value">当前值</th>
+                  <th className="col-default">默认值</th>
+                  <th className="col-desc">说明</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredEnvvars.map(v => (
+                  <tr key={v.name} className={v.is_set ? 'is-set' : ''}>
+                    <td className="col-name">
+                      <code className="envvar-name">{v.name}</code>
+                      {v.is_set && <span className="set-badge">已设置</span>}
+                    </td>
+                    <td className="col-value">
+                      {v.is_secret ? (
+                        <span className="secret-value">{v.current_value || '(未设置)'}</span>
+                      ) : (
+                        <code className={`envvar-value ${!v.current_value ? 'empty' : ''}`}>
+                          {v.current_value || '(空)'}
+                        </code>
+                      )}
+                    </td>
+                    <td className="col-default">
+                      <code className={`default-value ${!v.default_value ? 'empty' : ''}`}>
+                        {v.default_value || '(无)'}
+                      </code>
+                    </td>
+                    <td className="col-desc">
+                      <span className="envvar-desc">{v.description}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           )}
+        </div>
+      </Card>
+
+      <Card className="settings-card info-card">
+        <div className="info-section">
+          <h3>使用说明</h3>
+          <ul>
+            <li><strong>修改环境变量</strong>：编辑 <code>.env</code> 文件或在 Docker Compose 中设置，然后重启服务</li>
+            <li><strong>敏感值</strong>：API Key 等敏感信息会脱敏显示（仅显示首尾各 4 位）</li>
+            <li><strong>已设置标记</strong>：表示该变量已在环境中显式设置，非使用默认值</li>
+            <li><strong>优先级</strong>：环境变量 &gt; 配置文件 &gt; 默认值</li>
+          </ul>
         </div>
       </Card>
     </div>
   )
-}
-
-function renderControl(setting: any, onChange: (key: string, value: any) => void, saving: boolean) {
-  const { key, value, data_type, is_secret } = setting
-
-  if (is_secret) {
-    return <span className="secret-mask">******</span>
-  }
-
-  switch (data_type) {
-    case 'boolean':
-      return (
-        <label className="toggle">
-          <input
-            type="checkbox"
-            checked={!!value}
-            onChange={e => onChange(key, e.target.checked)}
-            disabled={saving}
-          />
-          <span className="slider"></span>
-        </label>
-      )
-    case 'number':
-      return (
-        <input
-          type="number"
-          value={value ?? ''}
-          onChange={e => onChange(key, parseFloat(e.target.value))}
-          disabled={saving}
-        />
-      )
-    case 'object': {
-      const stringified = value === undefined ? '' : JSON.stringify(value, null, 2)
-      return (
-        <textarea
-          value={stringified}
-          onChange={e => {
-            try {
-              onChange(key, JSON.parse(e.target.value))
-            } catch {
-              /* ignore parse errors */
-            }
-          }}
-          disabled={saving}
-        />
-      )
-    }
-    default:
-      return (
-        <input
-          type="text"
-          value={value ?? ''}
-          onChange={e => onChange(key, e.target.value)}
-          disabled={saving}
-        />
-      )
-  }
 }

@@ -103,6 +103,9 @@ func (p *Server) handler() http.Handler {
 	apiMux.HandleFunc("/api/usage/logs", p.requireSession(p.handleUsageLogs))
 	apiMux.HandleFunc("/api/usage/summary", p.requireSession(p.handleUsageSummary))
 	apiMux.HandleFunc("/api/usage/cleanup", p.requireSession(p.handleUsageCleanup))
+	// 环境变量 API
+	apiMux.HandleFunc("/api/envvars", p.requireSession(p.handleEnvVars))
+	apiMux.HandleFunc("/api/envvars/categories", p.requireSession(p.handleEnvVarsCategories))
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
@@ -160,6 +163,11 @@ func (p *Server) handler() http.Handler {
 		}
 
 		if strings.HasPrefix(path, "/api/pricing") || strings.HasPrefix(path, "/api/usage/") {
+			apiMux.ServeHTTP(w, r)
+			return
+		}
+
+		if strings.HasPrefix(path, "/api/envvars") {
 			apiMux.ServeHTTP(w, r)
 			return
 		}
@@ -401,7 +409,8 @@ func (p *Server) requireSession(next http.HandlerFunc) http.HandlerFunc {
 			strings.HasPrefix(r.URL.Path, "/api/settings") ||
 			strings.HasPrefix(r.URL.Path, "/api/claude-config/") ||
 			strings.HasPrefix(r.URL.Path, "/api/pricing") ||
-			strings.HasPrefix(r.URL.Path, "/api/usage/")
+			strings.HasPrefix(r.URL.Path, "/api/usage/") ||
+			strings.HasPrefix(r.URL.Path, "/api/envvars")
 
 		cookie, err := r.Cookie("session_token")
 		if err != nil || cookie.Value == "" {
@@ -557,4 +566,52 @@ func (p *Server) handleChangelog(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(content)
+}
+
+// handleEnvVars 返回所有环境变量配置（仅管理员可访问）
+func (p *Server) handleEnvVars(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// 检查管理员权限
+	isAdmin, _ := r.Context().Value(isAdminContextKey{}).(bool)
+	if !isAdmin {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "admin access required"})
+		return
+	}
+
+	category := r.URL.Query().Get("category")
+	var envvars []EnvVarDefinition
+
+	if category != "" {
+		envvars = GetEnvVarsByCategory(EnvVarCategory(category))
+	} else {
+		envvars = GetAllEnvVarDefinitions()
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"data": envvars,
+	})
+}
+
+// handleEnvVarsCategories 返回所有环境变量分类（仅管理员可访问）
+func (p *Server) handleEnvVarsCategories(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// 检查管理员权限
+	isAdmin, _ := r.Context().Value(isAdminContextKey{}).(bool)
+	if !isAdmin {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "admin access required"})
+		return
+	}
+
+	categories := GetEnvVarCategories()
+	writeJSON(w, http.StatusOK, map[string]any{
+		"data": categories,
+	})
 }

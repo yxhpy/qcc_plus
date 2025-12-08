@@ -40,8 +40,8 @@ async function parseJSON<T>(res: Response): Promise<T> {
 }
 
 async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
-	const res = await fetch(url, { credentials: 'include', ...options })
-	if (!res.ok) {
+  const res = await fetch(url, { credentials: 'include', ...options })
+  if (!res.ok) {
     let message = res.statusText
     try {
       const data = await res.json()
@@ -55,7 +55,7 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
   if (res.status === 204) {
     return undefined as T
   }
-	return parseJSON<T>(res)
+  return parseJSON<T>(res)
 }
 
 export { request }
@@ -133,25 +133,25 @@ async function getNodes(accountId?: string): Promise<Node[]> {
 }
 
 async function createNode(payload: {
-	name?: string
-	base_url: string
-	api_key?: string
-	weight?: number
-	health_check_method?: Node['health_check_method']
-	health_check_model?: string
+  name?: string
+  base_url: string
+  api_key?: string
+  weight?: number
+  health_check_method?: Node['health_check_method']
+  health_check_model?: string
 }, accountId?: string): Promise<string> {
-	const data = await request<{ id: string }>(withAccount('/admin/api/nodes', accountId), {
-		method: 'POST',
-		headers: defaultHeaders,
-		body: JSON.stringify(payload),
-	})
-	return data.id
+  const data = await request<{ id: string }>(withAccount('/admin/api/nodes', accountId), {
+    method: 'POST',
+    headers: defaultHeaders,
+    body: JSON.stringify(payload),
+  })
+  return data.id
 }
 
 async function updateNode(id: string, payload: Partial<Pick<Node, 'name' | 'base_url' | 'weight' | 'health_check_method' | 'health_check_model'>> & { api_key?: string }): Promise<void> {
-	await request(`/admin/api/nodes?id=${encodeURIComponent(id)}`, {
-		method: 'PUT',
-		headers: defaultHeaders,
+  await request(`/admin/api/nodes?id=${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: defaultHeaders,
     body: JSON.stringify(payload),
   })
 }
@@ -496,6 +496,34 @@ async function cleanupUsageLogs(retentionDays: number = 365): Promise<void> {
   })
 }
 
+// 环境变量 API
+export interface EnvVarCategory {
+  key: string
+  label: string
+  description: string
+}
+
+export interface EnvVarDefinition {
+  name: string
+  category: string
+  default_value: string
+  description: string
+  is_secret: boolean
+  current_value: string
+  is_set: boolean
+}
+
+async function getEnvVarCategories(): Promise<EnvVarCategory[]> {
+  const data = await request<{ data: EnvVarCategory[] }>('/api/envvars/categories')
+  return data.data || []
+}
+
+async function getEnvVars(category?: string): Promise<EnvVarDefinition[]> {
+  const url = category ? `/api/envvars?category=${encodeURIComponent(category)}` : '/api/envvars'
+  const data = await request<{ data: EnvVarDefinition[] }>(url)
+  return data.data || []
+}
+
 export default {
   login,
   logout,
@@ -543,4 +571,7 @@ export default {
   getUsageLogs,
   getUsageSummary,
   cleanupUsageLogs,
+  // 环境变量
+  getEnvVarCategories,
+  getEnvVars,
 }

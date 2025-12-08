@@ -132,8 +132,10 @@ export ADMIN_API_KEY=your-admin-secret
 export DEFAULT_ACCOUNT_NAME=my-company
 export DEFAULT_PROXY_API_KEY=proxy-key-123
 
-# 启动服务
-go run ./cmd/cccli proxy
+# 启动服务（选择其一）
+qccplus proxy                    # npm 安装（推荐）
+# go run ./cmd/cccli proxy       # 源码运行
+# docker compose up -d           # Docker 部署
 ```
 
 ### 2. 创建新账号（先登录获取 Cookie）

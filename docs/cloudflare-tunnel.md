@@ -52,7 +52,7 @@ export TUNNEL_ENABLED=true
 export UPSTREAM_API_KEY=sk-ant-your-key
 
 # 启动代理服务器
-go run ./cmd/cccli proxy
+qccplus proxy  # 或 go run ./cmd/cccli proxy
 ```
 
 启动后：
@@ -70,7 +70,7 @@ export TUNNEL_ZONE=example.com
 # 不设置 TUNNEL_ENABLED
 
 # 启动服务
-go run ./cmd/cccli proxy
+qccplus proxy  # 或 go run ./cmd/cccli proxy
 ```
 
 然后：

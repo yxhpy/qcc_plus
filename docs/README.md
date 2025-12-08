@@ -22,6 +22,9 @@
 
 ### 部署与发布
 - [Docker Hub 发布指南](./docker-hub-publish.md) - 镜像构建与发布流程
+- [GoReleaser 自动化发布](./goreleaser-guide.md) - 一键发布流程（开发者必读）⭐
+- [发布流程详解](./release-workflow.md) - 从开发到正式发布的完整流程
+- [CI/CD 故障排查](./ci-cd-troubleshooting.md) - 部署问题诊断与解决
 - [飞牛 NAS 部署指南](https://p.kdocs.cn/s/PNCAUCBEABAES) ⭐ - 飞牛 NAS Docker 部署教程（感谢 [@circircir-circle](https://github.com/circircir-circle) 贡献）
 
 ## 按主题分类
@@ -83,6 +86,27 @@
 
 ### 🚀 部署与运维
 
+#### 自动化发布（推荐）
+- **[GoReleaser 自动化发布](./goreleaser-guide.md)** ⭐
+  - 一键发布流程
+  - 多平台二进制构建
+  - Docker 镜像自动发布
+  - CHANGELOG 自动生成
+
+#### 发布流程
+- **[发布流程详解](./release-workflow.md)**
+  - 测试环境验证
+  - Pre-release 公开测试
+  - 正式版本发布
+  - 回滚策略
+
+#### CI/CD
+- **[CI/CD 故障排查](./ci-cd-troubleshooting.md)**
+  - 健康检查超时问题
+  - 部署脚本问题
+  - GitHub Actions 配置
+  - 服务器环境配置
+
 #### Docker 部署
 - **[Docker Hub 发布](./docker-hub-publish.md)**
   - 发布前准备
@@ -126,7 +150,18 @@ docs/
 ├── frontend-tech-stack.md         # 前端技术栈
 ├── health_check_mechanism.md      # 健康检查
 ├── monitoring-data-persistence.md # 监控数据持久化
-├── docker-hub-publish.md          # Docker 发布
+├── goreleaser-guide.md            # GoReleaser 自动化发布 ⭐
+├── release-workflow.md            # 发布流程详解
+├── ci-cd-troubleshooting.md       # CI/CD 故障排查
+├── docker-hub-publish.md          # Docker 发布（手动，已弃用）
+├── cloudflare-tunnel.md           # Cloudflare Tunnel 集成
+├── claude/                        # Claude 专用文档
+│   ├── coding-standards.md        # 编码规范
+│   ├── git-workflow.md            # Git 工作流
+│   ├── release-policy.md          # 版本发布规范
+│   ├── task-lifecycle.md          # 任务执行流程
+│   ├── debug-playbook.md          # 调试排查手册
+│   └── lessons-learned.md         # 踩坑记录
 ├── persistence_fix.md             # 历史：持久化修复
 ├── health_check_improvement.md    # 历史：健康检查改进
 ├── tool-cleaning-fix.md           # 历史：工具清理
@@ -141,8 +176,8 @@ docs/
 
 ## 版本信息
 
-- **当前版本**：v1.8.5
-- **最后更新**：2025-12-06
+- **当前版本**：v1.9.2
+- **最后更新**：2025-12-08
 - **文档维护**：Claude Code
 
 ## 下一步

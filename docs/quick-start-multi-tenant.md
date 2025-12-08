@@ -10,7 +10,44 @@
 
 ## 快速开始
 
-### 方式一：开箱即用（本地验证）
+### 方式一：npm 全局安装（推荐）⭐
+
+```bash
+# 1) 安装
+npm install -g @qccplus/cli
+
+# 2) 启动代理服务
+qccplus start
+
+# 或前台运行（查看日志）
+UPSTREAM_API_KEY=sk-ant-your-key qccplus proxy
+
+# 日志会打印（内存模式）：
+# - 管理员登录：username=admin password=admin123
+# - 默认账号：username=default password=default123
+
+# 3) 访问管理界面
+open "http://localhost:8000/admin"
+
+# 4) 使用默认账号调用代理
+curl http://localhost:8000/v1/messages \
+  -H "x-api-key: default-proxy-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "claude-sonnet-4-5-20250929",
+    "messages": [{"role": "user", "content": "Hello"}],
+    "max_tokens": 256
+  }'
+```
+
+### 方式二：Docker 部署
+
+```bash
+docker compose up -d
+# 访问 http://localhost:8000/admin
+```
+
+### 方式三：源码运行（开发调试）
 
 ```bash
 # 1) 启动代理（默认多租户 + 默认凭证）
@@ -38,7 +75,7 @@ curl http://localhost:8000/v1/messages \
   }'
 ```
 
-### 方式二：生产化启动（推荐，先改掉默认密钥）
+### 生产环境配置（推荐先改掉默认密钥）
 
 ```bash
 # 修改默认凭证
@@ -52,8 +89,11 @@ export UPSTREAM_API_KEY=sk-ant-alpha-upstream-key
 export UPSTREAM_NAME=alpha-node-1
 export PROXY_MYSQL_DSN=user:pass@tcp(localhost:3306)/qcc_plus?parseTime=true
 
-# 启动
-go run ./cmd/cccli proxy
+# 启动（使用 npm 安装的 qccplus）
+qccplus proxy
+
+# 或使用 Docker
+docker compose up -d
 
 # 提示：启用 PROXY_MYSQL_DSN 时不会自动创建默认账号，登录后请在管理界面创建账号与节点。
 ```

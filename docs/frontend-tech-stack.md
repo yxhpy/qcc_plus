@@ -16,36 +16,68 @@
 
 ```
 qcc_plus/
-├── frontend/               # React 前端源码
+├── frontend/                    # React 前端源码
 │   ├── src/
-│   │   ├── App.tsx        # 主应用组件 + 路由
-│   │   ├── main.tsx       # 入口文件
-│   │   ├── pages/         # 页面组件
-│   │   │   ├── Login.tsx
-│   │   │   ├── Dashboard.tsx
-│   │   │   ├── Accounts.tsx
-│   │   │   ├── Nodes.tsx
-│   │   │   └── Settings.tsx
-│   │   ├── components/    # 通用组件
-│   │   │   ├── Layout.tsx
-│   │   │   ├── Card.tsx
-│   │   │   └── Toast.tsx
-│   │   ├── hooks/         # 自定义 Hooks
-│   │   │   └── useAuth.tsx
-│   │   ├── services/      # API 服务层
-│   │   │   └── api.ts
-│   │   ├── types/         # TypeScript 类型定义
+│   │   ├── App.tsx             # 主应用组件 + 路由
+│   │   ├── main.tsx            # 入口文件
+│   │   ├── index.css           # 全局样式
+│   │   ├── pages/              # 页面组件（15个）
+│   │   │   ├── Login.tsx       # 登录页
+│   │   │   ├── Dashboard.tsx   # 仪表盘
+│   │   │   ├── Accounts.tsx    # 账号管理（管理员）
+│   │   │   ├── Nodes.tsx       # 节点管理
+│   │   │   ├── Monitor.tsx     # 实时监控大屏 ⭐
+│   │   │   ├── MonitorShares.tsx   # 分享链接管理
+│   │   │   ├── SharedMonitor.tsx   # 公开监控视图
+│   │   │   ├── Settings.tsx    # 账号级配置
+│   │   │   ├── SystemSettings.tsx  # 环境变量总览
+│   │   │   ├── TunnelSettings.tsx  # Cloudflare Tunnel
+│   │   │   ├── Notifications.tsx   # 通知管理
+│   │   │   ├── ClaudeConfig.tsx    # Claude Code 快速配置 ⭐
+│   │   │   ├── Pricing.tsx     # 模型定价
+│   │   │   ├── Usage.tsx       # 使用量统计 ⭐
+│   │   │   └── ChangelogPage.tsx   # 更新日志
+│   │   ├── components/         # 通用组件（11个）
+│   │   │   ├── Layout.tsx      # 主布局 + 侧边栏
+│   │   │   ├── Card.tsx        # 卡片容器
+│   │   │   ├── Toast.tsx       # 提示条
+│   │   │   ├── Modal.tsx       # 模态框
+│   │   │   ├── Dialog.tsx      # 确认对话框
+│   │   │   ├── PromptDialog.tsx    # 输入提示框
+│   │   │   ├── Tooltip.tsx     # 悬停提示
+│   │   │   ├── Loading.tsx     # 加载占位
+│   │   │   ├── NodeCard.tsx    # 监控节点卡片
+│   │   │   ├── HealthTimeline.tsx  # 24h 探活时间线
+│   │   │   └── TrendChart.tsx  # 趋势图表
+│   │   ├── hooks/              # 自定义 Hooks（6个）
+│   │   │   ├── useAuth.tsx     # 认证状态管理
+│   │   │   ├── useDialog.tsx   # 对话框控制
+│   │   │   ├── usePrompt.tsx   # 输入提示控制
+│   │   │   ├── useMonitorWebSocket.tsx  # 监控 WebSocket
+│   │   │   ├── useVersion.ts   # 版本信息
+│   │   │   └── useChartColors.ts   # 图表颜色
+│   │   ├── services/           # API 服务层
+│   │   │   ├── api.ts          # 后端 API 聚合
+│   │   │   └── settingsApi.ts  # 配置 API
+│   │   ├── contexts/           # React Context
+│   │   │   ├── NodeMetricsContext.tsx
+│   │   │   └── SettingsContext.tsx
+│   │   ├── themes/             # 主题系统
+│   │   │   ├── ThemeProvider.tsx
+│   │   │   ├── useTheme.ts
+│   │   │   └── tokens/         # 设计令牌
+│   │   ├── types/              # TypeScript 类型定义
 │   │   │   └── index.ts
-│   │   └── styles/        # 全局样式
-│   │       └── index.css
-│   ├── dist/              # 构建输出（Git 忽略）
+│   │   └── utils/              # 工具函数
+│   │       └── date.ts
+│   ├── dist/                   # 构建输出（Git 忽略）
 │   ├── package.json
 │   └── vite.config.ts
-├── web/                    # Go embed 目录
-│   ├── embed.go           # Embed 声明
-│   └── dist/              # 前端构建产物（复制自 frontend/dist）
+├── web/                         # Go embed 目录
+│   ├── embed.go                # Embed 声明
+│   └── dist/                   # 前端构建产物
 └── internal/proxy/
-    └── proxy.go           # SPA 文件服务器
+    └── proxy.go                # SPA 文件服务器
 ```
 
 ## 开发流程
@@ -101,12 +133,32 @@ go run ./cmd/cccli proxy
 ## 路由设计
 
 ### 客户端路由（React Router）
-- `/` → 重定向到 `/admin/dashboard`
+
+**公开路由**：
+- `/` → 根据登录状态跳转到 `/admin/dashboard` 或 `/login`
 - `/login` → 登录页面
-- `/admin/dashboard` → 仪表盘
-- `/admin/accounts` → 账号管理（管理员）
-- `/admin/nodes` → 节点管理
-- `/admin/settings` → 系统配置
+- `/monitor/share/:token` → 公开监控视图（只读分享）
+
+**受保护路由**（需登录）：
+| 路径 | 页面 | 说明 |
+|------|------|------|
+| `/admin/dashboard` | Dashboard | 仪表盘，KPI 统计和图表 |
+| `/admin/nodes` | Nodes | 节点管理，拖拽排序 |
+| `/admin/monitor` | Monitor | 实时监控大屏 ⭐ |
+| `/admin/monitor-shares` | MonitorShares | 分享链接管理 |
+| `/admin/settings` | Settings | 账号级配置 |
+| `/admin/notifications` | Notifications | 通知渠道管理 |
+| `/admin/claude-config` | ClaudeConfig | Claude Code 快速配置 ⭐ |
+| `/admin/usage` | Usage | 使用量统计 ⭐ |
+| `/changelog` | ChangelogPage | 更新日志 |
+
+**管理员专属路由**：
+| 路径 | 页面 | 说明 |
+|------|------|------|
+| `/admin/accounts` | Accounts | 账号管理 |
+| `/settings` | SystemSettings | 环境变量总览 |
+| `/admin/tunnel` | TunnelSettings | Cloudflare Tunnel 配置 |
+| `/admin/pricing` | Pricing | 模型定价管理 |
 
 ### 服务端路由（Go）
 - **SPA 路由**：`/`, `/login`, `/admin/*`, `/assets/*` → 返回 `index.html` 或静态资源
@@ -265,8 +317,68 @@ go build -o cccli_bin ./cmd/cccli
 - [ ] 性能监控（Web Vitals）
 - [ ] PWA 支持
 
+## 页面功能详解
+
+### 核心功能页面
+
+| 页面 | 功能描述 |
+|------|----------|
+| **Dashboard** | 账号切换、节点 KPI 统计、柱状图/环形图、告警列表，6 秒自动刷新 |
+| **Nodes** | 节点列表拖拽排序、添加/编辑/启停/删除、健康检查、请求统计、详情弹窗 |
+| **Monitor** ⭐ | 实时监控大屏，WebSocket 驱动节点状态/流量，支持创建分享链接 |
+| **ClaudeConfig** ⭐ | 生成 Claude Code CLI 配置模板，复制安装命令/下载 JSON |
+| **Usage** ⭐ | 调用费用/Token 统计，按模型或节点汇总，日志明细 |
+
+### 管理页面
+
+| 页面 | 功能描述 |
+|------|----------|
+| **Accounts** | 管理员创建/编辑/删除账号，管理 Proxy API Key |
+| **SystemSettings** | 按分类查看环境变量当前值/默认值，支持搜索 |
+| **TunnelSettings** | Cloudflare Tunnel 配置（API Token、子域名、域名、启停） |
+| **Pricing** | 模型定价管理（model_id、输入/输出价格、启用状态） |
+| **Notifications** | 通知渠道 CRUD、事件订阅勾选、测试通知发送 |
+
+### 其他页面
+
+| 页面 | 功能描述 |
+|------|----------|
+| **Login** | 账号密码登录，展示版本号/构建信息 |
+| **Settings** | 账号级配置（重试次数、失败阈值、健康检查间隔） |
+| **SharedMonitor** | 公开只读监控页，基于 token + WebSocket 实时更新 |
+| **MonitorShares** | 分页列出分享链接，创建/复制/撤销 |
+| **ChangelogPage** | 拉取并渲染后端 CHANGELOG（Markdown 格式） |
+
+## 组件清单
+
+| 组件 | 用途 |
+|------|------|
+| **Layout** | 侧边栏导航、主题切换、版本显示、登出封装主布局 |
+| **Card** | 统一卡片容器（可选标题/extra） |
+| **Modal** | 可遮罩关闭、焦点管理的通用模态框 |
+| **Dialog** | 确认对话框，基于 Modal |
+| **PromptDialog** | 输入/表单式提示框，供 usePrompt 动态挂载 |
+| **Toast** | 顶部提示条，success/error 状态 |
+| **Tooltip** | 悬停/点击提示，支持位置与固定 |
+| **Loading** | 全局加载占位 |
+| **NodeCard** | 监控卡片，展示节点状态/流量/健康轨迹 |
+| **HealthTimeline** | 节点 24h 探活时间线，含缓存与 WebSocket 增量更新 |
+| **TrendChart** | 折线图封装（成功率/响应时间，基于 Chart.js） |
+
+## Hooks 清单
+
+| Hook | 用途 |
+|------|------|
+| **useAuth** | 认证状态管理，登录/登出/权限检查 |
+| **useDialog** | 对话框控制，confirm/cancel 回调 |
+| **usePrompt** | 输入提示控制，动态挂载 PromptDialog |
+| **useMonitorWebSocket** | 监控 WebSocket 连接，实时节点状态推送 |
+| **useVersion** | 获取后端版本信息 |
+| **useChartColors** | 图表颜色配置，适配主题 |
+
 ## 相关文档
 
 - [多租户架构](./multi-tenant-architecture.md)
 - [快速开始](./quick-start-multi-tenant.md)
 - [健康检查机制](./health_check_mechanism.md)
+- [监控数据持久化](./monitoring-data-persistence.md)

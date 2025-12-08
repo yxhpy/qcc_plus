@@ -1,9 +1,9 @@
 # 项目记忆文件
 
 ## 元信息
-- **更新日期**: 2025-12-07
-- **当前版本**: v1.9.0
-- **最新功能**: 使用量统计和计费功能 + WebSocket 事件推送修复
+- **更新日期**: 2025-12-08
+- **当前版本**: v1.9.1
+- **最新功能**: 简化全局 UI 阴影和悬停效果
 - **GitHub**: https://github.com/yxhpy/qcc_plus
 - **Docker Hub**: https://hub.docker.com/r/yxhpy520/qcc_plus
 

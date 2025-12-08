@@ -6,6 +6,17 @@
 
 ## [Unreleased]
 
+## [1.9.1] - 2025-12-08
+
+### 改进
+- **简化全局 UI 阴影和悬停效果**
+  - 移除装饰性 box-shadow（保留聚焦环用于无障碍）
+  - 移除 transform: translateY(-1px) 悬停位移效果
+  - 统一按钮悬停使用 filter: brightness(1.05)
+  - 用边框替代阴影实现视觉分隔
+  - 简化状态指示器发光效果
+  - 整体 UI 更加简洁扁平
+
 ## [1.9.0] - 2025-12-07
 
 ### 新增
@@ -470,7 +481,8 @@
 - 前端：React 18, TypeScript, Vite, Chart.js
 - 部署：Docker Compose, Cloudflare Tunnel
 
-[unreleased]: https://github.com/yxhpy/qcc_plus/compare/v1.9.0...HEAD
+[unreleased]: https://github.com/yxhpy/qcc_plus/compare/v1.9.1...HEAD
+[1.9.1]: https://github.com/yxhpy/qcc_plus/compare/v1.9.0...v1.9.1
 [1.9.0]: https://github.com/yxhpy/qcc_plus/compare/v1.8.5...v1.9.0
 [1.8.5]: https://github.com/yxhpy/qcc_plus/compare/v1.8.4...v1.8.5
 [1.8.4]: https://github.com/yxhpy/qcc_plus/compare/v1.8.3...v1.8.4

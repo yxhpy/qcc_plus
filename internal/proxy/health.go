@@ -698,6 +698,9 @@ func defaultCLIRunner(ctx context.Context, image string, env map[string]string, 
 	}
 	cmd := exec.CommandContext(ctx, "claude", args...)
 
+	// Windows 下隐藏控制台窗口，避免弹出黑色窗口
+	hideWindow(cmd)
+
 	cmdEnv := os.Environ()
 	for k, v := range env {
 		cmdEnv = append(cmdEnv, fmt.Sprintf("%s=%s", k, v))

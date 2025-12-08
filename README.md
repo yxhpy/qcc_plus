@@ -1,6 +1,7 @@
 # qcc_plus - Claude Code CLI 多租户代理服务器
 
-[![Version](https://img.shields.io/badge/version-1.9.0-blue.svg)](https://github.com/yxhpy/qcc_plus/releases/tag/v1.9.0)
+[![Version](https://img.shields.io/badge/version-1.9.2-blue.svg)](https://github.com/yxhpy/qcc_plus/releases/tag/v1.9.2)
+[![npm](https://img.shields.io/npm/v/@qccplus/cli.svg?logo=npm)](https://www.npmjs.com/package/@qccplus/cli)
 [![Go](https://img.shields.io/badge/Go-1.21+-00ADD8?logo=go)](https://go.dev/)
 [![Docker](https://img.shields.io/badge/docker-yxhpy520%2Fqcc__plus-blue?logo=docker)](https://hub.docker.com/r/yxhpy520/qcc_plus)
 
@@ -25,32 +26,76 @@ qcc_plus 是一个功能完整的 Claude Code CLI 代理服务器，支持多租
 
 ## 快速开始
 
-### Docker 部署（推荐）
+### npm 全局安装（推荐）⭐
+
+最简单的安装方式，自动下载对应平台的二进制文件：
 
 ```bash
-# 1. 克隆仓库
+# 安装
+npm install -g @qccplus/cli
+
+# 启动代理服务（前台模式）
+qccplus proxy
+
+# 或者作为后台服务运行
+qccplus start
+
+# 查看服务状态
+qccplus status
+
+# 查看日志
+qccplus logs
+
+# 停止服务
+qccplus stop
+```
+
+**支持的平台**：
+- macOS (Intel/Apple Silicon)
+- Linux (x64/arm64)
+- Windows (x64)
+
+**常用命令**：
+```bash
+qccplus start          # 启动后台服务
+qccplus stop           # 停止服务
+qccplus restart        # 重启服务
+qccplus status         # 查看状态
+qccplus logs           # 查看日志
+qccplus logs -f        # 实时日志
+qccplus proxy          # 前台运行
+qccplus config         # 配置管理
+qccplus upgrade        # 升级到最新版
+qccplus version        # 查看版本
+```
+
+### Docker 部署
+
+```bash
+# 使用 Docker Compose
 git clone https://github.com/yxhpy/qcc_plus.git
 cd qcc_plus
-
-# 2. 配置环境变量
 cp .env.example .env
-# 编辑 .env 文件，修改 UPSTREAM_API_KEY 和安全凭证
-
-# 3. 启动服务
+# 编辑 .env 文件配置
 docker compose up -d
-
-# 4. 访问管理界面
-open http://localhost:8000/admin
 ```
+
+<details>
+<summary>其他安装方式</summary>
 
 ### 从源码运行
 
 ```bash
-# 启动代理服务器
 UPSTREAM_BASE_URL=https://api.anthropic.com \
 UPSTREAM_API_KEY=sk-ant-your-key \
 go run ./cmd/cccli proxy
 ```
+
+### 从 GitHub Releases 下载
+
+前往 [Releases](https://github.com/yxhpy/qcc_plus/releases) 下载对应平台的二进制文件。
+
+</details>
 
 启动后输出默认登录凭证（内存模式）：
 - 管理员：username=`admin` password=`admin123`

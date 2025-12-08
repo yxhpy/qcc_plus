@@ -2,11 +2,13 @@ package proxy
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -23,6 +25,7 @@ const (
 	defaultTLSHandshakeTimeout   = 10 * time.Second
 	defaultResponseHeaderTimeout = 30 * time.Second
 	defaultExpectContinueTimeout = 1 * time.Second
+	defaultSQLiteDBName          = "qccplus.db"
 )
 
 // Builder 使用流式接口构建 Server 实例。
@@ -100,6 +103,38 @@ func parseEnvBool(key string, fallback bool, logger *log.Logger) bool {
 	return fallback
 }
 
+// getDefaultSQLitePath returns the default SQLite database path.
+// Priority: PROXY_SQLITE_PATH env > ~/.qccplus/qccplus.db > ./qccplus.db
+func getDefaultSQLitePath(logger *log.Logger) string {
+	// Check environment variable first
+	if p := os.Getenv("PROXY_SQLITE_PATH"); p != "" {
+		return p
+	}
+
+	// Try user home directory
+	home, err := os.UserHomeDir()
+	if err == nil {
+		dir := filepath.Join(home, ".qccplus")
+		return filepath.Join(dir, defaultSQLiteDBName)
+	}
+
+	// Fallback to current directory
+	if logger != nil {
+		logger.Printf("cannot determine home directory, using current directory for SQLite database")
+	}
+	return defaultSQLiteDBName
+}
+
+// maskDSN masks sensitive parts of a MySQL DSN for logging.
+func maskDSN(dsn string) string {
+	// MySQL DSN format: user:password@tcp(host:port)/dbname?params
+	if idx := strings.Index(dsn, "@"); idx > 0 {
+		// Mask everything before @
+		return "***@" + dsn[idx+1:]
+	}
+	return dsn
+}
+
 func buildTransportFromEnv(logger *log.Logger) http.RoundTripper {
 	base, ok := http.DefaultTransport.(*http.Transport)
 	var transport *http.Transport
@@ -118,6 +153,26 @@ func buildTransportFromEnv(logger *log.Logger) http.RoundTripper {
 	transport.ExpectContinueTimeout = parseEnvDuration("PROXY_TRANSPORT_EXPECT_CONTINUE_TIMEOUT", defaultExpectContinueTimeout, logger)
 	transport.DisableCompression = parseEnvBool("PROXY_TRANSPORT_DISABLE_COMPRESSION", false, logger)
 	transport.ForceAttemptHTTP2 = parseEnvBool("PROXY_TRANSPORT_FORCE_HTTP2", true, logger)
+
+	// 配置 TLS，提高 Windows 兼容性
+	// 保留现有 TLS 配置（如 RootCAs、客户端证书等），仅设置 MinVersion
+	if transport.TLSClientConfig == nil {
+		transport.TLSClientConfig = &tls.Config{}
+	}
+	// 设置最低 TLS 版本为 1.2，解决 Windows 上某些服务器的握手兼容性问题
+	// 可通过环境变量 PROXY_TLS_MIN_VERSION 覆盖（支持值：1.0, 1.1, 1.2, 1.3）
+	minVersionStr := os.Getenv("PROXY_TLS_MIN_VERSION")
+	switch minVersionStr {
+	case "1.0":
+		transport.TLSClientConfig.MinVersion = tls.VersionTLS10
+	case "1.1":
+		transport.TLSClientConfig.MinVersion = tls.VersionTLS11
+	case "1.3":
+		transport.TLSClientConfig.MinVersion = tls.VersionTLS13
+	default:
+		// 默认 TLS 1.2，兼顾安全性和兼容性
+		transport.TLSClientConfig.MinVersion = tls.VersionTLS12
+	}
 
 	return transport
 }
@@ -334,10 +389,20 @@ func (b *Builder) Build() (*Server, error) {
 
 	var st *store.Store
 	if b.storeDSN != "" {
+		// MySQL DSN provided
 		st, err = store.Open(b.storeDSN)
 		if err != nil {
 			return nil, err
 		}
+		logger.Printf("using MySQL storage: %s", maskDSN(b.storeDSN))
+	} else {
+		// Default to SQLite
+		sqlitePath := getDefaultSQLitePath(logger)
+		st, err = store.OpenSQLite(sqlitePath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open SQLite database: %w", err)
+		}
+		logger.Printf("using SQLite storage: %s", sqlitePath)
 	}
 
 	var metricsScheduler *MetricsScheduler
@@ -448,117 +513,66 @@ func (b *Builder) Build() (*Server, error) {
 		})
 	}
 
-	if st != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
+	// Initialize accounts from storage (st is always non-nil now: SQLite or MySQL)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
-		accounts, err := st.ListAccounts(ctx)
-		if err != nil {
-			return nil, err
+	accounts, err := st.ListAccounts(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	hasAdmin := false
+	now := time.Now()
+	for _, acc := range accounts {
+		if acc.ID == store.DefaultAccountID {
+			record := store.AccountRecord{
+				ID:          acc.ID,
+				Name:        chooseNonEmpty(acc.Name, defaultAccountName),
+				Password:    chooseNonEmpty(acc.Password, "default123"),
+				ProxyAPIKey: chooseNonEmpty(acc.ProxyAPIKey, defaultProxyKey),
+				IsAdmin:     acc.IsAdmin,
+			}
+			if record.Password != acc.Password || record.ProxyAPIKey != acc.ProxyAPIKey || record.Name != acc.Name {
+				_ = st.UpdateAccount(ctx, record)
+			}
+			continue
 		}
 
-		hasAdmin := false
-		now := time.Now()
-		for _, acc := range accounts {
-			if acc.ID == store.DefaultAccountID {
-				record := store.AccountRecord{
-					ID:          acc.ID,
-					Name:        chooseNonEmpty(acc.Name, defaultAccountName),
-					Password:    chooseNonEmpty(acc.Password, "default123"),
-					ProxyAPIKey: chooseNonEmpty(acc.ProxyAPIKey, defaultProxyKey),
-					IsAdmin:     acc.IsAdmin,
-				}
-				if record.Password != acc.Password || record.ProxyAPIKey != acc.ProxyAPIKey || record.Name != acc.Name {
-					_ = st.UpdateAccount(ctx, record)
-				}
-				continue
-			}
-
-			if acc.IsAdmin {
-				hasAdmin = true
-				record := store.AccountRecord{
-					ID:          acc.ID,
-					Name:        chooseNonEmpty(acc.Name, "admin"),
-					Password:    chooseNonEmpty(acc.Password, "admin123"),
-					ProxyAPIKey: chooseNonEmpty(acc.ProxyAPIKey, adminKey),
-					IsAdmin:     true,
-				}
-				if record.Password != acc.Password || record.ProxyAPIKey != acc.ProxyAPIKey || record.Name != acc.Name {
-					_ = st.UpdateAccount(ctx, record)
-				}
-			}
-		}
-
-		if !hasAdmin {
-			adminAccount := store.AccountRecord{
-				ID:          fmt.Sprintf("admin-%d", now.UnixNano()),
-				Name:        "admin",
-				Password:    "admin123",
-				ProxyAPIKey: adminKey,
+		if acc.IsAdmin {
+			hasAdmin = true
+			record := store.AccountRecord{
+				ID:          acc.ID,
+				Name:        chooseNonEmpty(acc.Name, "admin"),
+				Password:    chooseNonEmpty(acc.Password, "admin123"),
+				ProxyAPIKey: chooseNonEmpty(acc.ProxyAPIKey, adminKey),
 				IsAdmin:     true,
-				CreatedAt:   now,
-				UpdatedAt:   now,
 			}
-			if err := st.CreateAccount(ctx, adminAccount); err != nil {
-				return nil, fmt.Errorf("failed to create admin account: %w", err)
+			if record.Password != acc.Password || record.ProxyAPIKey != acc.ProxyAPIKey || record.Name != acc.Name {
+				_ = st.UpdateAccount(ctx, record)
 			}
 		}
+	}
 
-		// default 账号自动创建已禁用，避免重启后恢复已手动删除的 default 账号。如需该账号，请在存储层手动创建。
-
-		if err := srv.loadAccountsFromStore(parsed, defaultCfg, b.upstreamKey); err != nil {
-			return nil, err
-		}
-	} else {
-		// 内存模式：创建管理员与默认账号，并附加默认节点。
-		adminAccount := &Account{
-			ID:          "admin-mem",
+	if !hasAdmin {
+		adminAccount := store.AccountRecord{
+			ID:          fmt.Sprintf("admin-%d", now.UnixNano()),
 			Name:        "admin",
 			Password:    "admin123",
 			ProxyAPIKey: adminKey,
 			IsAdmin:     true,
-			Config:      Config{Retries: defaultCfg.Retries, FailLimit: defaultCfg.FailLimit, HealthEvery: defaultCfg.HealthEvery},
-			Nodes:       make(map[string]*Node),
-			FailedSet:   make(map[string]struct{}),
+			CreatedAt:   now,
+			UpdatedAt:   now,
 		}
+		if err := st.CreateAccount(ctx, adminAccount); err != nil {
+			return nil, fmt.Errorf("failed to create admin account: %w", err)
+		}
+	}
 
-		defaultAccount := &Account{
-			ID:          store.DefaultAccountID,
-			Name:        defaultAccountName,
-			Password:    "default123",
-			ProxyAPIKey: defaultProxyKey,
-			IsAdmin:     false,
-			Config:      Config{Retries: defaultCfg.Retries, FailLimit: defaultCfg.FailLimit, HealthEvery: defaultCfg.HealthEvery},
-			Nodes:       make(map[string]*Node),
-			FailedSet:   make(map[string]struct{}),
-		}
+	// default 账号自动创建已禁用，避免重启后恢复已手动删除的 default 账号。如需该账号，请在存储层手动创建。
 
-		method := normalizeHealthCheckMethod(defaultHealthCheckMethod)
-		if healthMethodRequiresAPIKey(method) && b.upstreamKey == "" {
-			method = HealthCheckMethodHEAD
-		}
-		node := &Node{
-			ID:                "default",
-			Name:              b.upstreamName,
-			URL:               parsed,
-			APIKey:            b.upstreamKey,
-			HealthCheckMethod: method,
-			HealthCheckModel:  defaultHealthCheckModel,
-			AccountID:         defaultAccount.ID,
-			CreatedAt:         time.Now(),
-			Weight:            1,
-		}
-		defaultAccount.Nodes[node.ID] = node
-		defaultAccount.ActiveID = node.ID
-
-		srv.accounts[adminAccount.ProxyAPIKey] = adminAccount
-		srv.accounts[defaultAccount.ProxyAPIKey] = defaultAccount
-		srv.accountByID[adminAccount.ID] = adminAccount
-		srv.accountByID[defaultAccount.ID] = defaultAccount
-		srv.nodeIndex[node.ID] = node
-		srv.nodeAccount[node.ID] = defaultAccount
-		srv.defaultAccount = defaultAccount
-		srv.activeID = node.ID
+	if err := srv.loadAccountsFromStore(parsed, defaultCfg, b.upstreamKey); err != nil {
+		return nil, err
 	}
 
 	if srv.defaultAccount != nil && srv.defaultAccount.ActiveID == "" {

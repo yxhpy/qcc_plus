@@ -1,0 +1,60 @@
+{
+  "name": "@qccplus/cli",
+  "version": "1.9.4",
+  "description": "QCC Plus - Enterprise-grade Claude Code CLI proxy server",
+  "keywords": [
+    "claude",
+    "anthropic",
+    "proxy",
+    "cli",
+    "ai",
+    "qccplus"
+  ],
+  "homepage": "https://github.com/yxhpy/qcc_plus",
+  "bugs": {
+    "url": "https://github.com/yxhpy/qcc_plus/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yxhpy/qcc_plus.git"
+  },
+  "license": "MIT",
+  "author": "yxhpy",
+  "type": "module",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "main": "./lib/index.js",
+  "bin": {
+    "qccplus": "./bin/qccplus.js"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test",
+    "lint": "eslint lib bin"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "js-yaml": "^4.1.0",
+    "ora": "^8.0.1",
+    "semver": "^7.6.0"
+  },
+  "optionalDependencies": {
+    "@qccplus/darwin-arm64": "1.9.4",
+    "@qccplus/darwin-x64": "1.9.4",
+    "@qccplus/linux-arm64": "1.9.4",
+    "@qccplus/linux-x64": "1.9.4",
+    "@qccplus/win32-x64": "1.9.4"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

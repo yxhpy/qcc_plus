@@ -12,7 +12,29 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
-type Store struct{ db *sql.DB }
+// Dialect represents the SQL database type.
+type Dialect string
+
+const (
+	dialectMySQL  Dialect = "mysql"
+	dialectSQLite Dialect = "sqlite"
+)
+
+// Store wraps database connection with dialect awareness.
+type Store struct {
+	db      *sql.DB
+	dialect Dialect
+}
+
+// Dialect returns the current database dialect.
+func (s *Store) Dialect() Dialect {
+	return s.dialect
+}
+
+// IsSQLite returns true if the store uses SQLite.
+func (s *Store) IsSQLite() bool {
+	return s.dialect == dialectSQLite
+}
 
 // Open initializes a MySQL-backed store (dsn example: user:pass@tcp(host:3306)/dbname?parseTime=true).
 func Open(dsn string) (*Store, error) {
@@ -28,7 +50,7 @@ func Open(dsn string) (*Store, error) {
 	if err := db.PingContext(ctx); err != nil {
 		return nil, err
 	}
-	s := &Store{db: db}
+	s := &Store{db: db, dialect: dialectMySQL}
 	if err := s.migrate(ctx); err != nil {
 		return nil, err
 	}

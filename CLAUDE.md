@@ -2,10 +2,11 @@
 
 ## 元信息
 - **更新日期**: 2025-12-08
-- **当前版本**: v1.9.1
-- **最新功能**: 简化全局 UI 阴影和悬停效果
+- **当前版本**: v1.9.2
+- **最新功能**: npm 包发布支持（@qccplus/cli）
 - **GitHub**: https://github.com/yxhpy/qcc_plus
 - **Docker Hub**: https://hub.docker.com/r/yxhpy520/qcc_plus
+- **npm**: https://www.npmjs.com/package/@qccplus/cli
 
 ## 项目概述
 - **项目名称**: qcc_plus
@@ -20,15 +21,11 @@
 
 ## 快速启动
 ```bash
-# CLI 模式
-go run ./cmd/cccli "hi"
+# npm 安装（推荐）
+npm install -g @qccplus/cli
+qccplus start
 
-# 代理服务器
-UPSTREAM_BASE_URL=https://api.anthropic.com \
-UPSTREAM_API_KEY=sk-ant-your-key \
-go run ./cmd/cccli proxy
-
-# Docker 部署
+# 或 Docker 部署
 docker compose up -d
 ```
 

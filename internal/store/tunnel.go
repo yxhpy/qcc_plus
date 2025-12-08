@@ -76,10 +76,18 @@ func (s *Store) SaveTunnelConfig(ctx context.Context, cfg TunnelConfig) error {
 
 	encToken := encodeToken(storedToken)
 
-	_, err := s.db.ExecContext(ctx, `INSERT INTO tunnel_config (id, api_token, subdomain, zone, enabled, public_url, status, last_error, updated_at)
+	var err error
+	if s.IsSQLite() {
+		_, err = s.db.ExecContext(ctx, `INSERT INTO tunnel_config (id, api_token, subdomain, zone, enabled, public_url, status, last_error, updated_at)
+VALUES (?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)
+ON CONFLICT(id) DO UPDATE SET api_token=excluded.api_token, subdomain=excluded.subdomain, zone=excluded.zone, enabled=excluded.enabled, public_url=excluded.public_url, status=excluded.status, last_error=excluded.last_error, updated_at=CURRENT_TIMESTAMP`,
+			cfg.ID, encToken, cfg.Subdomain, cfg.Zone, cfg.Enabled, nullOrString(cfg.PublicURL), cfg.Status, cfg.LastError)
+	} else {
+		_, err = s.db.ExecContext(ctx, `INSERT INTO tunnel_config (id, api_token, subdomain, zone, enabled, public_url, status, last_error, updated_at)
 VALUES (?,?,?,?,?,?,?, ?, NOW())
 ON DUPLICATE KEY UPDATE api_token=VALUES(api_token), subdomain=VALUES(subdomain), zone=VALUES(zone), enabled=VALUES(enabled), public_url=VALUES(public_url), status=VALUES(status), last_error=VALUES(last_error), updated_at=NOW()`,
-		cfg.ID, encToken, cfg.Subdomain, cfg.Zone, cfg.Enabled, nullOrString(cfg.PublicURL), cfg.Status, cfg.LastError)
+			cfg.ID, encToken, cfg.Subdomain, cfg.Zone, cfg.Enabled, nullOrString(cfg.PublicURL), cfg.Status, cfg.LastError)
+	}
 	return err
 }
 

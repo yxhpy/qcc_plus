@@ -6,6 +6,22 @@
 
 ## [Unreleased]
 
+## [1.9.2] - 2025-12-08
+
+### 新增
+- **npm 包发布支持** ⭐
+  - 发布 `@qccplus/cli` 到 npm，支持 `npm install -g @qccplus/cli` 全局安装
+  - 支持 macOS (Intel/Apple Silicon)、Linux (x64/arm64)、Windows (x64) 五个平台
+  - 提供完整的 CLI 命令：`start`、`stop`、`restart`、`status`、`logs`、`proxy`、`config`、`upgrade`、`version`
+  - 自动下载对应平台的二进制文件，无需手动配置
+  - 支持后台服务模式和前台运行模式
+
+### 文档
+- **更新安装文档**
+  - 将 npm 安装方式作为首选推荐方式
+  - 精简 Docker 和源码安装说明
+  - 添加 npm badge 到 README
+
 ## [1.9.1] - 2025-12-08
 
 ### 改进
@@ -481,7 +497,8 @@
 - 前端：React 18, TypeScript, Vite, Chart.js
 - 部署：Docker Compose, Cloudflare Tunnel
 
-[unreleased]: https://github.com/yxhpy/qcc_plus/compare/v1.9.1...HEAD
+[unreleased]: https://github.com/yxhpy/qcc_plus/compare/v1.9.2...HEAD
+[1.9.2]: https://github.com/yxhpy/qcc_plus/compare/v1.9.1...v1.9.2
 [1.9.1]: https://github.com/yxhpy/qcc_plus/compare/v1.9.0...v1.9.1
 [1.9.0]: https://github.com/yxhpy/qcc_plus/compare/v1.8.5...v1.9.0
 [1.8.5]: https://github.com/yxhpy/qcc_plus/compare/v1.8.4...v1.8.5

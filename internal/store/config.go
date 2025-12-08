@@ -97,7 +97,12 @@ func (s *Store) ensureConfigRow(ctx context.Context, accountID string) error {
 	accountID = normalizeAccount(accountID)
 	ctx, cancel := withTimeout(ctx)
 	defer cancel()
-	_, err := s.db.ExecContext(ctx, `INSERT IGNORE INTO config (account_id,retries,fail_limit,health_every_ms,active_node) VALUES (?,?,?,?,?)`,
-		accountID, 3, 3, 30000, "")
+	var stmt string
+	if s.IsSQLite() {
+		stmt = `INSERT OR IGNORE INTO config (account_id,retries,fail_limit,health_every_ms,active_node) VALUES (?,?,?,?,?)`
+	} else {
+		stmt = `INSERT IGNORE INTO config (account_id,retries,fail_limit,health_every_ms,active_node) VALUES (?,?,?,?,?)`
+	}
+	_, err := s.db.ExecContext(ctx, stmt, accountID, 3, 3, 30000, "")
 	return err
 }

@@ -294,7 +294,7 @@ func (s *Store) GetNodes24hTrend(ctx context.Context, accountID string, nodeIDs 
 // AggregateMetrics 将低粒度数据聚合到更高粒度。
 // target 取值：hour(原始->小时)、day(小时->天)、month(天->月)。
 func (s *Store) AggregateMetrics(ctx context.Context, accountID string, target MetricsGranularity, from, to time.Time) error {
-	srcTable, srcTimeCol, dstTable, bucketExpr, err := aggregationPlan(target)
+	srcTable, srcTimeCol, dstTable, bucketExpr, err := s.aggregationPlan(target)
 	if err != nil {
 		return err
 	}
@@ -330,12 +330,22 @@ func (s *Store) AggregateMetrics(ctx context.Context, accountID string, target M
 		b.WriteString(" AND account_id=?")
 		args = append(args, accountID)
 	}
-	b.WriteString(" GROUP BY account_id, node_id, bucket_start ON DUPLICATE KEY UPDATE ")
-	b.WriteString("requests_total=VALUES(requests_total), requests_success=VALUES(requests_success), requests_failed=VALUES(requests_failed), ")
-	b.WriteString("retry_attempts_total=VALUES(retry_attempts_total), retry_success=VALUES(retry_success), ")
-	b.WriteString("response_time_sum_ms=VALUES(response_time_sum_ms), response_time_count=VALUES(response_time_count), ")
-	b.WriteString("bytes_total=VALUES(bytes_total), input_tokens_total=VALUES(input_tokens_total), output_tokens_total=VALUES(output_tokens_total), ")
-	b.WriteString("first_byte_time_sum_ms=VALUES(first_byte_time_sum_ms), stream_duration_sum_ms=VALUES(stream_duration_sum_ms)")
+	b.WriteString(" GROUP BY account_id, node_id, bucket_start")
+	if s.IsSQLite() {
+		b.WriteString(" ON CONFLICT(account_id, node_id, bucket_start) DO UPDATE SET ")
+		b.WriteString("requests_total=excluded.requests_total, requests_success=excluded.requests_success, requests_failed=excluded.requests_failed, ")
+		b.WriteString("retry_attempts_total=excluded.retry_attempts_total, retry_success=excluded.retry_success, ")
+		b.WriteString("response_time_sum_ms=excluded.response_time_sum_ms, response_time_count=excluded.response_time_count, ")
+		b.WriteString("bytes_total=excluded.bytes_total, input_tokens_total=excluded.input_tokens_total, output_tokens_total=excluded.output_tokens_total, ")
+		b.WriteString("first_byte_time_sum_ms=excluded.first_byte_time_sum_ms, stream_duration_sum_ms=excluded.stream_duration_sum_ms")
+	} else {
+		b.WriteString(" ON DUPLICATE KEY UPDATE ")
+		b.WriteString("requests_total=VALUES(requests_total), requests_success=VALUES(requests_success), requests_failed=VALUES(requests_failed), ")
+		b.WriteString("retry_attempts_total=VALUES(retry_attempts_total), retry_success=VALUES(retry_success), ")
+		b.WriteString("response_time_sum_ms=VALUES(response_time_sum_ms), response_time_count=VALUES(response_time_count), ")
+		b.WriteString("bytes_total=VALUES(bytes_total), input_tokens_total=VALUES(input_tokens_total), output_tokens_total=VALUES(output_tokens_total), ")
+		b.WriteString("first_byte_time_sum_ms=VALUES(first_byte_time_sum_ms), stream_duration_sum_ms=VALUES(stream_duration_sum_ms)")
+	}
 
 	ctx, cancel := withTimeout(ctx)
 	defer cancel()
@@ -398,13 +408,22 @@ func metricsTableInfo(gr MetricsGranularity) (table, timeCol, createdCol string,
 }
 
 // aggregationPlan 定义从低粒度到目标粒度的聚合路径。
-func aggregationPlan(target MetricsGranularity) (srcTable, srcTimeCol, dstTable, bucketExpr string, err error) {
+func (s *Store) aggregationPlan(target MetricsGranularity) (srcTable, srcTimeCol, dstTable, bucketExpr string, err error) {
 	switch target {
 	case MetricsGranularityHourly:
+		if s.IsSQLite() {
+			return "node_metrics_raw", "ts", "node_metrics_hourly", "strftime('%Y-%m-%d %H:00:00', ts)", nil
+		}
 		return "node_metrics_raw", "ts", "node_metrics_hourly", "DATE_FORMAT(ts, '%Y-%m-%d %H:00:00')", nil
 	case MetricsGranularityDaily:
+		if s.IsSQLite() {
+			return "node_metrics_hourly", "bucket_start", "node_metrics_daily", "date(bucket_start)", nil
+		}
 		return "node_metrics_hourly", "bucket_start", "node_metrics_daily", "DATE(bucket_start)", nil
 	case MetricsGranularityMonthly:
+		if s.IsSQLite() {
+			return "node_metrics_daily", "bucket_start", "node_metrics_monthly", "strftime('%Y-%m-01 00:00:00', bucket_start)", nil
+		}
 		return "node_metrics_daily", "bucket_start", "node_metrics_monthly", "DATE_FORMAT(bucket_start, '%Y-%m-01 00:00:00')", nil
 	default:
 		return "", "", "", "", fmt.Errorf("unsupported target granularity: %s", target)

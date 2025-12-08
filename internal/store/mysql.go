@@ -13,26 +13,64 @@ import (
 func (s *Store) ensureSettingsTable(ctx context.Context) error {
 	ctx, cancel := withTimeout(ctx)
 	defer cancel()
-	stmt := "CREATE TABLE IF NOT EXISTS settings (" +
-		"  id BIGINT AUTO_INCREMENT PRIMARY KEY," +
-		"  `key` VARCHAR(128) NOT NULL COMMENT '配置键'," +
-		"  scope ENUM('system', 'account', 'user') NOT NULL DEFAULT 'system' COMMENT '作用域'," +
-		"  account_id VARCHAR(64) NULL COMMENT '账号ID'," +
-		"  value JSON NOT NULL COMMENT '配置值'," +
-		"  data_type VARCHAR(32) NOT NULL DEFAULT 'string' COMMENT '数据类型: string/number/boolean/object/array/duration'," +
-		"  category VARCHAR(64) NOT NULL DEFAULT 'general' COMMENT '分类: monitor/health/performance/notification/security'," +
-		"  description TEXT NULL COMMENT '配置说明'," +
-		"  is_secret BOOLEAN NOT NULL DEFAULT FALSE COMMENT '是否敏感配置'," +
-		"  version INT NOT NULL DEFAULT 1 COMMENT '版本号(乐观锁)'," +
-		"  updated_by VARCHAR(64) NULL COMMENT '最后修改人'," +
-		"  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP," +
-		"  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP," +
-		"  UNIQUE KEY uk_scope_key_account (scope, `key`, account_id)," +
-		"  INDEX idx_category (category)," +
-		"  INDEX idx_updated_at (updated_at)" +
-		") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='统一配置表';"
+	var stmt string
+	if s.IsSQLite() {
+		stmt = "CREATE TABLE IF NOT EXISTS settings (" +
+			"  id INTEGER PRIMARY KEY AUTOINCREMENT," +
+			"  `key` VARCHAR(128) NOT NULL," +
+			"  scope VARCHAR(16) NOT NULL DEFAULT 'system' CHECK(scope IN ('system', 'account', 'user'))," +
+			"  account_id VARCHAR(64) NULL," +
+			"  value TEXT NOT NULL," +
+			"  data_type VARCHAR(32) NOT NULL DEFAULT 'string'," +
+			"  category VARCHAR(64) NOT NULL DEFAULT 'general'," +
+			"  description TEXT NULL," +
+			"  is_secret BOOLEAN NOT NULL DEFAULT 0," +
+			"  version INT NOT NULL DEFAULT 1," +
+			"  updated_by VARCHAR(64) NULL," +
+			"  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP," +
+			"  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP," +
+			"  UNIQUE(scope, `key`, account_id)" +
+			");"
+	} else {
+		stmt = "CREATE TABLE IF NOT EXISTS settings (" +
+			"  id BIGINT AUTO_INCREMENT PRIMARY KEY," +
+			"  `key` VARCHAR(128) NOT NULL COMMENT '配置键'," +
+			"  scope ENUM('system', 'account', 'user') NOT NULL DEFAULT 'system' COMMENT '作用域'," +
+			"  account_id VARCHAR(64) NULL COMMENT '账号ID'," +
+			"  value JSON NOT NULL COMMENT '配置值'," +
+			"  data_type VARCHAR(32) NOT NULL DEFAULT 'string' COMMENT '数据类型: string/number/boolean/object/array/duration'," +
+			"  category VARCHAR(64) NOT NULL DEFAULT 'general' COMMENT '分类: monitor/health/performance/notification/security'," +
+			"  description TEXT NULL COMMENT '配置说明'," +
+			"  is_secret BOOLEAN NOT NULL DEFAULT FALSE COMMENT '是否敏感配置'," +
+			"  version INT NOT NULL DEFAULT 1 COMMENT '版本号(乐观锁)'," +
+			"  updated_by VARCHAR(64) NULL COMMENT '最后修改人'," +
+			"  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP," +
+			"  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP," +
+			"  UNIQUE KEY uk_scope_key_account (scope, `key`, account_id)," +
+			"  INDEX idx_category (category)," +
+			"  INDEX idx_updated_at (updated_at)" +
+			") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='统一配置表';"
+	}
 	_, err := s.db.ExecContext(ctx, stmt)
 	return err
+}
+
+// nullSafeEqualExpr returns a SQL expression for NULL-safe equality comparison.
+// MySQL uses <=> operator, SQLite uses (col IS ? OR col = ?).
+func (s *Store) nullSafeEqualExpr(col string) string {
+	if s.IsSQLite() {
+		return fmt.Sprintf("(%s IS ? OR %s = ?)", col, col)
+	}
+	return fmt.Sprintf("%s <=> ?", col)
+}
+
+// nullSafeEqualArgs returns the arguments for NULL-safe equality comparison.
+// For SQLite, it duplicates the value; for MySQL, it returns as-is.
+func (s *Store) nullSafeEqualArgs(val interface{}) []interface{} {
+	if s.IsSQLite() {
+		return []interface{}{val, val}
+	}
+	return []interface{}{val}
 }
 
 // SeedDefaultSettings 插入默认配置（若不存在）。
@@ -64,7 +102,13 @@ func (s *Store) SeedDefaultSettings() error {
 		if category == "" {
 			category = "general"
 		}
-		if _, err := s.db.ExecContext(ctx, "INSERT IGNORE INTO settings (`key`, scope, account_id, value, data_type, category, description, is_secret, version) VALUES (?,?,?,?,?,?,?,?,1)",
+		var stmt string
+		if s.IsSQLite() {
+			stmt = "INSERT OR IGNORE INTO settings (`key`, scope, account_id, value, data_type, category, description, is_secret, version) VALUES (?,?,?,?,?,?,?,?,1)"
+		} else {
+			stmt = "INSERT IGNORE INTO settings (`key`, scope, account_id, value, data_type, category, description, is_secret, version) VALUES (?,?,?,?,?,?,?,?,1)"
+		}
+		if _, err := s.db.ExecContext(ctx, stmt,
 			d.Key, d.Scope, nil, body, dataType, category, nullOrStringPtr(d.Description), d.IsSecret); err != nil {
 			return err
 		}
@@ -123,8 +167,10 @@ func (s *Store) GetSetting(key, scope, accountID string) (*Setting, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 
-	row := s.db.QueryRowContext(ctx, "SELECT id,`key`,scope,account_id,value,data_type,category,description,is_secret,version,updated_by,updated_at,created_at FROM settings WHERE `key`=? AND scope=? AND account_id <=> ? LIMIT 1",
-		key, scope, accountArg(accountID))
+	query := "SELECT id,`key`,scope,account_id,value,data_type,category,description,is_secret,version,updated_by,updated_at,created_at FROM settings WHERE `key`=? AND scope=? AND " + s.nullSafeEqualExpr("account_id") + " LIMIT 1"
+	args := []interface{}{key, scope}
+	args = append(args, s.nullSafeEqualArgs(accountArg(accountID))...)
+	row := s.db.QueryRowContext(ctx, query, args...)
 	return scanSetting(row)
 }
 
@@ -144,10 +190,17 @@ func (s *Store) UpsertSetting(setting *Setting) error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
-	_, err = s.db.ExecContext(ctx, "INSERT INTO settings (`key`, scope, account_id, value, data_type, category, description, is_secret, version, updated_by) "+
-		"VALUES (?,?,?,?,?,?,?,?,1,?) "+
-		"ON DUPLICATE KEY UPDATE value=VALUES(value), data_type=VALUES(data_type), category=VALUES(category), description=VALUES(description), is_secret=VALUES(is_secret), updated_by=VALUES(updated_by), version=version+1",
-		setting.Key, setting.Scope, accountArgPtr(setting.AccountID), body, setting.DataType, setting.Category, nullOrStringPtr(setting.Description), setting.IsSecret, nullOrStringPtr(setting.UpdatedBy))
+	if s.IsSQLite() {
+		_, err = s.db.ExecContext(ctx, "INSERT INTO settings (`key`, scope, account_id, value, data_type, category, description, is_secret, version, updated_by) "+
+			"VALUES (?,?,?,?,?,?,?,?,1,?) "+
+			"ON CONFLICT(`key`, scope, account_id) DO UPDATE SET value=excluded.value, data_type=excluded.data_type, category=excluded.category, description=excluded.description, is_secret=excluded.is_secret, updated_by=excluded.updated_by, version=version+1",
+			setting.Key, setting.Scope, accountArgPtr(setting.AccountID), body, setting.DataType, setting.Category, nullOrStringPtr(setting.Description), setting.IsSecret, nullOrStringPtr(setting.UpdatedBy))
+	} else {
+		_, err = s.db.ExecContext(ctx, "INSERT INTO settings (`key`, scope, account_id, value, data_type, category, description, is_secret, version, updated_by) "+
+			"VALUES (?,?,?,?,?,?,?,?,1,?) "+
+			"ON DUPLICATE KEY UPDATE value=VALUES(value), data_type=VALUES(data_type), category=VALUES(category), description=VALUES(description), is_secret=VALUES(is_secret), updated_by=VALUES(updated_by), version=version+1",
+			setting.Key, setting.Scope, accountArgPtr(setting.AccountID), body, setting.DataType, setting.Category, nullOrStringPtr(setting.Description), setting.IsSecret, nullOrStringPtr(setting.UpdatedBy))
+	}
 	if err != nil {
 		return err
 	}
@@ -179,10 +232,12 @@ func (s *Store) UpdateSetting(setting *Setting) error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
-	res, err := s.db.ExecContext(ctx, "UPDATE settings SET value=?, data_type=?, category=?, description=?, is_secret=?, updated_by=?, version=version+1 "+
-		"WHERE `key`=? AND scope=? AND account_id <=> ? AND version=?",
-		body, setting.DataType, setting.Category, nullOrStringPtr(setting.Description), setting.IsSecret, nullOrStringPtr(setting.UpdatedBy),
-		setting.Key, setting.Scope, accountArgPtr(setting.AccountID), setting.Version)
+	query := "UPDATE settings SET value=?, data_type=?, category=?, description=?, is_secret=?, updated_by=?, version=version+1 " +
+		"WHERE `key`=? AND scope=? AND " + s.nullSafeEqualExpr("account_id") + " AND version=?"
+	args := []interface{}{body, setting.DataType, setting.Category, nullOrStringPtr(setting.Description), setting.IsSecret, nullOrStringPtr(setting.UpdatedBy), setting.Key, setting.Scope}
+	args = append(args, s.nullSafeEqualArgs(accountArgPtr(setting.AccountID))...)
+	args = append(args, setting.Version)
+	res, err := s.db.ExecContext(ctx, query, args...)
 	if err != nil {
 		return err
 	}
@@ -214,7 +269,10 @@ func (s *Store) DeleteSetting(key, scope, accountID string) error {
 	scope = normalizeScope(scope)
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
-	res, err := s.db.ExecContext(ctx, "DELETE FROM settings WHERE `key`=? AND scope=? AND account_id <=> ?", key, scope, accountArg(accountID))
+	query := "DELETE FROM settings WHERE `key`=? AND scope=? AND " + s.nullSafeEqualExpr("account_id")
+	args := []interface{}{key, scope}
+	args = append(args, s.nullSafeEqualArgs(accountArg(accountID))...)
+	res, err := s.db.ExecContext(ctx, query, args...)
 	if err != nil {
 		return err
 	}
@@ -243,10 +301,12 @@ func (s *Store) BatchUpdateSettings(settings []Setting) error {
 			return fmt.Errorf("marshal setting %s: %w", settings[i].Key, err)
 		}
 		if settings[i].Version > 0 {
-			res, err := tx.ExecContext(ctx, "UPDATE settings SET value=?, data_type=?, category=?, description=?, is_secret=?, updated_by=?, version=version+1 "+
-				"WHERE `key`=? AND scope=? AND account_id <=> ? AND version=?",
-				body, settings[i].DataType, settings[i].Category, nullOrStringPtr(settings[i].Description), settings[i].IsSecret, nullOrStringPtr(settings[i].UpdatedBy),
-				settings[i].Key, settings[i].Scope, accountArgPtr(settings[i].AccountID), settings[i].Version)
+			query := "UPDATE settings SET value=?, data_type=?, category=?, description=?, is_secret=?, updated_by=?, version=version+1 " +
+				"WHERE `key`=? AND scope=? AND " + s.nullSafeEqualExpr("account_id") + " AND version=?"
+			args := []interface{}{body, settings[i].DataType, settings[i].Category, nullOrStringPtr(settings[i].Description), settings[i].IsSecret, nullOrStringPtr(settings[i].UpdatedBy), settings[i].Key, settings[i].Scope}
+			args = append(args, s.nullSafeEqualArgs(accountArgPtr(settings[i].AccountID))...)
+			args = append(args, settings[i].Version)
+			res, err := tx.ExecContext(ctx, query, args...)
 			if err != nil {
 				tx.Rollback()
 				return err
@@ -265,9 +325,17 @@ func (s *Store) BatchUpdateSettings(settings []Setting) error {
 				return ErrVersionConflict
 			}
 		} else {
-			if _, err := tx.ExecContext(ctx, "INSERT INTO settings (`key`, scope, account_id, value, data_type, category, description, is_secret, version, updated_by) "+
-				"VALUES (?,?,?,?,?,?,?,?,1,?) "+
-				"ON DUPLICATE KEY UPDATE value=VALUES(value), data_type=VALUES(data_type), category=VALUES(category), description=VALUES(description), is_secret=VALUES(is_secret), updated_by=VALUES(updated_by), version=version+1",
+			var stmt string
+			if s.IsSQLite() {
+				stmt = "INSERT INTO settings (`key`, scope, account_id, value, data_type, category, description, is_secret, version, updated_by) " +
+					"VALUES (?,?,?,?,?,?,?,?,1,?) " +
+					"ON CONFLICT(`key`, scope, account_id) DO UPDATE SET value=excluded.value, data_type=excluded.data_type, category=excluded.category, description=excluded.description, is_secret=excluded.is_secret, updated_by=excluded.updated_by, version=version+1"
+			} else {
+				stmt = "INSERT INTO settings (`key`, scope, account_id, value, data_type, category, description, is_secret, version, updated_by) " +
+					"VALUES (?,?,?,?,?,?,?,?,1,?) " +
+					"ON DUPLICATE KEY UPDATE value=VALUES(value), data_type=VALUES(data_type), category=VALUES(category), description=VALUES(description), is_secret=VALUES(is_secret), updated_by=VALUES(updated_by), version=version+1"
+			}
+			if _, err := tx.ExecContext(ctx, stmt,
 				settings[i].Key, settings[i].Scope, accountArgPtr(settings[i].AccountID), body, settings[i].DataType, settings[i].Category, nullOrStringPtr(settings[i].Description), settings[i].IsSecret, nullOrStringPtr(settings[i].UpdatedBy)); err != nil {
 				tx.Rollback()
 				return err
@@ -396,7 +464,10 @@ func normalizeSetting(s *Setting) {
 }
 
 func (s *Store) settingExists(ctx context.Context, key, scope string, account interface{}) (bool, error) {
-	row := s.db.QueryRowContext(ctx, "SELECT COUNT(1) > 0 FROM settings WHERE `key`=? AND scope=? AND account_id <=> ?", key, scope, account)
+	query := "SELECT COUNT(1) > 0 FROM settings WHERE `key`=? AND scope=? AND " + s.nullSafeEqualExpr("account_id")
+	args := []interface{}{key, scope}
+	args = append(args, s.nullSafeEqualArgs(account)...)
+	row := s.db.QueryRowContext(ctx, query, args...)
 	var ok bool
 	if err := row.Scan(&ok); err != nil {
 		return false, err
@@ -405,7 +476,10 @@ func (s *Store) settingExists(ctx context.Context, key, scope string, account in
 }
 
 func (s *Store) settingExistsTx(ctx context.Context, tx *sql.Tx, key, scope string, account interface{}) (bool, error) {
-	row := tx.QueryRowContext(ctx, "SELECT COUNT(1) > 0 FROM settings WHERE `key`=? AND scope=? AND account_id <=> ?", key, scope, account)
+	query := "SELECT COUNT(1) > 0 FROM settings WHERE `key`=? AND scope=? AND " + s.nullSafeEqualExpr("account_id")
+	args := []interface{}{key, scope}
+	args = append(args, s.nullSafeEqualArgs(account)...)
+	row := tx.QueryRowContext(ctx, query, args...)
 	var ok bool
 	if err := row.Scan(&ok); err != nil {
 		return false, err

@@ -1,0 +1,34 @@
+{
+  "name": "@qccplus/darwin-x64",
+  "version": "1.9.4",
+  "description": "QCC Plus binary for macOS x64 (Intel)",
+  "keywords": [
+    "qccplus",
+    "claude",
+    "proxy",
+    "macos",
+    "x64",
+    "intel"
+  ],
+  "homepage": "https://github.com/yxhpy/qcc_plus",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yxhpy/qcc_plus.git"
+  },
+  "license": "MIT",
+  "author": "yxhpy",
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "main": "lib/index.js",
+  "files": [
+    "bin",
+    "lib"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

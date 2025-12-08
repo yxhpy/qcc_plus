@@ -194,10 +194,18 @@ func (s *Store) UpsertNotificationSubscription(ctx context.Context, rec Notifica
 	rec.UpdatedAt = now
 	ctx, cancel := withTimeout(ctx)
 	defer cancel()
-	_, err := s.db.ExecContext(ctx, `INSERT INTO notification_subscriptions (id,account_id,channel_id,event_type,enabled,created_at,updated_at)
-		VALUES (?,?,?,?,?,?,?)
-		ON DUPLICATE KEY UPDATE enabled=VALUES(enabled), updated_at=VALUES(updated_at)`,
-		rec.ID, rec.AccountID, rec.ChannelID, rec.EventType, rec.Enabled, rec.CreatedAt, rec.UpdatedAt)
+	var err error
+	if s.IsSQLite() {
+		_, err = s.db.ExecContext(ctx, `INSERT INTO notification_subscriptions (id,account_id,channel_id,event_type,enabled,created_at,updated_at)
+			VALUES (?,?,?,?,?,?,?)
+			ON CONFLICT(id) DO UPDATE SET enabled=excluded.enabled, updated_at=excluded.updated_at`,
+			rec.ID, rec.AccountID, rec.ChannelID, rec.EventType, rec.Enabled, rec.CreatedAt, rec.UpdatedAt)
+	} else {
+		_, err = s.db.ExecContext(ctx, `INSERT INTO notification_subscriptions (id,account_id,channel_id,event_type,enabled,created_at,updated_at)
+			VALUES (?,?,?,?,?,?,?)
+			ON DUPLICATE KEY UPDATE enabled=VALUES(enabled), updated_at=VALUES(updated_at)`,
+			rec.ID, rec.AccountID, rec.ChannelID, rec.EventType, rec.Enabled, rec.CreatedAt, rec.UpdatedAt)
+	}
 	return err
 }
 
@@ -206,12 +214,13 @@ func (s *Store) ListEnabledSubscriptionsForEvent(ctx context.Context, accountID,
 	accountID = normalizeAccount(accountID)
 	ctx, cancel := withTimeout(ctx)
 	defer cancel()
+	// Use = 1 for boolean comparison - works in both SQLite and MySQL
 	rows, err := s.db.QueryContext(ctx, `
 SELECT ns.id, ns.account_id, ns.channel_id, ns.event_type, ns.enabled, ns.created_at, ns.updated_at,
        nc.id, nc.account_id, nc.channel_type, nc.name, nc.config, nc.enabled, nc.created_at, nc.updated_at
 FROM notification_subscriptions ns
 JOIN notification_channels nc ON ns.channel_id = nc.id
-WHERE ns.account_id=? AND ns.event_type=? AND ns.enabled=TRUE AND nc.enabled=TRUE`, accountID, eventType)
+WHERE ns.account_id=? AND ns.event_type=? AND ns.enabled=1 AND nc.enabled=1`, accountID, eventType)
 	if err != nil {
 		return nil, err
 	}

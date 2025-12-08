@@ -57,10 +57,11 @@ func (s *Store) GetMonitorShareByToken(ctx context.Context, token string) (*Moni
 		expire    sql.NullTime
 		revokedAt sql.NullTime
 	)
+	// 使用 Go 时间比较替代 UTC_TIMESTAMP()，兼容 MySQL 和 SQLite
 	err := s.db.QueryRowContext(ctx, `SELECT id,account_id,token,expire_at,created_by,created_at,revoked,revoked_at
 		FROM monitor_shares
-		WHERE token=? AND revoked=FALSE AND (expire_at IS NULL OR expire_at>UTC_TIMESTAMP())`,
-		token).Scan(&rec.ID, &rec.AccountID, &rec.Token, &expire, &rec.CreatedBy, &rec.CreatedAt, &rec.Revoked, &revokedAt)
+		WHERE token=? AND revoked=FALSE AND (expire_at IS NULL OR expire_at>?)`,
+		token, time.Now().UTC()).Scan(&rec.ID, &rec.AccountID, &rec.Token, &expire, &rec.CreatedBy, &rec.CreatedAt, &rec.Revoked, &revokedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -140,8 +141,13 @@ func (s *Store) ListMonitorShares(ctx context.Context, params QueryMonitorShares
 			args = append(args, params.Offset)
 		}
 	} else if params.Offset > 0 {
-		// MySQL 需要 LIMIT 才能使用 OFFSET，使用最大值占位。
-		query += " LIMIT 18446744073709551615 OFFSET ?"
+		// MySQL 需要 LIMIT 才能使用 OFFSET。
+		// SQLite 使用 -1 表示无限制，MySQL 使用最大值。
+		if s.IsSQLite() {
+			query += " LIMIT -1 OFFSET ?"
+		} else {
+			query += " LIMIT 18446744073709551615 OFFSET ?"
+		}
 		args = append(args, params.Offset)
 	}
 

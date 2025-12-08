@@ -1,0 +1,33 @@
+{
+  "name": "@qccplus/linux-arm64",
+  "version": "1.9.4",
+  "description": "QCC Plus binary for Linux ARM64",
+  "keywords": [
+    "qccplus",
+    "claude",
+    "proxy",
+    "linux",
+    "arm64"
+  ],
+  "homepage": "https://github.com/yxhpy/qcc_plus",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yxhpy/qcc_plus.git"
+  },
+  "license": "MIT",
+  "author": "yxhpy",
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "main": "lib/index.js",
+  "files": [
+    "bin",
+    "lib"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

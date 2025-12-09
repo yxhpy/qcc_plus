@@ -206,7 +206,7 @@ export default function MonitorShares() {
               </tr>
             ) : shares.length === 0 ? (
               <tr>
-                <td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                <td colSpan={6} style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}>
                   暂无分享链接
                 </td>
               </tr>

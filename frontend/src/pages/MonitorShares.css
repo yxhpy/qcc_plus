@@ -34,7 +34,7 @@
 .monitor-shares-header .sub {
   color: var(--color-text-secondary);
   font-size: var(--font-size-subtitle);
-  margin: 0;
+  margin: 0 0 8px;
   font-weight: 300;
 }
 
@@ -49,9 +49,9 @@
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-border-default);
   color: var(--color-text-primary);
-  padding: 8px 10px;
-  height: 36px;
-  border-radius: var(--radius-xl);
+  padding: var(--input-padding-y) var(--input-padding-x);
+  height: var(--input-height);
+  border-radius: var(--input-radius);
   min-width: 160px;
   outline: none;
   font-size: var(--font-size-body);
@@ -184,7 +184,7 @@
 .shares-table code {
   background: var(--color-bg-elevated);
   padding: 6px 8px;
-  border-radius: 6px;
+  border-radius: var(--radius-lg);
   font-family: 'JetBrains Mono', 'Consolas', monospace;
   font-size: 12px;
   color: var(--color-text-primary);
@@ -287,9 +287,9 @@
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-border-default);
   color: var(--color-text-primary);
-  padding: 8px 10px;
-  height: 36px;
-  border-radius: var(--radius-xl);
+  padding: var(--input-padding-y) var(--input-padding-x);
+  height: var(--input-height);
+  border-radius: var(--input-radius);
   outline: none;
   font-size: var(--font-size-body);
   transition: all var(--transition-normal) cubic-bezier(0.4, 0, 0.2, 1);

@@ -21,6 +21,7 @@ export interface PromptOptions {
   required?: boolean
   closeOnMask?: boolean
   validate?: (value: string) => string | null
+  size?: 'sm' | 'md' | 'lg'
 }
 
 export interface PromptFormOptions {
@@ -28,6 +29,7 @@ export interface PromptFormOptions {
   message?: string
   fields: PromptField[]
   closeOnMask?: boolean
+  size?: 'sm' | 'md' | 'lg'
 }
 
 interface PromptDialogProps {
@@ -73,6 +75,7 @@ export default function PromptDialog({ mode, open, options, onSubmit, onCancel }
   const title = (options as PromptOptions).title ?? (options as PromptFormOptions).title ?? '请输入'
   const message = (options as PromptOptions).message ?? (options as PromptFormOptions).message
   const closeOnMask = (options as PromptOptions).closeOnMask ?? (options as PromptFormOptions).closeOnMask ?? true
+  const size = (options as PromptOptions).size ?? (options as PromptFormOptions).size
 
   const handleSubmit = () => {
     if (mode === 'input') {
@@ -200,6 +203,7 @@ export default function PromptDialog({ mode, open, options, onSubmit, onCancel }
       title={title}
       onClose={onCancel}
       closeOnMask={closeOnMask}
+      size={size}
       footer={
         <div className="dialog-actions">
           <button className="btn ghost" type="button" onClick={onCancel}>

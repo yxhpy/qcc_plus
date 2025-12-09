@@ -147,6 +147,7 @@ export default function Nodes() {
     const result = await prompt.form({
       title: '新增节点',
       message: '填写节点信息，权重值越小优先级越高。',
+      size: 'lg',
       fields: [
         { name: 'name', label: '节点名称（可选）' },
         { name: 'base_url', label: 'Base URL', placeholder: 'https://api.anthropic.com', required: true },

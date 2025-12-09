@@ -147,6 +147,22 @@ export default function Usage() {
     })
   }
 
+  // 将 ISO 字符串转换为 datetime-local 输入框格式 (YYYY-MM-DDTHH:MM)
+  const isoToDatetimeLocal = (isoStr: string) => {
+    if (!isoStr) return ''
+    const date = new Date(isoStr)
+    // 转换为本地时间的 ISO 格式并截取前 16 位
+    const offset = date.getTimezoneOffset()
+    const localDate = new Date(date.getTime() - offset * 60 * 1000)
+    return localDate.toISOString().slice(0, 16)
+  }
+
+  // 将 datetime-local 输入框值转换为 ISO 字符串
+  const datetimeLocalToIso = (localStr: string) => {
+    if (!localStr) return ''
+    return new Date(localStr).toISOString()
+  }
+
   const getNodeName = (nodeId: string) => {
     const node = nodes.find((n) => n.id === nodeId)
     return node?.name || nodeId.slice(0, 8)
@@ -194,16 +210,16 @@ export default function Usage() {
             <span>开始时间</span>
             <input
               type="datetime-local"
-              value={filters.from || ''}
-              onChange={(e) => setFilters({ ...filters, from: e.target.value ? new Date(e.target.value).toISOString() : '' })}
+              value={isoToDatetimeLocal(filters.from || '')}
+              onChange={(e) => setFilters({ ...filters, from: datetimeLocalToIso(e.target.value) })}
             />
           </label>
           <label>
             <span>结束时间</span>
             <input
               type="datetime-local"
-              value={filters.to || ''}
-              onChange={(e) => setFilters({ ...filters, to: e.target.value ? new Date(e.target.value).toISOString() : '' })}
+              value={isoToDatetimeLocal(filters.to || '')}
+              onChange={(e) => setFilters({ ...filters, to: datetimeLocalToIso(e.target.value) })}
             />
           </label>
           <button className="btn ghost" onClick={() => setFilters({ limit: 50 })}>

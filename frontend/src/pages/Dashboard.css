@@ -211,7 +211,7 @@
 
 .badge.fail {
   background: var(--color-danger-bg);
-  color: #f87171;
+  color: var(--color-danger-text);
   border: 1px solid var(--color-danger-border);
 }
 
@@ -282,11 +282,11 @@
 .alert-card {
   background: var(--color-danger-bg);
   border: 1px solid var(--color-danger-border);
-  border-left: 3px solid #f87171;
+  border-left: 3px solid var(--color-danger);
   border-radius: var(--radius-lg);
   padding: 10px;
   font-size: 13px;
-  color: #fca5a5;
+  color: var(--color-danger-text);
   animation: fadeIn 0.4s ease-out;
   transition: all 0.2s ease;
   min-height: 72px;
@@ -340,7 +340,7 @@
   font-family: 'JetBrains Mono', monospace;
   font-size: var(--font-size-caption);
   line-height: 1.6;
-  color: #fca5a5;
+  color: var(--color-danger-text);
 }
 
 .pill-small {
@@ -403,7 +403,7 @@
 }
 
 .health-table .danger-text {
-  color: #f87171;
+  color: var(--color-danger-text);
   font-weight: 600;
 }
 
@@ -421,19 +421,19 @@
 
 .tag.ok {
   background: var(--color-success-bg);
-  color: #4ade80;
+  color: var(--color-success-text);
   border: 1px solid var(--color-success-border);
 }
 
 .tag.warn {
   background: var(--color-warning-bg);
-  color: #fbbf24;
+  color: var(--color-warning-text);
   border: 1px solid var(--color-warning-border);
 }
 
 .tag.fail {
   background: var(--color-danger-bg);
-  color: #f87171;
+  color: var(--color-danger-text);
   border: 1px solid var(--color-danger-border);
 }
 

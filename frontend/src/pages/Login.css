@@ -70,7 +70,7 @@ body:has(.login-page) #root {
   width: 80px;
   height: 80px;
   margin-bottom: 24px;
-  filter: drop-shadow(0 0 15px rgba(100, 108, 255, 0.6));
+  filter: drop-shadow(0 0 15px color-mix(in srgb, var(--color-primary) 60%, transparent));
   animation: float 6s ease-in-out infinite;
 }
 

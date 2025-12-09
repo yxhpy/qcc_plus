@@ -11,7 +11,7 @@
 
 .tunnel-header .sub {
 	margin: 0;
-	color: #6b7280;
+	color: var(--color-text-secondary);
 }
 
 .tunnel-status-line {
@@ -30,28 +30,28 @@
 }
 
 .status-badge.ok {
-	background: #e0f6e9;
-	color: #0f9d58;
+	background: var(--color-success-bg);
+	color: var(--color-success-text);
 }
 
 .status-badge.error {
-	background: #fde8e8;
-	color: #d93025;
+	background: var(--color-danger-bg);
+	color: var(--color-danger-text);
 }
 
 .status-badge.muted {
-	background: #f1f5f9;
-	color: #475569;
+	background: var(--color-bg-elevated);
+	color: var(--color-text-secondary);
 }
 
 .public-url {
-	color: #2563eb;
+	color: var(--color-primary);
 	text-decoration: none;
 	word-break: break-all;
 }
 
 .last-error {
-	color: #d93025;
+	color: var(--color-danger-text);
 	font-size: 13px;
 }
 
@@ -74,11 +74,13 @@
 
 .tunnel-grid input[type='text'],
 .tunnel-grid input[type='password'] {
-	padding: 8px 10px;
-	border-radius: 8px;
-	border: 1px solid #d6d6dd;
-	font-size: 13px;
-	height: 36px;
+	padding: var(--input-padding-y) var(--input-padding-x);
+	border-radius: var(--input-radius);
+	border: 1px solid var(--color-border-default);
+	font-size: var(--font-size-body);
+	height: var(--input-height);
+	background: var(--color-bg-elevated);
+	color: var(--color-text-primary);
 }
 
 .zone-field {
@@ -100,7 +102,7 @@
 
 .hint {
 	font-weight: 400;
-	color: #6b7280;
+	color: var(--color-text-muted);
 }
 
 .tunnel-actions {

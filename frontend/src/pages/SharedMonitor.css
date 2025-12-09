@@ -32,8 +32,8 @@
 }
 
 .ws-status.connected {
-  color: #4ade80;
-  background: rgba(74, 222, 128, 0.1);
+  color: var(--color-success-text);
+  background: var(--color-success-bg);
 }
 
 .ws-status.disconnected {
@@ -59,7 +59,7 @@
 }
 
 .shared-monitor-error h2 {
-  color: #fca5a5;
+  color: var(--color-danger-text);
   margin: 0;
 }
 

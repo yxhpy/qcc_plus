@@ -318,34 +318,34 @@
 
 .status-pill.online {
   background: var(--color-success-bg);
-  color: #4ade80;
+  color: var(--color-success-text);
   border: 1px solid var(--color-success-border);
 }
 
 .status-pill.offline {
   background: var(--color-danger-bg);
-  color: #fca5a5;
+  color: var(--color-danger-text);
   border: 1px solid var(--color-danger-border);
 }
 
 .status-pill.checking {
   background: var(--color-warning-bg);
-  color: #fcd34d;
+  color: var(--color-warning-text);
   border: 1px solid var(--color-warning-border);
 }
 
 .status-pill.online .status-dot {
-  background: #22c55e;
+  background: var(--color-success);
   box-shadow: 0 0 0 3px var(--color-success-bg);
 }
 
 .status-pill.offline .status-dot {
-  background: #ef4444;
+  background: var(--color-danger);
   box-shadow: 0 0 0 3px var(--color-danger-bg);
 }
 
 .status-pill.checking .status-dot {
-  background: #f59e0b;
+  background: var(--color-warning);
   box-shadow: 0 0 0 3px var(--color-warning-bg);
 }
 
@@ -375,11 +375,11 @@
 }
 
 .metric .value.warn {
-  color: #fbbf24;
+  color: var(--color-warning-text);
 }
 
 .metric .value.ok {
-  color: #4ade80;
+  color: var(--color-success-text);
 }
 
 .monitor-meta {
@@ -393,7 +393,7 @@
 
 .monitor-error {
   font-size: 12px;
-  color: #fca5a5;
+  color: var(--color-danger-text);
   background: var(--color-danger-bg);
   border: 1px solid var(--color-danger-border);
   border-radius: 10px;
@@ -511,17 +511,17 @@
 
 .pill.ok {
   background: var(--color-success-bg);
-  color: #4ade80;
+  color: var(--color-success-text);
 }
 
 .pill.warn {
   background: var(--color-warning-bg);
-  color: #fcd34d;
+  color: var(--color-warning-text);
 }
 
 .pill.danger {
   background: var(--color-danger-bg);
-  color: #fca5a5;
+  color: var(--color-danger-text);
 }
 
 .share-actions {
@@ -556,7 +556,7 @@
 
 .btn.danger {
   background: var(--color-danger-bg);
-  color: #fca5a5;
+  color: var(--color-danger-text);
   border: 1px solid var(--color-danger-border);
 }
 

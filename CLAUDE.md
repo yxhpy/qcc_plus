@@ -2,7 +2,7 @@
 
 ## 元信息
 - **更新日期**: 2025-12-08
-- **当前版本**: v1.9.2
+- **当前版本**: v1.9.3
 - **最新功能**: npm 包发布支持（@qccplus/cli）
 - **GitHub**: https://github.com/yxhpy/qcc_plus
 - **Docker Hub**: https://hub.docker.com/r/yxhpy520/qcc_plus

@@ -6,6 +6,21 @@
 
 ## [Unreleased]
 
+## [1.9.3] - 2025-12-09
+
+### 修复
+- **修复使用统计页面时间选择器无法回显的问题**
+  - 时间范围选择后能正确显示当前选中状态
+
+- **全面清理所有页面 CSS 硬编码颜色**
+  - Usage、Notifications、MonitorShares 等页面统一使用 CSS 变量
+  - 提升深色主题兼容性和视觉一致性
+
+- **优化弹窗组件**
+  - PromptDialog 支持 size prop，新增节点弹窗使用 lg 尺寸
+  - 增加节点弹窗宽度避免滚动条
+  - 修复弹窗滚动条问题
+
 ## [1.9.2] - 2025-12-08
 
 ### 新增
@@ -497,7 +512,8 @@
 - 前端：React 18, TypeScript, Vite, Chart.js
 - 部署：Docker Compose, Cloudflare Tunnel
 
-[unreleased]: https://github.com/yxhpy/qcc_plus/compare/v1.9.2...HEAD
+[unreleased]: https://github.com/yxhpy/qcc_plus/compare/v1.9.3...HEAD
+[1.9.3]: https://github.com/yxhpy/qcc_plus/compare/v1.9.2...v1.9.3
 [1.9.2]: https://github.com/yxhpy/qcc_plus/compare/v1.9.1...v1.9.2
 [1.9.1]: https://github.com/yxhpy/qcc_plus/compare/v1.9.0...v1.9.1
 [1.9.0]: https://github.com/yxhpy/qcc_plus/compare/v1.8.5...v1.9.0

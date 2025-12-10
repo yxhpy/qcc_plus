@@ -1,7 +1,7 @@
 # 项目记忆文件
 
 ## 元信息
-- **当前版本**: v1.9.3
+- **当前版本**: v1.9.4
 - **GitHub**: https://github.com/yxhpy/qcc_plus
 - **Docker Hub**: https://hub.docker.com/r/yxhpy520/qcc_plus
 - **npm**: https://www.npmjs.com/package/@qccplus/cli

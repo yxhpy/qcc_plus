@@ -6,6 +6,14 @@
 
 ## [Unreleased]
 
+## [1.9.4] - 2025-12-10
+
+### 修复
+- **优化节点性能阈值标准**
+  - 进一步降低性能阈值适应实际使用场景
+  - 新阈值：绿色 ≥3KB/s，黄色 1-3KB/s，红色 <1KB/s
+  - 提升性能监控的实用性和准确性
+
 ## [1.9.3] - 2025-12-09
 
 ### 修复
@@ -512,7 +520,8 @@
 - 前端：React 18, TypeScript, Vite, Chart.js
 - 部署：Docker Compose, Cloudflare Tunnel
 
-[unreleased]: https://github.com/yxhpy/qcc_plus/compare/v1.9.3...HEAD
+[unreleased]: https://github.com/yxhpy/qcc_plus/compare/v1.9.4...HEAD
+[1.9.4]: https://github.com/yxhpy/qcc_plus/compare/v1.9.3...v1.9.4
 [1.9.3]: https://github.com/yxhpy/qcc_plus/compare/v1.9.2...v1.9.3
 [1.9.2]: https://github.com/yxhpy/qcc_plus/compare/v1.9.1...v1.9.2
 [1.9.1]: https://github.com/yxhpy/qcc_plus/compare/v1.9.0...v1.9.1

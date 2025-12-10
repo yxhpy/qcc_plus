@@ -185,7 +185,7 @@ export default function Dashboard() {
       if (Number(n.fail_streak || 0) > 3) {
         list.push({ type: 'streak', node: n.name || '未命名', message: `连续失败 ${n.fail_streak} 次` })
       }
-      if (bps > 0 && bps < 10000) {
+      if (bps > 0 && bps < 5000) {
         list.push({ type: 'slow', node: n.name || '未命名', message: `输出速率过低（${formatBps(bps)}）` })
       }
     })
@@ -196,8 +196,8 @@ export default function Dashboard() {
 
   const throughputChart = useMemo(() => {
     const throughputColor = (bps: number) => {
-      if (bps >= 50000) return chartColors.success
-      if (bps >= 10000) return chartColors.warning
+      if (bps >= 25000) return chartColors.success
+      if (bps >= 5000) return chartColors.warning
       return chartColors.danger
     }
 
@@ -299,7 +299,7 @@ export default function Dashboard() {
 
   const successBadgeTone = stats.successRate < 90 ? 'warn' : 'green'
   const failBadgeTone = stats.failRate > 5 ? 'warn' : 'gray'
-  const throughputBadgeTone = stats.avgThroughput >= 50000 ? 'green' : stats.avgThroughput >= 10000 ? 'gray' : 'warn'
+  const throughputBadgeTone = stats.avgThroughput >= 25000 ? 'green' : stats.avgThroughput >= 5000 ? 'gray' : 'warn'
 
   return (
     <div>
@@ -380,7 +380,7 @@ export default function Dashboard() {
           <Card
             className="chart-card"
             title="节点性能对比"
-            extra={<div className="chart-legend">🟢 &gt;50KB/s · 🟡 10-50KB/s · 🔴 &lt;10KB/s</div>}
+            extra={<div className="chart-legend">🟢 &gt;25KB/s · 🟡 5-25KB/s · 🔴 &lt;5KB/s</div>}
           >
             <div className={loading ? 'chart-skeleton' : 'chart-body'}>
               {loading ? <div className="skeleton" style={{ height: 14 }} /> : <Bar data={throughputChart.data} options={throughputChart.options} />}

@@ -72,8 +72,8 @@ services:
       PROXY_TRANSPORT_TLS_HANDSHAKE_TIMEOUT: 10s
       PROXY_TRANSPORT_RESPONSE_HEADER_TIMEOUT: 30s
       PROXY_TRANSPORT_EXPECT_CONTINUE_TIMEOUT: 1s
-      PROXY_TRANSPORT_DISABLE_COMPRESSION: false
-      PROXY_TRANSPORT_FORCE_HTTP2: true
+      PROXY_TRANSPORT_DISABLE_COMPRESSION: "false"
+      PROXY_TRANSPORT_FORCE_HTTP2: "true"
 
       # ========== 熔断保护 ==========
       CB_ENABLED: 1
@@ -97,8 +97,7 @@ services:
     ports:
       - "8001:8001"
     depends_on:
-      mysql:
-        condition: service_healthy
+      - mysql
 
 volumes:
   mysql_data_test:

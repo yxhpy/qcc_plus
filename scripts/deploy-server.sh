@@ -118,6 +118,16 @@ $DOCKER_COMPOSE -p "$PROJECT_NAME" -f "$COMPOSE_FILE" down --remove-orphans || t
 log "building and deploying containers"
 $DOCKER_COMPOSE -p "$PROJECT_NAME" -f "$COMPOSE_FILE" up -d --build --force-recreate
 
+log "waiting for mysql to be healthy"
+for ((i=1; i<=30; i++)); do
+  if docker inspect "${PROJECT_NAME}_mysql" --format='{{.State.Health.Status}}' 2>/dev/null | grep -q "healthy"; then
+    log "mysql is healthy"
+    break
+  fi
+  log "waiting for mysql... (${i}/30)"
+  sleep 2
+done
+
 wait_for_service() {
   local url="$1"
   local attempts="${2:-12}"

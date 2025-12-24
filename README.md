@@ -1,5 +1,8 @@
 # qcc_plus - Claude Code CLI 多租户代理服务器
 
+[![Run in Smithery](https://smithery.ai/badge/skills/yxhpy)](https://smithery.ai/skills?ns=yxhpy&utm_source=github&utm_medium=badge)
+
+
 [![Version](https://img.shields.io/badge/version-1.9.4-blue.svg)](https://github.com/yxhpy/qcc_plus/releases/tag/v1.9.4)
 [![npm](https://img.shields.io/npm/v/@qccplus/cli.svg?logo=npm)](https://www.npmjs.com/package/@qccplus/cli)
 [![Go](https://img.shields.io/badge/Go-1.21+-00ADD8?logo=go)](https://go.dev/)

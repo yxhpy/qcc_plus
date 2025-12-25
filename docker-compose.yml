@@ -2,6 +2,7 @@ version: "3.7"
 services:
   mysql:
     image: mysql:8.0
+    restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: example
       MYSQL_DATABASE: qcc_proxy
@@ -20,6 +21,7 @@ services:
 
   proxy:
     build: .
+    restart: unless-stopped
     environment:
       UPSTREAM_BASE_URL: https://api.anthropic.com
       UPSTREAM_API_KEY: changeme

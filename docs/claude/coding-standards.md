@@ -33,6 +33,12 @@
 - 使用 `errors.Wrap/Wrapf` 包装底层错误
 - 在边界层（HTTP handler）统一处理和记录错误
 
+## 前端规范
+
+- **禁止硬编码颜色**：所有颜色必须使用 `index.css` 中定义的 CSS 变量（如 `var(--bg)`、`var(--text)`、`var(--border)`、`var(--primary)` 等），确保深色/浅色主题兼容
+- 组件样式优先使用内联 `style` 或 CSS Modules
+- 遵循高信息密度原则：字体 12-14px，padding/gap 6-10px
+
 ## 安全规范
 
 - API Token 等敏感信息通过环境变量注入，禁止硬编码

@@ -187,7 +187,9 @@ func (p *Server) applySettingsFromCache() {
 	if p == nil || p.settingsCache == nil {
 		return
 	}
-	if v, ok := p.settingsCache.Get("health.check_interval_sec"); ok {
+	// Only apply cached settings if the current value is at default (30s)
+	// This prevents overwriting explicitly-set Builder config
+	if v, ok := p.settingsCache.Get("health.check_interval_sec"); ok && (p.healthEvery == 0 || p.healthEvery == 30*time.Second) {
 		switch n := v.(type) {
 		case float64:
 			p.updateHealthInterval(time.Duration(n) * time.Second)
@@ -292,7 +294,9 @@ func (p *Server) loadAccountsFromStore(defaultUpstream *url.URL, defaultCfg stor
 		if cfgLoaded.FailLimit > 0 {
 			cfg.FailLimit = cfgLoaded.FailLimit
 		}
-		if cfgLoaded.HealthEvery > 0 {
+		// Only apply loaded config if it's non-default, or if the default config is also default
+		// This prevents overwriting explicitly-set Builder config with stale database defaults
+		if cfgLoaded.HealthEvery > 0 && (cfgLoaded.HealthEvery != 30*time.Second || defaultCfg.HealthEvery == 30*time.Second || defaultCfg.HealthEvery == 0) {
 			cfg.HealthEvery = cfgLoaded.HealthEvery
 		}
 
@@ -412,9 +416,17 @@ func (p *Server) registerAccount(acc *Account) {
 		if rt, ok := p.transport.(*retryTransport); ok && acc.Config.Retries > 0 {
 			rt.attempts = acc.Config.Retries
 		}
-		p.retries = acc.Config.Retries
-		p.failLimit = acc.Config.FailLimit
-		p.healthEvery = acc.Config.HealthEvery
+		// Only update server's global config if it's still at default values
+		// This prevents overwriting explicitly-set config from Builder
+		if p.retries == 0 || p.retries == 3 {
+			p.retries = acc.Config.Retries
+		}
+		if p.failLimit == 0 || p.failLimit == 3 {
+			p.failLimit = acc.Config.FailLimit
+		}
+		if p.healthEvery == 0 || p.healthEvery == 30*time.Second {
+			p.healthEvery = acc.Config.HealthEvery
+		}
 	}
 	for id, n := range acc.Nodes {
 		p.nodeIndex[id] = n

@@ -49,22 +49,84 @@ docker compose up -d
 | **时间格式** | `timeutil.FormatBeijingTime()` |
 | **前端颜色** | 禁止硬编码，使用 CSS 变量 |
 
+## 📝 测试要求
+
+- **当前覆盖率**: 18.5%
+- **目标覆盖率**: 100%
+- **测试框架**: go test
+- **运行测试**: `go test -v -cover ./...`
+- **覆盖率报告**: `go test -coverprofile=coverage.out ./... && go tool cover -html=coverage.out`
+
+## 🚀 开发工作流
+
+1. 输入 **"开始"** 启动开发
+2. AI 自动读取 TODO.md
+3. 搜索现有功能（防止重复）
+4. 执行任务
+5. 运行测试（确保覆盖率）
+6. 更新文档
+
 ## 踩坑记录
 
 遇到问题时立即记录到 @docs/claude/lessons-learned.md
 
-## 文档索引
+## 🔍 开发前必读
 
-### Skills（自动调用）
-- `.claude/skills/qcc-dev/SKILL.md` - 编码规范
-- `.claude/skills/qcc-git/SKILL.md` - Git 工作流
-- `.claude/skills/qcc-release/SKILL.md` - 版本发布
-- `.claude/skills/qcc-debug/SKILL.md` - 调试排查
-- `.claude/skills/qcc-deploy/SKILL.md` - 部署操作
+### 检查清单
 
-### 详细文档
+1. **搜索现有功能**：
+   ```bash
+   ./.claude/scripts/search-feature.sh "功能关键词"
+   ```
+
+2. **查看模块注册表**：
+   - 阅读 `docs/modules/REGISTRY.md` ⭐
+   - 了解现有模块和功能
+
+3. **查看已知问题**：
+   - 阅读 `docs/claude/lessons-learned.md`
+   - 避免重复踩坑
+
+4. **启动开发**：
+   - 输入 **"开始"** 让 AI 自动执行 TODO.md 中的任务
+
+## 🤖 自动化能力
+
+### Skills（自动触发）
+- **qcc-dev**: 编码规范、Go/前端开发规范
+- **qcc-git**: Git 分支策略、Commit 规范
+- **qcc-release**: 版本发布、GoReleaser
+- **qcc-debug**: 调试排查、问题诊断
+- **qcc-deploy**: 部署操作、服务器连接
+- **codex**: Codex CLI 集成
+
+### Agents（专用代理）
+- **test-agent**: 测试相关任务（`.claude/agents/test-agent.md`）
+- **doc-agent**: 文档相关任务（`.claude/agents/doc-agent.md`）
+
+### Scripts（辅助工具）
+- `search-feature.sh`: 搜索现有功能
+- `update-registry.sh`: 更新模块注册表
+- `maintain.sh`: 项目维护
+
+## 📚 文档导航
+
+### 核心文档
 - @README.md - 项目主页
 - @CHANGELOG.md - 版本历史
+- @TODO.md - 任务列表 ⭐
 - @docs/README.md - 完整文档索引
+
+### 模块和 API
+- @docs/modules/REGISTRY.md - 模块注册表 ⭐
+- @docs/api/INDEX.md - API 索引
+
+### 项目记忆
+- `.claude-memory/context.json` - 项目上下文
+- `.claude-memory/iterations.md` - 迭代历史
+- `.claude-memory/lessons-learned.md` - 经验教训
+- `.claude-memory/decisions/` - 架构决策记录
+
+### 详细文档
 - @docs/claude/lessons-learned.md - 踩坑记录
 - @docs/claude/deployment-private.md - 🔒 私有部署配置

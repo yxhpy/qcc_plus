@@ -49,14 +49,10 @@ func TestWarmupNodeSuccess(t *testing.T) {
 	}))
 	defer upstream.Close()
 
-	// 构建代理服务器
-	srv, err := NewBuilder().
+	// Use buildServerNoWarmup to get a temporary database
+	srv := buildServerNoWarmup(t, NewBuilder().
 		WithUpstream(upstream.URL).
-		WithAPIKey("test-key").
-		Build()
-	if err != nil {
-		t.Fatalf("failed to build server: %v", err)
-	}
+		WithAPIKey("test-key"))
 
 	// 配置预热：启用，2次尝试，至少成功1次
 	srv.warmupConfig = WarmupConfig{
@@ -66,24 +62,16 @@ func TestWarmupNodeSuccess(t *testing.T) {
 		RequiredSuccess: 1,
 	}
 
-	// 获取默认节点并设置为 API 健康检查模式
-	acc := srv.defaultAccount
-	if acc == nil {
-		t.Fatal("default account is nil")
+	// Create test account and node
+	acc, err := srv.createAccount("test-account", "test-proxy", "test123", false)
+	if err != nil {
+		t.Fatalf("create account: %v", err)
 	}
-
-	var node *Node
-	srv.mu.Lock()
-	for _, n := range acc.Nodes {
-		n.HealthCheckMethod = HealthCheckMethodAPI
-		node = n
-		break
+	node, err := srv.addNodeToAccount(acc, "test-node", upstream.URL, "test-key", 1)
+	if err != nil {
+		t.Fatalf("add node: %v", err)
 	}
-	srv.mu.Unlock()
-
-	if node == nil {
-		t.Fatal("no nodes found")
-	}
+	node.HealthCheckMethod = HealthCheckMethodAPI
 
 	// 执行预热
 	successCount, err := srv.warmupNode(node)
@@ -112,14 +100,10 @@ func TestWarmupNodeFailure(t *testing.T) {
 	}))
 	defer upstream.Close()
 
-	// 构建代理服务器
-	srv, err := NewBuilder().
+	// Use buildServerNoWarmup to get a temporary database
+	srv := buildServerNoWarmup(t, NewBuilder().
 		WithUpstream(upstream.URL).
-		WithAPIKey("test-key").
-		Build()
-	if err != nil {
-		t.Fatalf("failed to build server: %v", err)
-	}
+		WithAPIKey("test-key"))
 
 	// 配置预热
 	srv.warmupConfig = WarmupConfig{
@@ -129,24 +113,16 @@ func TestWarmupNodeFailure(t *testing.T) {
 		RequiredSuccess: 1,
 	}
 
-	// 获取默认节点并设置为 API 健康检查模式
-	acc := srv.defaultAccount
-	if acc == nil {
-		t.Fatal("default account is nil")
+	// Create test account and node
+	acc, err := srv.createAccount("test-account", "test-proxy", "test123", false)
+	if err != nil {
+		t.Fatalf("create account: %v", err)
 	}
-
-	var node *Node
-	srv.mu.Lock()
-	for _, n := range acc.Nodes {
-		n.HealthCheckMethod = HealthCheckMethodAPI
-		node = n
-		break
+	node, err := srv.addNodeToAccount(acc, "test-node", upstream.URL, "test-key", 1)
+	if err != nil {
+		t.Fatalf("add node: %v", err)
 	}
-	srv.mu.Unlock()
-
-	if node == nil {
-		t.Fatal("no nodes found")
-	}
+	node.HealthCheckMethod = HealthCheckMethodAPI
 
 	// 执行预热
 	successCount, err := srv.warmupNode(node)
@@ -184,14 +160,10 @@ func TestWarmupNodePartialSuccess(t *testing.T) {
 	}))
 	defer upstream.Close()
 
-	// 构建代理服务器
-	srv, err := NewBuilder().
+	// Use buildServerNoWarmup to get a temporary database
+	srv := buildServerNoWarmup(t, NewBuilder().
 		WithUpstream(upstream.URL).
-		WithAPIKey("test-key").
-		Build()
-	if err != nil {
-		t.Fatalf("failed to build server: %v", err)
-	}
+		WithAPIKey("test-key"))
 
 	// 配置预热：2次尝试，至少成功1次
 	srv.warmupConfig = WarmupConfig{
@@ -201,24 +173,16 @@ func TestWarmupNodePartialSuccess(t *testing.T) {
 		RequiredSuccess: 1,
 	}
 
-	// 获取默认节点并设置为 API 健康检查模式
-	acc := srv.defaultAccount
-	if acc == nil {
-		t.Fatal("default account is nil")
+	// Create test account and node
+	acc, err := srv.createAccount("test-account", "test-proxy", "test123", false)
+	if err != nil {
+		t.Fatalf("create account: %v", err)
 	}
-
-	var node *Node
-	srv.mu.Lock()
-	for _, n := range acc.Nodes {
-		n.HealthCheckMethod = HealthCheckMethodAPI
-		node = n
-		break
+	node, err := srv.addNodeToAccount(acc, "test-node", upstream.URL, "test-key", 1)
+	if err != nil {
+		t.Fatalf("add node: %v", err)
 	}
-	srv.mu.Unlock()
-
-	if node == nil {
-		t.Fatal("no nodes found")
-	}
+	node.HealthCheckMethod = HealthCheckMethodAPI
 
 	// 执行预热
 	successCount, err := srv.warmupNode(node)
@@ -308,15 +272,11 @@ func TestSelectBestAndActivateWithWarmup(t *testing.T) {
 	}))
 	defer upstream2.Close()
 
-	// 构建代理服务器（仅包含默认节点，稍后手动添加）
-	srv, err := NewBuilder().
+	// Use buildServerNoWarmup to get a temporary database
+	srv := buildServerNoWarmup(t, NewBuilder().
 		WithUpstream(upstream1.URL).
 		WithAPIKey("key1").
-		WithNodeName("node1").
-		Build()
-	if err != nil {
-		t.Fatalf("failed to build server: %v", err)
-	}
+		WithNodeName("node1"))
 
 	// 启用预热
 	srv.warmupConfig = WarmupConfig{
@@ -326,10 +286,14 @@ func TestSelectBestAndActivateWithWarmup(t *testing.T) {
 		RequiredSuccess: 1,
 	}
 
-	// 手动添加第二个节点（优先级更低）
-	acc := srv.defaultAccount
-	if acc == nil {
-		t.Fatal("default account is nil")
+	// Create test account and nodes
+	acc, err := srv.createAccount("test-account", "test-proxy", "test123", false)
+	if err != nil {
+		t.Fatalf("create account: %v", err)
+	}
+	node1, err := srv.addNodeWithMethod(acc, "node1", upstream1.URL, "key1", 1, HealthCheckMethodAPI, "")
+	if err != nil {
+		t.Fatalf("failed to add node1: %v", err)
 	}
 
 	node2, err := srv.addNodeWithMethod(acc, "node2", upstream2.URL, "key2", 2, HealthCheckMethodAPI, "")
@@ -339,14 +303,8 @@ func TestSelectBestAndActivateWithWarmup(t *testing.T) {
 
 	// 标记 node1 为失败，触发切换
 	srv.mu.Lock()
-	for id, n := range acc.Nodes {
-		if n.Name == "node1" {
-			n.Failed = true
-			n.HealthCheckMethod = HealthCheckMethodAPI
-			acc.FailedSet[id] = struct{}{}
-			break
-		}
-	}
+	node1.Failed = true
+	acc.FailedSet[node1.ID] = struct{}{}
 	srv.mu.Unlock()
 
 	// 触发节点选择（应该选择 node2 并预热）

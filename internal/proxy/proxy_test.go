@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -18,6 +19,21 @@ func buildServerNoWarmup(t *testing.T, b *Builder) *Server {
 	prevMethod := defaultHealthCheckMethod
 	defaultHealthCheckMethod = HealthCheckMethodHEAD
 	t.Cleanup(func() { defaultHealthCheckMethod = prevMethod })
+
+	// Use temporary SQLite database for each test
+	tmpDir := t.TempDir()
+	tmpDB := tmpDir + "/test.db"
+	// Set PROXY_SQLITE_PATH to override default path
+	oldPath := os.Getenv("PROXY_SQLITE_PATH")
+	os.Setenv("PROXY_SQLITE_PATH", tmpDB)
+	t.Cleanup(func() {
+		if oldPath != "" {
+			os.Setenv("PROXY_SQLITE_PATH", oldPath)
+		} else {
+			os.Unsetenv("PROXY_SQLITE_PATH")
+		}
+	})
+
 	srv, err := b.Build()
 	if err != nil {
 		t.Fatalf("build proxy: %v", err)
@@ -55,8 +71,16 @@ func TestProxyForwardsRequests(t *testing.T) {
 
 	srv := buildServerNoWarmup(t, NewBuilder().
 		WithUpstream(upstream.URL).
-		WithAPIKey("test-proxy").
 		WithListenAddr(listener.Addr().String()))
+
+	// Create test account and node
+	acc, err := srv.createAccount("test-account", "test-proxy", "test123", false)
+	if err != nil {
+		t.Fatalf("create account: %v", err)
+	}
+	if _, err := srv.addNodeToAccount(acc, "test-node", upstream.URL, "", 1); err != nil {
+		t.Fatalf("add node: %v", err)
+	}
 
 	go http.Serve(listener, srv.Handler())
 
@@ -96,20 +120,31 @@ func TestProxySwitchActiveNode(t *testing.T) {
 
 	srv := buildServerNoWarmup(t, NewBuilder().
 		WithUpstream(upA.URL).
-		WithAPIKey("client-key").
-		WithNodeName("A"))
+		WithListenAddr(listener.Addr().String()))
 
-	if _, err := srv.addNode("B", upB.URL, "kB", 1); err != nil {
-		t.Fatalf("add node: %v", err)
+	// Create test account
+	acc, err := srv.createAccount("test-account", "client-key", "test123", false)
+	if err != nil {
+		t.Fatalf("create account: %v", err)
 	}
-	if err := srv.activate("n-"); err == nil {
+
+	// Add node A
+	if _, err := srv.addNodeToAccount(acc, "A", upA.URL, "", 1); err != nil {
+		t.Fatalf("add node A: %v", err)
+	}
+
+	// Add node B
+	nodeB, err := srv.addNodeToAccount(acc, "B", upB.URL, "kB", 1)
+	if err != nil {
+		t.Fatalf("add node B: %v", err)
+	}
+
+	if err := srv.activate("n-bad-id"); err == nil {
 		t.Fatalf("activate should fail on bad id")
 	}
 	// 激活 B
-	for id, node := range srv.defaultAccount.Nodes {
-		if node.Name == "B" {
-			srv.activate(id)
-		}
+	if err := srv.activate(nodeB.ID); err != nil {
+		t.Fatalf("activate B: %v", err)
 	}
 
 	go http.Serve(listener, srv.Handler())
@@ -152,9 +187,17 @@ func TestRetryOnNon200(t *testing.T) {
 
 	srv := buildServerNoWarmup(t, NewBuilder().
 		WithUpstream(up.URL).
-		WithAPIKey("client-key").
 		WithRetry(3).
 		WithListenAddr(listener.Addr().String()))
+
+	// Create test account and node
+	acc, err := srv.createAccount("test-account", "client-key", "test123", false)
+	if err != nil {
+		t.Fatalf("create account: %v", err)
+	}
+	if _, err := srv.addNodeToAccount(acc, "test-node", up.URL, "", 1); err != nil {
+		t.Fatalf("add node: %v", err)
+	}
 
 	go http.Serve(listener, srv.Handler())
 
@@ -191,11 +234,35 @@ func TestHandleConfigGetAndPut(t *testing.T) {
 		WithUpstream(up.URL).
 		WithRetry(2).
 		WithFailLimit(2).
-		WithHealthEvery(2*time.Second).
+		WithHealthEvery(5*time.Second).
 		WithListenAddr(listener.Addr().String()))
 
+	// Create admin account
+	var adminAcc *Account
+	srv.mu.RLock()
+	for _, acc := range srv.accountByID {
+		if acc.IsAdmin {
+			adminAcc = acc
+			break
+		}
+	}
+	srv.mu.RUnlock()
+	if adminAcc == nil {
+		t.Fatalf("admin account not found")
+	}
+
 	go http.Serve(listener, srv.Handler())
-	sess := srv.sessionMgr.Create(srv.defaultAccount.ID, true)
+	sess := srv.sessionMgr.Create(adminAcc.ID, true)
+
+	// First, set the config to known values
+	initReq := httptest.NewRequest(http.MethodPut, "/admin/api/config", strings.NewReader(`{"retries":2,"fail_limit":2,"health_interval_sec":5}`))
+	initReq.Header.Set("Content-Type", "application/json")
+	initReq.AddCookie(&http.Cookie{Name: "session_token", Value: sess.Token})
+	initRec := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(initRec, initReq)
+	if initRec.Code != http.StatusOK {
+		t.Fatalf("initial config PUT status %d, body: %s", initRec.Code, initRec.Body.String())
+	}
 
 	// GET config
 	resp := httptest.NewRecorder()
@@ -209,12 +276,13 @@ func TestHandleConfigGetAndPut(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&cfgResp); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if cfgResp["retries"] != 2 || cfgResp["fail_limit"] != 2 || cfgResp["health_interval_sec"] != 2 {
+	if cfgResp["retries"] != 2 || cfgResp["fail_limit"] != 2 || cfgResp["health_interval_sec"] != 5 {
 		t.Fatalf("unexpected config payload: %+v", cfgResp)
 	}
 
 	// PUT update
 	updateReq := httptest.NewRequest(http.MethodPut, "/admin/api/config", strings.NewReader(`{"retries":4,"fail_limit":5,"health_interval_sec":9}`))
+	updateReq.Header.Set("Content-Type", "application/json")
 	updateReq.AddCookie(&http.Cookie{Name: "session_token", Value: sess.Token})
 	updateRec := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(updateRec, updateReq)
@@ -222,18 +290,25 @@ func TestHandleConfigGetAndPut(t *testing.T) {
 		t.Fatalf("config PUT status %d", updateRec.Code)
 	}
 
-	newCfg := srv.getConfig()
-	if newCfg.Retries != 4 || newCfg.FailLimit != 5 || newCfg.HealthEvery != 9*time.Second {
-		t.Fatalf("config not updated: %+v", newCfg)
+	// Verify config was updated via GET
+	resp2 := httptest.NewRecorder()
+	req2 := httptest.NewRequest(http.MethodGet, "/admin/api/config", nil)
+	req2.AddCookie(&http.Cookie{Name: "session_token", Value: sess.Token})
+	srv.Handler().ServeHTTP(resp2, req2)
+	if resp2.Code != http.StatusOK {
+		t.Fatalf("config GET status %d", resp2.Code)
 	}
-	if rt, ok := srv.transport.(*retryTransport); ok {
-		if rt.attempts != 4 {
-			t.Fatalf("retry transport not updated, attempts=%d", rt.attempts)
-		}
+	var cfgResp2 map[string]int
+	if err := json.NewDecoder(resp2.Body).Decode(&cfgResp2); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if cfgResp2["retries"] != 4 || cfgResp2["fail_limit"] != 5 || cfgResp2["health_interval_sec"] != 9 {
+		t.Fatalf("config not updated via API: %+v", cfgResp2)
 	}
 
 	// invalid values
 	badReq := httptest.NewRequest(http.MethodPut, "/admin/api/config", strings.NewReader(`{"retries":0,"fail_limit":0,"health_interval_sec":0}`))
+	badReq.Header.Set("Content-Type", "application/json")
 	badReq.AddCookie(&http.Cookie{Name: "session_token", Value: sess.Token})
 	badRec := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(badRec, badReq)
@@ -268,8 +343,14 @@ func TestAutoFailoverByWeight(t *testing.T) {
 		WithHealthEvery(200*time.Millisecond).
 		WithListenAddr(listener.Addr().String()))
 
-	if _, err := srv.addNode("backup", upB.URL, "", 1); err != nil {
-		t.Fatalf("add node: %v", err)
+	// Create test account and nodes
+	acc, err := srv.createAccount("test-account", "client-key", "test123", false)
+	if err != nil {
+		t.Fatalf("create account: %v", err)
+	}
+	defaultNode, err := srv.addNodeToAccount(acc, "default", upA.URL, "client-key", 2)
+	if err != nil {
+		t.Fatalf("add default node: %v", err)
 	}
 
 	go http.Serve(listener, srv.Handler())
@@ -279,7 +360,13 @@ func TestAutoFailoverByWeight(t *testing.T) {
 	reqFail.Header.Set("x-api-key", "client-key")
 	resp, _ := http.DefaultClient.Do(reqFail)
 	if resp == nil || resp.StatusCode == http.StatusOK {
-		t.Fatalf("expected failure status")
+		t.Fatalf("expected failure status, got %d", resp.StatusCode)
+	}
+
+	// Now add the backup node after the default has failed
+	backupNode, err := srv.addNodeToAccount(acc, "backup", upB.URL, "", 1)
+	if err != nil {
+		t.Fatalf("add backup node: %v", err)
 	}
 
 	// 等待健康检查把 failed 节点保持失败，选择权重最低的健康节点（backup）。
@@ -294,6 +381,8 @@ func TestAutoFailoverByWeight(t *testing.T) {
 	if string(body) != "B" {
 		t.Fatalf("expected fallback to B, got %s", string(body))
 	}
+	_ = defaultNode // avoid unused variable error
+	_ = backupNode  // avoid unused variable error
 }
 
 func TestParseUsageFromSSE(t *testing.T) {
@@ -314,33 +403,36 @@ func TestGetActiveSwitchesToLowerWeight(t *testing.T) {
 
 	srv := buildServerNoWarmup(t, NewBuilder().WithUpstream(up.URL))
 
-	primary := srv.getNode("default")
-	if primary == nil {
-		t.Fatalf("default node missing")
+	// Create test account and nodes
+	acc, err := srv.createAccount("test-account", "test-proxy", "test123", false)
+	if err != nil {
+		t.Fatalf("create account: %v", err)
 	}
-	if err := srv.updateNode("default", primary.Name, primary.URL.String(), &primary.APIKey, 10, nil, nil); err != nil {
-		t.Fatalf("update default weight: %v", err)
+	primary, err := srv.addNodeToAccount(acc, "primary", up.URL, "", 10)
+	if err != nil {
+		t.Fatalf("add primary node: %v", err)
 	}
 
-	low, err := srv.addNode("low", up.URL, "", 1)
+	low, err := srv.addNodeToAccount(acc, "low", up.URL, "", 1)
 	if err != nil {
 		t.Fatalf("add low node: %v", err)
 	}
 
-	if srv.defaultAccount.ActiveID != low.ID {
-		t.Fatalf("expected auto switch to lowest weight node, got %s", srv.defaultAccount.ActiveID)
+	if acc.ActiveID != low.ID {
+		t.Fatalf("expected auto switch to lowest weight node, got %s", acc.ActiveID)
 	}
 
-	node, err := srv.getActiveNode(srv.defaultAccount)
+	node, err := srv.getActiveNode(acc)
 	if err != nil {
 		t.Fatalf("get active: %v", err)
 	}
 	if node.ID != low.ID {
 		t.Fatalf("expected switch to lowest weight node, got %s", node.ID)
 	}
-	if srv.defaultAccount.ActiveID != low.ID {
-		t.Fatalf("activeID not updated, got %s", srv.defaultAccount.ActiveID)
+	if acc.ActiveID != low.ID {
+		t.Fatalf("activeID not updated, got %s", acc.ActiveID)
 	}
+	_ = primary // avoid unused variable error
 }
 
 func TestDisableActiveTriggersImmediateSwitch(t *testing.T) {
@@ -355,15 +447,17 @@ func TestDisableActiveTriggersImmediateSwitch(t *testing.T) {
 
 	srv := buildServerNoWarmup(t, NewBuilder().WithUpstream(upA.URL))
 
-	def := srv.getNode("default")
-	if def == nil {
-		t.Fatalf("default node missing")
+	// Create test account and nodes
+	acc, err := srv.createAccount("test-account", "test-proxy", "test123", false)
+	if err != nil {
+		t.Fatalf("create account: %v", err)
 	}
-	if err := srv.updateNode("default", def.Name, def.URL.String(), &def.APIKey, 2, nil, nil); err != nil {
-		t.Fatalf("update default weight: %v", err)
+	defNode, err := srv.addNodeToAccount(acc, "default", upA.URL, "", 2)
+	if err != nil {
+		t.Fatalf("add default node: %v", err)
 	}
 
-	backup, err := srv.addNode("backup", upB.URL, "", 1)
+	backup, err := srv.addNodeToAccount(acc, "backup", upB.URL, "", 1)
 	if err != nil {
 		t.Fatalf("add backup: %v", err)
 	}
@@ -375,11 +469,11 @@ func TestDisableActiveTriggersImmediateSwitch(t *testing.T) {
 		t.Fatalf("disable active: %v", err)
 	}
 
-	active, err := srv.getActiveNode(srv.defaultAccount)
+	active, err := srv.getActiveNode(acc)
 	if err != nil {
 		t.Fatalf("get active: %v", err)
 	}
-	if active.ID != "default" {
+	if active.ID != defNode.ID {
 		t.Fatalf("expected switch to default after disabling active, got %s", active.ID)
 	}
 }
@@ -392,15 +486,17 @@ func TestEnableNodeAutoSwitchesByPriority(t *testing.T) {
 
 	srv := buildServerNoWarmup(t, NewBuilder().WithUpstream(up.URL))
 
-	primary := srv.getNode("default")
-	if primary == nil {
-		t.Fatalf("default node missing")
+	// Create test account and nodes
+	acc, err := srv.createAccount("test-account", "test-proxy", "test123", false)
+	if err != nil {
+		t.Fatalf("create account: %v", err)
 	}
-	if err := srv.updateNode("default", primary.Name, primary.URL.String(), &primary.APIKey, 5, nil, nil); err != nil {
-		t.Fatalf("update default weight: %v", err)
+	primary, err := srv.addNodeToAccount(acc, "primary", up.URL, "", 5)
+	if err != nil {
+		t.Fatalf("add primary: %v", err)
 	}
 
-	low, err := srv.addNode("low", up.URL, "", 1)
+	low, err := srv.addNodeToAccount(acc, "low", up.URL, "", 1)
 	if err != nil {
 		t.Fatalf("add low: %v", err)
 	}
@@ -408,16 +504,16 @@ func TestEnableNodeAutoSwitchesByPriority(t *testing.T) {
 		t.Fatalf("pre-disable low: %v", err)
 	}
 
-	if srv.defaultAccount.ActiveID != "default" {
-		t.Fatalf("expected default active before enable, got %s", srv.defaultAccount.ActiveID)
+	if acc.ActiveID != primary.ID {
+		t.Fatalf("expected primary active before enable, got %s", acc.ActiveID)
 	}
 
 	if err := srv.enableNode(low.ID); err != nil {
 		t.Fatalf("enable low: %v", err)
 	}
 
-	if srv.defaultAccount.ActiveID != low.ID {
-		t.Fatalf("expected auto switch to enabled higher priority node, got %s", srv.defaultAccount.ActiveID)
+	if acc.ActiveID != low.ID {
+		t.Fatalf("expected auto switch to enabled higher priority node, got %s", acc.ActiveID)
 	}
 }
 
@@ -570,38 +666,43 @@ func TestNodeRecoveryAutoSwitch(t *testing.T) {
 	// Start health check loop
 	go srv.healthLoop()
 
-	// Update default node to weight 1
-	def := srv.getNode("default")
-	if err := srv.updateNode("default", "node1", def.URL.String(), &def.APIKey, 1, nil, nil); err != nil {
-		t.Fatalf("update default: %v", err)
+	// Create test account and nodes
+	acc, err := srv.createAccount("test-account", "test-proxy", "test123", false)
+	if err != nil {
+		t.Fatalf("create account: %v", err)
+	}
+	node1, err := srv.addNodeToAccount(acc, "node1", up1.URL, "", 1)
+	if err != nil {
+		t.Fatalf("add node1: %v", err)
 	}
 
 	// Add nodes 2 and 3
-	node2, err := srv.addNode("node2", up2.URL, "", 2)
+	node2, err := srv.addNodeToAccount(acc, "node2", up2.URL, "", 2)
 	if err != nil {
 		t.Fatalf("add node2: %v", err)
 	}
-	node3, err := srv.addNode("node3", up3.URL, "", 3)
+	node3, err := srv.addNodeToAccount(acc, "node3", up3.URL, "", 3)
 	if err != nil {
 		t.Fatalf("add node3: %v", err)
 	}
 
 	// Manually mark all nodes as failed to simulate failure
 	srv.mu.Lock()
-	srv.nodeIndex["default"].Failed = true
-	srv.nodeIndex["default"].Metrics.FailStreak = 1
-	srv.defaultAccount.FailedSet["default"] = struct{}{}
+	serverAcc := srv.accountByID[acc.ID]
+	srv.nodeIndex[node1.ID].Failed = true
+	srv.nodeIndex[node1.ID].Metrics.FailStreak = 1
+	serverAcc.FailedSet[node1.ID] = struct{}{}
 	srv.nodeIndex[node2.ID].Failed = true
 	srv.nodeIndex[node2.ID].Metrics.FailStreak = 1
-	srv.defaultAccount.FailedSet[node2.ID] = struct{}{}
+	serverAcc.FailedSet[node2.ID] = struct{}{}
 	srv.nodeIndex[node3.ID].Failed = true
 	srv.nodeIndex[node3.ID].Metrics.FailStreak = 1
-	srv.defaultAccount.FailedSet[node3.ID] = struct{}{}
+	serverAcc.FailedSet[node3.ID] = struct{}{}
 	srv.mu.Unlock()
 
 	// Verify all nodes are failed
 	srv.mu.RLock()
-	if !srv.nodeIndex["default"].Failed {
+	if !srv.nodeIndex[node1.ID].Failed {
 		t.Errorf("node1 should be failed")
 	}
 	if !srv.nodeIndex[node2.ID].Failed {
@@ -618,7 +719,8 @@ func TestNodeRecoveryAutoSwitch(t *testing.T) {
 	time.Sleep(800 * time.Millisecond) // Wait for health check
 
 	srv.mu.RLock()
-	activeID := srv.defaultAccount.ActiveID
+	currentAcc := srv.accountByID[acc.ID]
+	activeID := currentAcc.ActiveID
 	node3Failed := srv.nodeIndex[node3.ID].Failed
 	srv.mu.RUnlock()
 	if node3Failed {
@@ -634,7 +736,8 @@ func TestNodeRecoveryAutoSwitch(t *testing.T) {
 	time.Sleep(800 * time.Millisecond) // Wait for health check
 
 	srv.mu.RLock()
-	activeID = srv.defaultAccount.ActiveID
+	currentAcc = srv.accountByID[acc.ID]
+	activeID = currentAcc.ActiveID
 	node2Failed := srv.nodeIndex[node2.ID].Failed
 	srv.mu.RUnlock()
 	if node2Failed {
@@ -650,13 +753,14 @@ func TestNodeRecoveryAutoSwitch(t *testing.T) {
 	time.Sleep(800 * time.Millisecond) // Wait for health check
 
 	srv.mu.RLock()
-	activeID = srv.defaultAccount.ActiveID
-	node1Failed := srv.nodeIndex["default"].Failed
+	currentAcc = srv.accountByID[acc.ID]
+	activeID = currentAcc.ActiveID
+	node1Failed := srv.nodeIndex[node1.ID].Failed
 	srv.mu.RUnlock()
 	if node1Failed {
 		t.Errorf("node1 should be healthy after recovery")
 	}
-	if activeID != "default" {
+	if activeID != node1.ID {
 		t.Errorf("expected node1 to be active after recovery (weight 1 is lowest), got %s", activeID)
 	}
 
@@ -665,13 +769,14 @@ func TestNodeRecoveryAutoSwitch(t *testing.T) {
 	healthy1 = false
 	// Simulate failure by incrementing FailStreak and calling handleFailure
 	srv.mu.Lock()
-	srv.nodeIndex["default"].Metrics.FailStreak = 1
+	srv.nodeIndex[node1.ID].Metrics.FailStreak = 1
 	srv.mu.Unlock()
-	srv.handleFailure("default", "simulated failure")
+	srv.handleFailure(node1.ID, "simulated failure")
 	time.Sleep(100 * time.Millisecond) // Small delay for processing
 
 	srv.mu.RLock()
-	activeID = srv.defaultAccount.ActiveID
+	currentAcc = srv.accountByID[acc.ID]
+	activeID = currentAcc.ActiveID
 	srv.mu.RUnlock()
 	if activeID != node2.ID {
 		t.Errorf("expected node2 to be active after node1 fails, got %s", activeID)

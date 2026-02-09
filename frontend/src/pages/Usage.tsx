@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Card from '../components/Card'
 import Toast from '../components/Toast'
 import api from '../services/api'
-import type { Account, Node, UsageLog, UsageSummary, UsageQueryParams } from '../types'
+import type { Account, Node, UsageLog, UsageLogAttempt, UsageSummary, UsageQueryParams } from '../types'
 import './Usage.css'
 
 export default function Usage() {
@@ -15,6 +15,7 @@ export default function Usage() {
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [activeTab, setActiveTab] = useState<'model' | 'node' | 'logs'>('model')
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set())
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // 筛选条件
@@ -77,7 +78,7 @@ export default function Usage() {
         api.getUsageSummary(params),
         api.getUsageSummary({ ...params, group_by: 'model' }),
         api.getUsageSummary({ ...params, group_by: 'node' }),
-        api.getUsageLogs(params),
+        api.getUsageLogs(params, true),
       ])
 
       // 处理返回类型
@@ -354,29 +355,45 @@ export default function Usage() {
             <table className="usage-table">
               <thead>
                 <tr>
+                  <th style={{ width: 32 }}></th>
                   <th>时间</th>
                   <th>模型</th>
                   <th>节点</th>
                   <th>输入</th>
                   <th>输出</th>
                   <th>费用</th>
+                  <th>耗时</th>
                   <th>状态</th>
                 </tr>
               </thead>
               <tbody>
-                {logs.map((log) => (
-                  <tr key={log.id} className={!log.success ? 'failed' : ''}>
-                    <td className="time-cell">{formatDate(log.created_at)}</td>
-                    <td className="model-cell">{log.model_id}</td>
-                    <td>{getNodeName(log.node_id)}</td>
-                    <td>{formatTokens(log.input_tokens)}</td>
-                    <td>{formatTokens(log.output_tokens)}</td>
-                    <td className="cost-cell">{formatCost(log.cost_usd)}</td>
-                    <td>
-                      <span className={`status-dot ${log.success ? 'success' : 'failed'}`} />
-                    </td>
-                  </tr>
-                ))}
+                {logs.map((log) => {
+                  const hasAttempts = (log.total_attempts || 0) > 1
+                  const isExpanded = expandedRows.has(log.id)
+                  return (
+                    <LogRow
+                      key={log.id}
+                      log={log}
+                      hasAttempts={hasAttempts}
+                      isExpanded={isExpanded}
+                      onToggle={() => {
+                        setExpandedRows(prev => {
+                          const next = new Set(prev)
+                          if (next.has(log.id)) {
+                            next.delete(log.id)
+                          } else {
+                            next.add(log.id)
+                          }
+                          return next
+                        })
+                      }}
+                      getNodeName={getNodeName}
+                      formatDate={formatDate}
+                      formatTokens={formatTokens}
+                      formatCost={formatCost}
+                    />
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -385,5 +402,104 @@ export default function Usage() {
 
       <Toast message={toast?.message} type={toast?.type} />
     </div>
+  )
+}
+
+// 严重程度标签
+function severityLabel(severity?: string): string {
+  switch (severity) {
+    case 'transient': return '临时'
+    case 'node_down': return '宕机'
+    case 'key_invalid': return '密钥失效'
+    case 'permanent': return '永久'
+    case 'account_issue': return '账号问题'
+    case 'degraded': return '降级'
+    default: return severity || ''
+  }
+}
+
+// 动作标签
+function actionLabel(action?: string): string {
+  switch (action) {
+    case 'retry': return '重试'
+    case 'fail': return '失败'
+    case 'success': return '成功'
+    case 'circuit_open': return '熔断'
+    case 'key_rotate': return '换Key'
+    default: return action || ''
+  }
+}
+
+// 格式化耗时
+function formatDuration(ms: number): string {
+  if (ms < 1000) return `${ms}ms`
+  return `${(ms / 1000).toFixed(1)}s`
+}
+
+interface LogRowProps {
+  log: UsageLog
+  hasAttempts: boolean
+  isExpanded: boolean
+  onToggle: () => void
+  getNodeName: (id: string) => string
+  formatDate: (s: string) => string
+  formatTokens: (n: number) => string
+  formatCost: (n: number) => string
+}
+
+function LogRow({ log, hasAttempts, isExpanded, onToggle, getNodeName, formatDate, formatTokens, formatCost }: LogRowProps) {
+  return (
+    <>
+      <tr className={`${!log.success ? 'failed' : ''} ${hasAttempts ? 'expandable' : ''}`} onClick={hasAttempts ? onToggle : undefined}>
+        <td className="expand-cell">
+          {hasAttempts && (
+            <span className={`expand-icon ${isExpanded ? 'expanded' : ''}`}>&#9654;</span>
+          )}
+        </td>
+        <td className="time-cell">{formatDate(log.created_at)}</td>
+        <td className="model-cell">{log.model_id}</td>
+        <td>
+          {log.node_name || getNodeName(log.node_id)}
+          {hasAttempts && <span className="attempts-badge">{log.total_attempts}次</span>}
+        </td>
+        <td>{formatTokens(log.input_tokens)}</td>
+        <td>{formatTokens(log.output_tokens)}</td>
+        <td className="cost-cell">{formatCost(log.cost_usd)}</td>
+        <td className="duration-cell">{formatDuration(log.duration_ms)}</td>
+        <td>
+          <span className={`status-dot ${log.success ? 'success' : 'failed'}`} />
+        </td>
+      </tr>
+      {isExpanded && log.attempts && log.attempts.length > 0 && (
+        <tr className="attempts-row">
+          <td colSpan={9}>
+            <div className="attempts-chain">
+              {log.attempts.map((attempt: UsageLogAttempt, idx: number) => (
+                <div key={attempt.id || idx} className={`attempt-item ${attempt.success ? 'success' : 'failed'}`}>
+                  <div className="attempt-header">
+                    <span className="attempt-seq">#{attempt.seq}</span>
+                    <span className="attempt-node">{attempt.node_name || attempt.node_id}</span>
+                    <span className={`attempt-status ${attempt.success ? 'success' : 'failed'}`}>
+                      {attempt.status_code > 0 ? attempt.status_code : '--'}
+                    </span>
+                    <span className="attempt-duration">{formatDuration(attempt.duration_ms)}</span>
+                    {attempt.action && (
+                      <span className={`attempt-action action-${attempt.action}`}>{actionLabel(attempt.action)}</span>
+                    )}
+                  </div>
+                  {attempt.error_msg && (
+                    <div className="attempt-error">
+                      {attempt.severity && <span className={`severity-tag severity-${attempt.severity}`}>{severityLabel(attempt.severity)}</span>}
+                      <span className="error-text">{attempt.error_msg}</span>
+                    </div>
+                  )}
+                  {idx < log.attempts!.length - 1 && <div className="attempt-connector" />}
+                </div>
+              ))}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   )
 }

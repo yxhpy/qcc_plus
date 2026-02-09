@@ -150,22 +150,44 @@ docs/
 ├── frontend-tech-stack.md         # 前端技术栈
 ├── health_check_mechanism.md      # 健康检查
 ├── monitoring-data-persistence.md # 监控数据持久化
+├── notification-system.md         # 通知系统
 ├── goreleaser-guide.md            # GoReleaser 自动化发布 ⭐
 ├── release-workflow.md            # 发布流程详解
+├── ci-cd-deployment.md            # CI/CD 部署
 ├── ci-cd-troubleshooting.md       # CI/CD 故障排查
 ├── docker-hub-publish.md          # Docker 发布（手动，已弃用）
+├── docker-hub-update-guide.md     # Docker Hub 信息更新
+├── docker-cli-health-check-deployment.md # Docker CLI 健康检查部署
 ├── cloudflare-tunnel.md           # Cloudflare Tunnel 集成
+├── cost-first-node-switching.md   # 成本优先节点切换
+├── node-switch-optimization.md    # 节点切换优化
+├── favicon-setup.md               # Favicon 配置
+├── cli_health_check_implementation.md # CLI 健康检查实现
+├── api/                           # API 文档
+│   └── INDEX.md                   # API 索引
 ├── claude/                        # Claude 专用文档
 │   ├── coding-standards.md        # 编码规范
 │   ├── git-workflow.md            # Git 工作流
 │   ├── release-policy.md          # 版本发布规范
 │   ├── task-lifecycle.md          # 任务执行流程
 │   ├── debug-playbook.md          # 调试排查手册
+│   ├── deployment-private.md      # 私有部署配置
 │   └── lessons-learned.md         # 踩坑记录
+├── modules/                       # 模块文档
+│   └── REGISTRY.md                # 模块注册表
+├── website-design-concept.md      # 官网设计概念
+├── website-design.md              # 官网设计
+├── website-technical-spec.md      # 官网技术规格
+├── website-implementation-roadmap.md # 官网实现路线图
+├── website-README.md              # 官网说明
 ├── persistence_fix.md             # 历史：持久化修复
 ├── health_check_improvement.md    # 历史：健康检查改进
 ├── tool-cleaning-fix.md           # 历史：工具清理
-└── disable_node_feature.md        # 历史：禁用节点
+├── disable_node_feature.md        # 历史：禁用节点
+├── bugfix_failed_set_restore.md   # 历史：故障集恢复修复
+├── crash-fix-v1.7.2.md            # 历史：v1.7.2 崩溃修复
+├── deploy-crash-diagnosis.md      # 历史：部署崩溃诊断
+└── time-unification-summary.md    # 历史：时间统一总结
 ```
 
 ### 需要帮助？

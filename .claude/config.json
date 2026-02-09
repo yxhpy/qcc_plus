@@ -1,0 +1,33 @@
+{
+  "project": {
+    "name": "qcc_plus",
+    "type": "web-service",
+    "language": "go"
+  },
+  "paths": {
+    "source": "cmd/, internal/, cccli/, web/",
+    "tests": "internal/*/test.go, tests/, verify/",
+    "docs": "docs/"
+  },
+  "testing": {
+    "framework": "go test",
+    "command": "go test -v -cover ./...",
+    "coverageThreshold": 100,
+    "currentCoverage": 18.5
+  },
+  "automation": {
+    "autoTest": true,
+    "autoDoc": true,
+    "autoPush": false
+  },
+  "skills": {
+    "existing": [
+      "qcc-dev",
+      "qcc-git",
+      "qcc-release",
+      "qcc-debug",
+      "qcc-deploy",
+      "codex"
+    ]
+  }
+}

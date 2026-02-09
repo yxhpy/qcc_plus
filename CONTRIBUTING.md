@@ -173,15 +173,24 @@ docker compose up -d
 
 ```
 qcc_plus/
-├── cmd/cccli/          # 程序入口
-├── internal/
-│   ├── client/         # Claude API 客户端
-│   ├── proxy/          # 反向代理服务器
-│   └── store/          # 数据持久化
-├── frontend/           # React 前端
-├── web/                # Go embed 前端资源
-├── docs/               # 项目文档
-└── scripts/            # 部署脚本
+├── cmd/cccli/              # 程序入口
+├── internal/               # Go 核心业务逻辑
+│   ├── client/             # Claude API 客户端
+│   ├── proxy/              # 反向代理服务器
+│   ├── store/              # 数据持久化（MySQL / SQLite）
+│   ├── notify/             # 通知系统（微信等）
+│   ├── tunnel/             # Cloudflare Tunnel 管理
+│   ├── timeutil/           # 时间工具
+│   └── version/            # 版本信息
+├── frontend/               # React 18 前端
+├── web/                    # Go embed 前端资源
+├── cccli/                  # 系统 prompt 和工具定义
+├── npm-packages/           # @qccplus/cli npm 分发包
+├── website/                # 官网（Next.js）
+├── scripts/                # 部署和构建脚本
+├── tests/                  # 集成测试
+├── docs/                   # 项目文档
+└── .github/                # GitHub Actions & Issue 模板
 ```
 
 ## 测试

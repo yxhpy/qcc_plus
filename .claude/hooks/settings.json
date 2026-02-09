@@ -1,0 +1,20 @@
+{
+  "hooks": {
+    "pre-commit": {
+      "enabled": false,
+      "command": "go test -v ./...",
+      "description": "运行测试确保代码质量"
+    },
+    "post-commit": {
+      "enabled": false,
+      "command": "",
+      "description": "提交后自动更新文档"
+    },
+    "pre-push": {
+      "enabled": false,
+      "command": "go test -cover ./...",
+      "description": "推送前检查测试覆盖率"
+    }
+  },
+  "note": "默认禁用所有 hooks，用户可根据需要启用。启用方法：将 enabled 设置为 true"
+}

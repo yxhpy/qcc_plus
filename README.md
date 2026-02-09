@@ -285,24 +285,41 @@ pnpm dev
 
 ```
 qcc_plus/
-├── cmd/cccli/          # 程序入口
-│   └── main.go         # 支持消息模式和代理模式
-├── internal/
-│   ├── client/         # Claude API 客户端（请求构造、预热、SSE）
-│   ├── proxy/          # 反向代理服务器（多租户、节点管理）
-│   └── store/          # 数据持久化层（MySQL）
-├── frontend/           # React 前端源码
-│   ├── src/            # TypeScript/React 组件
-│   ├── dist/           # 构建输出（Git 忽略）
+├── cmd/cccli/              # 程序入口
+│   └── main.go             # 支持消息模式和代理模式
+├── internal/               # Go 核心业务逻辑
+│   ├── client/             # Claude API 客户端（请求构造、预热、SSE）
+│   ├── proxy/              # 反向代理服务器（多租户、节点管理、API）
+│   ├── store/              # 数据持久化层（MySQL / SQLite）
+│   ├── notify/             # 通知系统（微信等多渠道）
+│   ├── tunnel/             # Cloudflare Tunnel 管理
+│   ├── timeutil/           # 时间工具（北京时间格式化）
+│   └── version/            # 版本信息
+├── frontend/               # React 18 前端源码
+│   ├── src/                # TypeScript/React 组件
+│   ├── dist/               # 构建输出（Git 忽略）
 │   └── package.json
-├── web/                # Go embed 前端资源
-│   ├── embed.go        # 资源嵌入声明
-│   └── dist/           # 前端构建产物（从 frontend/dist 复制）
-├── cccli/              # 系统 prompt 和工具定义（embed）
-├── scripts/            # 部署和构建脚本
-├── docs/               # 项目文档
-├── docker-compose.yml  # Docker Compose 配置
-└── Dockerfile          # Docker 镜像构建
+├── web/                    # Go embed 前端资源
+│   ├── embed.go            # 资源嵌入声明
+│   └── dist/               # 前端构建产物（从 frontend/dist 复制）
+├── cccli/                  # 系统 prompt 和工具定义（embed）
+├── npm-packages/           # @qccplus/cli npm 多平台分发包
+├── website/                # 官网（Next.js + Three.js）
+├── scripts/                # 部署和构建脚本
+├── tests/                  # 集成测试 / 手动测试
+├── verify/                 # 功能验证脚本
+├── debugs/                 # 调试辅助工具
+├── docs/                   # 项目文档
+│   ├── api/                # API 索引
+│   ├── claude/             # Claude 专用文档
+│   └── modules/            # 模块注册表
+├── .claude/                # Claude Code 配置（Skills / Agents / Scripts）
+├── .github/                # GitHub Actions 工作流 & Issue 模板
+├── docker-compose.yml      # Docker Compose 配置
+├── docker-compose.prod.yml # 生产环境 Compose
+├── docker-compose.test.yml # 测试环境 Compose
+├── Dockerfile              # Docker 镜像构建
+└── .goreleaser.yml         # GoReleaser 自动化发布配置
 ```
 
 ## 技术栈

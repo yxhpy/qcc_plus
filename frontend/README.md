@@ -40,31 +40,72 @@ npm run preview
 ```
 frontend/
 ├── src/
-│   ├── App.tsx           # 主应用组件 + 路由配置
-│   ├── main.tsx          # 应用入口
-│   ├── pages/            # 页面组件
-│   │   ├── Login.tsx     # 登录页
-│   │   ├── Dashboard.tsx # 仪表盘（数据可视化）
-│   │   ├── Accounts.tsx  # 账号管理（管理员）
-│   │   ├── Nodes.tsx     # 节点管理
-│   │   └── Settings.tsx  # 系统配置
-│   ├── components/       # 可复用组件
-│   │   ├── Layout.tsx    # 布局框架
-│   │   ├── Card.tsx      # 卡片组件
-│   │   └── Toast.tsx     # 通知组件
-│   ├── hooks/            # 自定义 Hooks
-│   │   └── useAuth.tsx   # 认证状态管理
-│   ├── services/         # API 服务层
-│   │   └── api.ts        # 后端 API 调用
-│   ├── types/            # TypeScript 类型定义
-│   │   └── index.ts      # 全局类型
-│   └── styles/           # 全局样式
-│       └── index.css     # CSS 变量 + 主题
-├── dist/                 # 构建输出（Git 忽略）
-├── index.html            # HTML 模板
-├── package.json          # 依赖配置
-├── tsconfig.json         # TypeScript 配置
-└── vite.config.ts        # Vite 配置
+│   ├── App.tsx               # 主应用组件 + 路由配置
+│   ├── App.css               # 应用全局样式
+│   ├── main.tsx              # 应用入口
+│   ├── index.css             # 全局 CSS 变量 + 主题
+│   ├── pages/                # 页面组件（15个）
+│   │   ├── Login.tsx         # 登录页
+│   │   ├── Dashboard.tsx     # 仪表盘（数据可视化）
+│   │   ├── Accounts.tsx      # 账号管理（管理员）
+│   │   ├── Nodes.tsx         # 节点管理
+│   │   ├── Monitor.tsx       # 实时监控大屏
+│   │   ├── MonitorShares.tsx # 分享链接管理
+│   │   ├── SharedMonitor.tsx # 公开监控视图
+│   │   ├── Settings.tsx      # 账号级配置
+│   │   ├── SystemSettings.tsx    # 环境变量总览
+│   │   ├── TunnelSettings.tsx    # Cloudflare Tunnel
+│   │   ├── Notifications.tsx     # 通知管理
+│   │   ├── ClaudeConfig.tsx      # Claude Code 快速配置
+│   │   ├── Pricing.tsx       # 模型定价
+│   │   ├── Usage.tsx         # 使用量统计
+│   │   └── ChangelogPage.tsx # 更新日志
+│   ├── components/           # 通用组件（11个）
+│   │   ├── Layout.tsx        # 主布局 + 侧边栏
+│   │   ├── Card.tsx          # 卡片容器
+│   │   ├── Toast.tsx         # 提示条
+│   │   ├── Modal.tsx         # 模态框
+│   │   ├── Dialog.tsx        # 确认对话框
+│   │   ├── PromptDialog.tsx  # 输入提示框
+│   │   ├── Tooltip.tsx       # 悬停提示
+│   │   ├── Loading.tsx       # 加载占位
+│   │   ├── NodeCard.tsx      # 监控节点卡片
+│   │   ├── HealthTimeline.tsx    # 24h 探活时间线
+│   │   └── TrendChart.tsx    # 趋势图表
+│   ├── hooks/                # 自定义 Hooks（6个）
+│   │   ├── useAuth.tsx       # 认证状态管理
+│   │   ├── useDialog.tsx     # 对话框控制
+│   │   ├── usePrompt.tsx     # 输入提示控制
+│   │   ├── useMonitorWebSocket.tsx  # 监控 WebSocket
+│   │   ├── useVersion.ts     # 版本信息
+│   │   └── useChartColors.ts # 图表颜色
+│   ├── services/             # API 服务层
+│   │   ├── api.ts            # 后端 API 聚合
+│   │   └── settingsApi.ts    # 配置 API
+│   ├── contexts/             # React Context
+│   │   ├── NodeMetricsContext.tsx
+│   │   └── SettingsContext.tsx
+│   ├── themes/               # 主题系统
+│   │   ├── ThemeProvider.tsx  # 主题提供者
+│   │   ├── useTheme.ts       # 主题 Hook
+│   │   ├── index.ts          # 主题导出
+│   │   ├── primitives.ts     # 基础色值
+│   │   ├── semantic.ts       # 语义化令牌
+│   │   ├── tokens.ts         # 设计令牌
+│   │   └── variables.css     # CSS 变量
+│   ├── types/                # TypeScript 类型定义
+│   │   └── index.ts
+│   ├── utils/                # 工具函数
+│   │   └── date.ts
+│   └── assets/               # 静态资源（图片等）
+├── dist/                     # 构建输出（Git 忽略）
+├── index.html                # HTML 模板
+├── package.json              # 依赖配置
+├── tsconfig.json             # TypeScript 配置
+├── tsconfig.app.json         # 应用 TS 配置
+├── tsconfig.node.json        # Node TS 配置
+├── vite.config.ts            # Vite 配置
+└── eslint.config.js          # ESLint 配置
 ```
 
 ## 功能特性

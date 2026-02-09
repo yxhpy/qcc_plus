@@ -26,12 +26,27 @@ export default function NodeCard({ node, historyRefreshKey, healthEvent, shareTo
   const lastCheckShort = node.health?.last_check_at
     ? node.health.last_check_at.replace(/^\d{4}年\d{2}月\d{2}日\s*/, '')
     : '--'
+  const activeConns = Number(node.active_conns ?? 0)
+  const keyCount = Number(node.key_count ?? 0)
+  const activeKeyCount = Number(node.active_key_count ?? 0)
+
+  const errorSeverityLabel = (severity?: string) => {
+    switch (severity) {
+      case 'key_invalid': return 'Key 失效'
+      case 'account_issue': return '账号问题'
+      case 'node_down': return '节点宕机'
+      case 'degraded': return '性能降级'
+      default: return ''
+    }
+  }
 
   const cardClass = node.circuit_open
     ? 'node-card node-card--circuit-open'
-    : node.is_active
-      ? 'node-card node-card--active'
-      : 'node-card'
+    : node.degraded
+      ? 'node-card node-card--degraded'
+      : node.is_active
+        ? 'node-card node-card--active'
+        : 'node-card'
 
   return (
     <div className={cardClass}>
@@ -61,6 +76,12 @@ export default function NodeCard({ node, historyRefreshKey, healthEvent, shareTo
             <span className="sep">|</span>
             <span className="metric">请求 <strong>{totalReq.toLocaleString()}</strong></span>
             <span className="metric secondary">/失败 <strong className={failedReq > 0 ? 'danger' : ''}>{failedReq.toLocaleString()}</strong></span>
+            {activeConns > 0 && (
+              <>
+                <span className="sep">|</span>
+                <span className="metric">连接 <strong>{activeConns}</strong></span>
+              </>
+            )}
           </div>
         )}
         {preference.showHealth && (
@@ -72,6 +93,14 @@ export default function NodeCard({ node, historyRefreshKey, healthEvent, shareTo
             <span className="metric secondary">({checkMethod})</span>
             <span className="sep">|</span>
             <span className="metric secondary">检查于 {lastCheckShort}</span>
+            {keyCount > 1 && (
+              <>
+                <span className="sep">|</span>
+                <span className={`metric ${activeKeyCount === 0 ? 'danger' : ''}`}>
+                  Key <strong>{activeKeyCount}/{keyCount}</strong>
+                </span>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -88,8 +117,14 @@ export default function NodeCard({ node, historyRefreshKey, healthEvent, shareTo
       <div className="node-card__footer">
         <div className="node-card__badges">
           {node.circuit_open && <span className="badge badge-warning">熔断中</span>}
+          {node.degraded && !node.circuit_open && <span className="badge badge-degraded">降级</span>}
           {node.is_active && !node.circuit_open && <span className="badge badge-primary">使用中</span>}
           {node.disabled && <span className="badge badge-muted">已停用</span>}
+          {node.error_severity && errorSeverityLabel(node.error_severity) && (
+            <span className={`badge ${node.error_severity === 'degraded' ? 'badge-degraded' : 'badge-danger'}`}>
+              {errorSeverityLabel(node.error_severity)}
+            </span>
+          )}
         </div>
       </div>
     </div>

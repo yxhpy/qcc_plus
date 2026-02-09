@@ -22,6 +22,7 @@ const SharedMonitor = lazy(() => import('./pages/SharedMonitor'))
 const ClaudeConfig = lazy(() => import('./pages/ClaudeConfig'))
 const Pricing = lazy(() => import('./pages/Pricing'))
 const Usage = lazy(() => import('./pages/Usage'))
+const RequestLogs = lazy(() => import('./pages/RequestLogs'))
 
 function ProtectedRoute({ children, adminOnly = false }: { children: ReactElement; adminOnly?: boolean }) {
   const { isAuthenticated, loading, isAdmin } = useAuth()
@@ -179,6 +180,16 @@ export default function App() {
                   <ProtectedRoute>
                     <Layout>
                       <Usage />
+                    </Layout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/request-logs"
+                element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <RequestLogs />
                     </Layout>
                   </ProtectedRoute>
                 }

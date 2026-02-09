@@ -457,7 +457,7 @@ async function deletePricing(modelId: string): Promise<void> {
 }
 
 // 使用统计 API
-async function getUsageLogs(params: UsageQueryParams = {}): Promise<{ logs: UsageLog[]; count: number }> {
+async function getUsageLogs(params: UsageQueryParams = {}, includeAttempts = false): Promise<{ logs: UsageLog[]; count: number; total: number }> {
   const search = new URLSearchParams()
   if (params.account_id) search.set('account_id', params.account_id)
   if (params.node_id) search.set('node_id', params.node_id)
@@ -466,9 +466,11 @@ async function getUsageLogs(params: UsageQueryParams = {}): Promise<{ logs: Usag
   if (params.to) search.set('to', params.to)
   if (params.limit) search.set('limit', String(params.limit))
   if (params.offset) search.set('offset', String(params.offset))
+  if (params.success) search.set('success', params.success)
+  if (includeAttempts) search.set('include_attempts', 'true')
   const qs = search.toString()
   const url = qs ? `/api/usage/logs?${qs}` : '/api/usage/logs'
-  return request<{ logs: UsageLog[]; count: number }>(url)
+  return request<{ logs: UsageLog[]; count: number; total: number }>(url)
 }
 
 async function getUsageSummary(params: UsageQueryParams = {}): Promise<UsageSummary | UsageSummary[]> {

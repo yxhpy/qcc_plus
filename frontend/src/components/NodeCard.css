@@ -176,3 +176,20 @@
 .node-card__error-icon:hover {
   transform: scale(1.1);
 }
+
+/* 降级状态 */
+.node-card--degraded {
+  border: 2px solid var(--color-warning-400, #fbbf24);
+}
+
+.badge-degraded {
+  background: var(--color-warning-100, #fef3c7);
+  color: var(--color-warning-700, #b45309);
+  border-color: var(--color-warning-400, #fbbf24);
+}
+
+.badge-danger {
+  background: var(--color-danger-100, #fee2e2);
+  color: var(--color-danger-700, #b91c1c);
+  border-color: var(--color-danger-400, #f87171);
+}

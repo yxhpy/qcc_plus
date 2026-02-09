@@ -1,0 +1,73 @@
+{
+  "project": {
+    "name": "qcc_plus",
+    "description": "Claude Code CLI 多租户代理服务器，支持多租户账号隔离、多节点管理、自动故障切换和 Web 管理界面",
+    "version": "1.9.4",
+    "language": "Go",
+    "upgraded": "2026-02-02",
+    "originalStructure": {
+      "sourceDir": "cmd/, internal/, cccli/, web/",
+      "testDir": "internal/*/test.go, tests/, verify/",
+      "docsDir": "docs/"
+    }
+  },
+  "modules": [
+    {
+      "name": "client",
+      "path": "internal/client",
+      "description": "Claude API 客户端，处理请求构造、预热、SSE 流式响应",
+      "mainFiles": ["client.go", "config.go", "http.go"],
+      "hasTests": true
+    },
+    {
+      "name": "proxy",
+      "path": "internal/proxy",
+      "description": "反向代理服务器，多租户管理、节点管理、健康检查、熔断器",
+      "mainFiles": ["handler.go", "node_manager.go", "health.go", "circuit_breaker.go"],
+      "hasTests": true
+    },
+    {
+      "name": "store",
+      "path": "internal/store",
+      "description": "数据持久化层，MySQL/SQLite 存储，账号、节点、配置、指标",
+      "mainFiles": ["account.go", "node.go", "config.go", "metrics.go"],
+      "hasTests": false
+    },
+    {
+      "name": "notify",
+      "path": "internal/notify",
+      "description": "通知系统，节点故障和恢复通知",
+      "mainFiles": ["manager.go", "channel.go", "types.go"],
+      "hasTests": false
+    },
+    {
+      "name": "tunnel",
+      "path": "internal/tunnel",
+      "description": "Cloudflare Tunnel 集成，内网穿透",
+      "mainFiles": ["manager.go", "cloudflare.go"],
+      "hasTests": false
+    },
+    {
+      "name": "timeutil",
+      "path": "internal/timeutil",
+      "description": "时间工具，统一北京时间格式化",
+      "mainFiles": ["format.go"],
+      "hasTests": false
+    },
+    {
+      "name": "version",
+      "path": "internal/version",
+      "description": "版本信息管理",
+      "mainFiles": ["version.go"],
+      "hasTests": false
+    }
+  ],
+  "testFramework": "go test",
+  "currentCoverage": "18.5",
+  "targetCoverage": 100,
+  "techStack": {
+    "backend": ["Go 1.24", "MySQL 8.0", "SQLite", "Docker"],
+    "frontend": ["React 18", "TypeScript", "Vite", "Chart.js"],
+    "deployment": ["Docker Compose", "Cloudflare Tunnel", "GitHub Actions"]
+  }
+}

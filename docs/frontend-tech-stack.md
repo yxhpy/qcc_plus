@@ -19,6 +19,7 @@ qcc_plus/
 ├── frontend/                    # React 前端源码
 │   ├── src/
 │   │   ├── App.tsx             # 主应用组件 + 路由
+│   │   ├── App.css             # 应用全局样式
 │   │   ├── main.tsx            # 入口文件
 │   │   ├── index.css           # 全局样式
 │   │   ├── pages/              # 页面组件（15个）
@@ -65,14 +66,20 @@ qcc_plus/
 │   │   ├── themes/             # 主题系统
 │   │   │   ├── ThemeProvider.tsx
 │   │   │   ├── useTheme.ts
-│   │   │   └── tokens/         # 设计令牌
+│   │   │   ├── index.ts
+│   │   │   ├── primitives.ts   # 基础色值
+│   │   │   ├── semantic.ts     # 语义化令牌
+│   │   │   ├── tokens.ts       # 设计令牌
+│   │   │   └── variables.css   # CSS 变量
 │   │   ├── types/              # TypeScript 类型定义
 │   │   │   └── index.ts
-│   │   └── utils/              # 工具函数
-│   │       └── date.ts
+│   │   ├── utils/              # 工具函数
+│   │   │   └── date.ts
+│   │   └── assets/             # 静态资源（图片等）
 │   ├── dist/                   # 构建输出（Git 忽略）
 │   ├── package.json
-│   └── vite.config.ts
+│   ├── vite.config.ts
+│   └── eslint.config.js
 ├── web/                         # Go embed 目录
 │   ├── embed.go                # Embed 声明
 │   └── dist/                   # 前端构建产物

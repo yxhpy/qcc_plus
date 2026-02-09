@@ -296,3 +296,206 @@
     font-size: var(--font-size-small);
   }
 }
+
+/* Expandable Row */
+.expandable {
+  cursor: pointer;
+}
+
+.expand-cell {
+  width: 32px;
+  text-align: center;
+  padding: 10px 4px !important;
+}
+
+.expand-icon {
+  display: inline-block;
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  transition: transform var(--transition-fast) ease;
+}
+
+.expand-icon.expanded {
+  transform: rotate(90deg);
+}
+
+.attempts-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-warning) 15%, transparent);
+  color: var(--color-warning);
+}
+
+.duration-cell {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-small);
+  color: var(--color-text-secondary);
+}
+
+/* Attempts Chain */
+.attempts-row > td {
+  padding: 0 12px 12px 44px !important;
+  background: var(--color-bg-elevated);
+  border-bottom: 2px solid var(--color-border-default);
+}
+
+.attempts-chain {
+  position: relative;
+  padding: 8px 0;
+}
+
+.attempt-item {
+  position: relative;
+  padding: 8px 12px;
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border-default);
+  margin-bottom: 0;
+}
+
+.attempt-item.failed {
+  border-left: 3px solid var(--color-danger);
+}
+
+.attempt-item.success {
+  border-left: 3px solid var(--color-success);
+}
+
+.attempt-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.attempt-seq {
+  font-weight: 700;
+  font-size: var(--font-size-small);
+  color: var(--color-text-secondary);
+  min-width: 24px;
+}
+
+.attempt-node {
+  font-weight: 500;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-body);
+}
+
+.attempt-status {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  padding: 1px 8px;
+  border-radius: var(--radius-md);
+}
+
+.attempt-status.success {
+  background: color-mix(in srgb, var(--color-success) 15%, transparent);
+  color: var(--color-success);
+}
+
+.attempt-status.failed {
+  background: color-mix(in srgb, var(--color-danger) 15%, transparent);
+  color: var(--color-danger);
+}
+
+.attempt-duration {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-small);
+  color: var(--color-text-secondary);
+}
+
+.attempt-action {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 8px;
+  border-radius: 10px;
+}
+
+.action-retry {
+  background: color-mix(in srgb, var(--color-warning) 15%, transparent);
+  color: var(--color-warning);
+}
+
+.action-fail {
+  background: color-mix(in srgb, var(--color-danger) 15%, transparent);
+  color: var(--color-danger);
+}
+
+.action-success {
+  background: color-mix(in srgb, var(--color-success) 15%, transparent);
+  color: var(--color-success);
+}
+
+.action-circuit_open {
+  background: color-mix(in srgb, var(--color-danger) 15%, transparent);
+  color: var(--color-danger);
+}
+
+.action-key_rotate {
+  background: color-mix(in srgb, var(--color-primary) 15%, transparent);
+  color: var(--color-primary);
+}
+
+.attempt-error {
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-size-small);
+}
+
+.severity-tag {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: var(--radius-md);
+  white-space: nowrap;
+}
+
+.severity-transient {
+  background: color-mix(in srgb, var(--color-warning) 15%, transparent);
+  color: var(--color-warning);
+}
+
+.severity-node_down {
+  background: color-mix(in srgb, var(--color-danger) 15%, transparent);
+  color: var(--color-danger);
+}
+
+.severity-key_invalid {
+  background: color-mix(in srgb, var(--color-danger) 15%, transparent);
+  color: var(--color-danger);
+}
+
+.severity-permanent {
+  background: color-mix(in srgb, var(--color-text-secondary) 15%, transparent);
+  color: var(--color-text-secondary);
+}
+
+.severity-account_issue {
+  background: color-mix(in srgb, var(--color-danger) 15%, transparent);
+  color: var(--color-danger);
+}
+
+.severity-degraded {
+  background: color-mix(in srgb, var(--color-warning) 15%, transparent);
+  color: var(--color-warning);
+}
+
+.error-text {
+  color: var(--color-text-secondary);
+  word-break: break-all;
+}
+
+/* Attempt connector line */
+.attempt-connector {
+  width: 2px;
+  height: 8px;
+  background: var(--color-border-default);
+  margin: 0 auto;
+}

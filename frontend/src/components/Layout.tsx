@@ -106,6 +106,14 @@ const icons = {
       <path d="M3 13l4-4 6 6 4-4" />
     </svg>
   ),
+  requestLogs: (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 4h12v12H4z" />
+      <path d="M7 8h6" />
+      <path d="M7 10.5h6" />
+      <path d="M7 13h4" />
+    </svg>
+  ),
   collapse: (
     <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="m11.5 5.5-4 4 4 4" />
@@ -157,6 +165,7 @@ const navItems: NavItem[] = [
 	{ path: '/admin/monitor', label: '监控大屏', icon: 'monitor', group: 'core' },
 	{ path: '/admin/nodes', label: '节点管理', icon: 'nodes', group: 'core' },
 	{ path: '/admin/usage', label: '使用统计', icon: 'usage', group: 'core' },
+	{ path: '/admin/request-logs', label: '请求日志', icon: 'requestLogs', group: 'core' },
 	{ path: '/admin/accounts', label: '账号管理', icon: 'accounts', adminOnly: true, group: 'system' },
 	{ path: '/admin/pricing', label: '模型定价', icon: 'pricing', adminOnly: true, group: 'system' },
 	{ path: '/admin/monitor-shares', label: '分享链接', icon: 'share', group: 'system' },

@@ -151,7 +151,7 @@ export default function Nodes() {
       fields: [
         { name: 'name', label: '节点名称（可选）' },
         { name: 'base_url', label: 'Base URL', placeholder: 'https://api.anthropic.com', required: true },
-        { name: 'api_key', label: 'API Key', placeholder: 'sk-...', type: 'password' },
+        { name: 'api_key', label: 'API Key（多个用逗号分隔）', placeholder: 'sk-key1 或 sk-key1,sk-key2,sk-key3', type: 'password' },
         {
           name: 'health_check_method',
           label: '健康检查方式',
@@ -280,8 +280,38 @@ export default function Nodes() {
   const statusInfo = (n: Node) => {
     if (n.disabled) return { label: 'Disabled', cls: 'off', icon: '🚫' }
     if (n.failed) return { label: 'Failed', cls: 'fail', icon: '⚠️' }
+    if (n.degraded) return { label: 'Degraded', cls: 'warn', icon: '🐢' }
     if (n.active) return { label: 'Active', cls: 'ok', icon: '✔️' }
     return { label: 'Standby', cls: 'warn', icon: '⏸' }
+  }
+
+  const errorSeverityLabel = (severity?: string) => {
+    switch (severity) {
+      case 'key_invalid': return 'Key 失效'
+      case 'account_issue': return '账号问题'
+      case 'node_down': return '节点宕机'
+      case 'degraded': return '性能降级'
+      case 'transient': return '临时错误'
+      case 'permanent': return '请求错误'
+      default: return ''
+    }
+  }
+
+  const errorSeverityClass = (severity?: string) => {
+    switch (severity) {
+      case 'key_invalid':
+      case 'account_issue': return 'severity-danger'
+      case 'node_down': return 'severity-danger'
+      case 'degraded': return 'severity-warn'
+      default: return ''
+    }
+  }
+
+  const formatKeyStatus = (n: Node) => {
+    if (!n.key_count || n.key_count <= 1) {
+      return n.has_api_key ? '✓' : '-'
+    }
+    return `${n.active_key_count ?? 0}/${n.key_count}`
   }
 
   const healthClass = (health: number | null) => {
@@ -327,8 +357,9 @@ export default function Nodes() {
 
   const handleDragCancel = () => setDraggingId(null)
 
-  const handleDragEnd = async (event: DragEndEvent) => {
+  const handleDragEnd = (event: DragEndEvent) => {
     setDraggingId(null)
+    if (savingOrder) return // 防止保存中重复拖拽
     const { active, over } = event
     if (!over || active.id === over.id) return
     const activeId = String(active.id)
@@ -336,7 +367,7 @@ export default function Nodes() {
     const oldIndex = nodes.findIndex((n) => n.id === activeId)
     const newIndex = nodes.findIndex((n) => n.id === overId)
     if (oldIndex === -1 || newIndex === -1) return
-    const prevNodes = nodes
+    const prevNodes = [...nodes]
     const reordered = arrayMove(nodes, oldIndex, newIndex)
     const withWeights = reordered.map((n, idx) => ({
       ...n,
@@ -344,8 +375,10 @@ export default function Nodes() {
     }))
     setNodes(withWeights)
     setSavingOrder(true)
-    try {
-      await Promise.all(
+
+    // 异步保存放在 setTimeout 中，避免阻塞 DnD 生命周期
+    setTimeout(() => {
+      Promise.all(
         withWeights.map((n, idx) =>
           api.updateNode(n.id, {
             name: n.name || '',
@@ -356,13 +389,17 @@ export default function Nodes() {
           }),
         ),
       )
-      showToast('排序已保存')
-    } catch (err) {
-      setNodes(prevNodes)
-      showToast((err as Error).message || '保存排序失败', 'error')
-    } finally {
-      setSavingOrder(false)
-    }
+        .then(() => {
+          showToast('排序已保存')
+        })
+        .catch((err) => {
+          setNodes(prevNodes)
+          showToast((err as Error).message || '保存排序失败', 'error')
+        })
+        .finally(() => {
+          setSavingOrder(false)
+        })
+    }, 0)
   }
 
   const renderStat = (label: string, value: string | number | undefined) => (
@@ -385,7 +422,7 @@ export default function Nodes() {
     const status = statusInfo(node)
     const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
       id: node.id,
-      disabled: loading || savingOrder,
+      disabled: loading,
     })
     const style = {
       transform: CSS.Transform.toString(transform),
@@ -404,7 +441,7 @@ export default function Nodes() {
             {...attributes}
             {...listeners}
             ref={setActivatorNodeRef}
-            disabled={loading || savingOrder}
+            disabled={loading}
             aria-label="拖拽排序"
             title="拖拽排序"
           >
@@ -415,12 +452,17 @@ export default function Nodes() {
         <td>
           <div
             className={`pill ${status.cls}`}
-            style={{ cursor: node.failed && node.last_error ? 'pointer' : 'default' }}
-            onClick={() => (node.failed ? openErrorDetail(node) : undefined)}
+            style={{ cursor: (node.failed || node.degraded) && node.last_error ? 'pointer' : 'default' }}
+            onClick={() => ((node.failed || node.degraded) ? openErrorDetail(node) : undefined)}
           >
             <span>{status.icon}</span>
             <span>{status.label}</span>
           </div>
+          {node.error_severity && errorSeverityLabel(node.error_severity) && (
+            <div className={`error-severity-tag ${errorSeverityClass(node.error_severity)}`}>
+              {errorSeverityLabel(node.error_severity)}
+            </div>
+          )}
         </td>
         <td>{formatHealthMethod(node.health_check_method)}</td>
         <td>{node.last_ping_ms == null ? '-' : `${node.last_ping_ms}ms`}</td>
@@ -432,6 +474,14 @@ export default function Nodes() {
           )}
         </td>
         <td>{`${node.requests ?? 0}/${node.fail_count ?? 0}`}</td>
+        <td>
+          <span className={node.key_count && node.key_count > 1 && node.active_key_count === 0 ? 'key-status-danger' : ''}>
+            {formatKeyStatus(node)}
+          </span>
+          {(node.active_conns ?? 0) > 0 && (
+            <span className="active-conns-badge" title="活跃连接数">{node.active_conns}</span>
+          )}
+        </td>
         <td>
           <div className="table-actions" style={{ rowGap: 6 }}>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -537,6 +587,7 @@ export default function Nodes() {
                 <th>延迟</th>
                 <th>成功率</th>
                 <th>请求/失败</th>
+                <th>Key/连接</th>
                 <th style={{ minWidth: 200 }}>操作</th>
               </tr>
             </thead>
@@ -551,11 +602,11 @@ export default function Nodes() {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={8}>加载中...</td>
+                      <td colSpan={9}>加载中...</td>
                     </tr>
                   ) : filtered.length === 0 ? (
                     <tr>
-                      <td colSpan={8}>暂无节点</td>
+                      <td colSpan={9}>暂无节点</td>
                     </tr>
                   ) : (
                     filtered.map((n) => <NodeRow key={n.id} node={n} />)
@@ -706,7 +757,7 @@ export default function Nodes() {
                 )}
               </label>
               <label>
-                API Key（留空不改）
+                API Key（留空不改，多个用逗号分隔）
                 <input
                   type="password"
                   value={editForm.api_key}

@@ -13,6 +13,11 @@ export interface Node {
   health_check_method?: 'api' | 'head' | 'cli';
   health_check_model?: string;
   has_api_key?: boolean;
+  key_count?: number;          // API Key 总数（多密钥轮换）
+  active_key_count?: number;   // 可用 Key 数
+  active_conns?: number;       // 活跃连接数
+  degraded?: boolean;          // 慢节点降级状态
+  error_severity?: string;     // 语义化错误级别: key_invalid/node_down/degraded/account_issue
   active: boolean;
   failed: boolean;
   disabled: boolean;
@@ -162,6 +167,11 @@ export interface MonitorNode {
   is_active: boolean;
   circuit_open: boolean;
   disabled: boolean;
+  degraded?: boolean;           // 慢节点降级
+  active_conns?: number;        // 活跃连接数
+  key_count?: number;           // API Key 总数
+  active_key_count?: number;    // 可用 Key 数
+  error_severity?: string;      // 语义化错误级别
   last_error?: string;
   traffic: ProxySummary;
   health: HealthSummary;
@@ -241,13 +251,32 @@ export interface UsageLog {
   id: number;
   account_id: string;
   node_id: string;
+  node_name: string;
   model_id: string;
   input_tokens: number;
   output_tokens: number;
   cost_usd: number;
   request_id?: string;
   success: boolean;
+  duration_ms: number;
+  total_attempts: number;
   created_at: string;
+  attempts?: UsageLogAttempt[];
+}
+
+// 单次尝试记录（链路追踪）
+export interface UsageLogAttempt {
+  id: number;
+  log_id: number;
+  seq: number;
+  node_id: string;
+  node_name: string;
+  status_code: number;
+  success: boolean;
+  duration_ms: number;
+  error_msg?: string;
+  severity?: string;
+  action?: string;
 }
 
 // 使用统计汇总
@@ -272,4 +301,5 @@ export interface UsageQueryParams {
   limit?: number;
   offset?: number;
   group_by?: 'model' | 'node';
+  success?: string; // 'true' | 'false' | ''
 }

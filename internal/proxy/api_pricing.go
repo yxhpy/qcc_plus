@@ -171,6 +171,23 @@ func (p *Server) handleUsageLogs(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
+
+	// 如果请求了 attempts 详情，批量查询并附加到每条日志
+	if r.URL.Query().Get("include_attempts") == "true" && len(logs) > 0 {
+		logIDs := make([]int64, len(logs))
+		for i, l := range logs {
+			logIDs[i] = l.ID
+		}
+		attemptsMap, err := p.store.QueryAttemptsByLogIDs(r.Context(), logIDs)
+		if err == nil {
+			for i := range logs {
+				if a, ok := attemptsMap[logs[i].ID]; ok {
+					logs[i].Attempts = a
+				}
+			}
+		}
+	}
+
 	writeJSON(w, http.StatusOK, map[string]interface{}{"logs": logs, "count": len(logs), "total": total})
 }
 

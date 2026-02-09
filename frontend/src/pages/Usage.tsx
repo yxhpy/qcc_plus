@@ -368,7 +368,7 @@ export default function Usage() {
               </thead>
               <tbody>
                 {logs.map((log) => {
-                  const hasAttempts = (log.total_attempts || 0) > 1
+                  const hasAttempts = !!(log.attempts && log.attempts.length > 0)
                   const isExpanded = expandedRows.has(log.id)
                   return (
                     <LogRow

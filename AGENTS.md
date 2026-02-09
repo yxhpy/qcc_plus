@@ -73,6 +73,14 @@ docker compose up -d
 
 遇到问题时立即记录到 @docs/claude/lessons-learned.md
 
+### 前端部署经验
+
+1. **前端构建流程**: 前端源码在 `frontend/`，构建产物需要复制到 `web/dist/`（Go embed 嵌入目录）。必须运行 `bash scripts/build-frontend.sh` 而不是直接 `npm run build`，否则 Docker 镜像中不会包含最新前端。
+2. **Go embed 机制**: `web/embed.go` 通过 `//go:embed dist/*` 将 `web/dist/` 嵌入到 Go 二进制中。前端文件不会单独出现在容器文件系统中，而是编译进了二进制。
+3. **避免重复写入**: 同一个数据写入操作不要在多个地方调用（如 `metrics.go` 和 `handler.go` 都写 usage log 导致重复记录）。统一到一个入口。
+4. **页面对应关系**: 请求日志页面是 `RequestLogs.tsx`（`/admin/request-logs`），不是 `Usage.tsx`（`/admin/usage`）。修改功能前先确认用户实际使用的是哪个页面。
+5. **`.dockerignore`**: `frontend/dist` 被排除但 `web/dist` 没有被排除，这是正确的，因为 Go embed 需要 `web/dist`。
+
 ## 🔍 开发前必读
 
 ### 检查清单

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Card from '../components/Card'
 import Toast from '../components/Toast'
 import api from '../services/api'
-import type { Account, Node, UsageLog } from '../types'
+import type { Account, Node, UsageLog, UsageLogAttempt } from '../types'
 import './RequestLogs.css'
 
 const PAGE_SIZE = 20
@@ -16,6 +16,7 @@ export default function RequestLogs() {
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [autoRefresh, setAutoRefresh] = useState(true)
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set())
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -69,7 +70,7 @@ export default function RequestLogs() {
       if (filters.model_id) params.model_id = filters.model_id
       if (filters.success) params.success = filters.success
 
-      const res = await api.getUsageLogs(params as any)
+      const res = await api.getUsageLogs(params as any, true)
       setLogs(res.logs || [])
       setTotal(res.total || 0)
     } catch (err) {
@@ -233,6 +234,7 @@ export default function RequestLogs() {
               <table className="reqlog-table">
                 <thead>
                   <tr>
+                    <th style={{ width: 32 }}></th>
                     <th>时间</th>
                     <th>模型</th>
                     <th>节点</th>
@@ -244,22 +246,33 @@ export default function RequestLogs() {
                   </tr>
                 </thead>
                 <tbody>
-                  {logs.map(log => (
-                    <tr key={log.id} className={!log.success ? 'failed' : ''}>
-                      <td className="time-cell">{formatDate(log.created_at)}</td>
-                      <td className="model-cell">{log.model_id || '-'}</td>
-                      <td className="node-cell">{log.node_name || log.node_id?.slice(0, 8) || '-'}</td>
-                      <td>
-                        <span className={`status-badge ${log.success ? 'success' : 'failed'}`}>
-                          {log.success ? '成功' : '失败'}
-                        </span>
-                      </td>
-                      <td className="duration-cell">{formatDuration(log.duration_ms)}</td>
-                      <td className="token-cell">{formatTokens(log.input_tokens)}</td>
-                      <td className="token-cell">{formatTokens(log.output_tokens)}</td>
-                      <td className="cost-cell">{formatCost(log.cost_usd)}</td>
-                    </tr>
-                  ))}
+                  {logs.map(log => {
+                    const hasAttempts = !!(log.attempts && log.attempts.length > 0)
+                    const isExpanded = expandedRows.has(log.id)
+                    return (
+                      <ReqLogRow
+                        key={log.id}
+                        log={log}
+                        hasAttempts={hasAttempts}
+                        isExpanded={isExpanded}
+                        onToggle={() => {
+                          setExpandedRows(prev => {
+                            const next = new Set(prev)
+                            if (next.has(log.id)) {
+                              next.delete(log.id)
+                            } else {
+                              next.add(log.id)
+                            }
+                            return next
+                          })
+                        }}
+                        formatDate={formatDate}
+                        formatDuration={formatDuration}
+                        formatTokens={formatTokens}
+                        formatCost={formatCost}
+                      />
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -292,5 +305,105 @@ export default function RequestLogs() {
 
       <Toast message={toast?.message} type={toast?.type} />
     </div>
+  )
+}
+
+// 严重程度标签
+function severityLabel(severity?: string): string {
+  switch (severity) {
+    case 'transient': return '临时'
+    case 'node_down': return '宕机'
+    case 'key_invalid': return '密钥失效'
+    case 'permanent': return '永久'
+    case 'account_issue': return '账号问题'
+    case 'context_error': return '超时'
+    case 'degraded': return '降级'
+    default: return severity || ''
+  }
+}
+
+// 动作标签
+function actionLabel(action?: string): string {
+  switch (action) {
+    case 'retry': return '重试'
+    case 'fail': return '失败'
+    case 'success': return '成功'
+    case 'circuit_open': return '熔断'
+    case 'key_rotate': return '换Key'
+    case 'abort': return '中止'
+    default: return action || ''
+  }
+}
+
+interface ReqLogRowProps {
+  log: UsageLog
+  hasAttempts: boolean
+  isExpanded: boolean
+  onToggle: () => void
+  formatDate: (s: string) => string
+  formatDuration: (ms: number) => string
+  formatTokens: (n: number) => string
+  formatCost: (n: number) => string
+}
+
+function ReqLogRow({ log, hasAttempts, isExpanded, onToggle, formatDate, formatDuration, formatTokens, formatCost }: ReqLogRowProps) {
+  return (
+    <>
+      <tr
+        className={`${!log.success ? 'failed' : ''} ${hasAttempts ? 'expandable' : ''}`}
+        onClick={hasAttempts ? onToggle : undefined}
+      >
+        <td className="expand-cell">
+          {hasAttempts && (
+            <span className={`expand-icon ${isExpanded ? 'expanded' : ''}`}>&#9654;</span>
+          )}
+        </td>
+        <td className="time-cell">{formatDate(log.created_at)}</td>
+        <td className="model-cell">{log.model_id || '-'}</td>
+        <td className="node-cell">
+          {log.node_name || log.node_id?.slice(0, 8) || '-'}
+          {(log.total_attempts || 0) > 1 && <span className="attempts-badge">{log.total_attempts}次</span>}
+        </td>
+        <td>
+          <span className={`status-badge ${log.success ? 'success' : 'failed'}`}>
+            {log.success ? '成功' : '失败'}
+          </span>
+        </td>
+        <td className="duration-cell">{formatDuration(log.duration_ms)}</td>
+        <td className="token-cell">{formatTokens(log.input_tokens)}</td>
+        <td className="token-cell">{formatTokens(log.output_tokens)}</td>
+        <td className="cost-cell">{formatCost(log.cost_usd)}</td>
+      </tr>
+      {isExpanded && log.attempts && log.attempts.length > 0 && (
+        <tr className="attempts-row">
+          <td colSpan={9}>
+            <div className="attempts-chain">
+              {log.attempts.map((attempt: UsageLogAttempt, idx: number) => (
+                <div key={attempt.id || idx} className={`attempt-item ${attempt.success ? 'success' : 'failed'}`}>
+                  <div className="attempt-header">
+                    <span className="attempt-seq">#{attempt.seq}</span>
+                    <span className="attempt-node">{attempt.node_name || attempt.node_id}</span>
+                    <span className={`attempt-status ${attempt.success ? 'success' : 'failed'}`}>
+                      {attempt.status_code > 0 ? attempt.status_code : '--'}
+                    </span>
+                    <span className="attempt-duration">{formatDuration(attempt.duration_ms)}</span>
+                    {attempt.action && (
+                      <span className={`attempt-action action-${attempt.action}`}>{actionLabel(attempt.action)}</span>
+                    )}
+                  </div>
+                  {attempt.error_msg && (
+                    <div className="attempt-error">
+                      {attempt.severity && <span className={`severity-tag severity-${attempt.severity}`}>{severityLabel(attempt.severity)}</span>}
+                      <span className="error-text">{attempt.error_msg}</span>
+                    </div>
+                  )}
+                  {idx < log.attempts!.length - 1 && <div className="attempt-connector" />}
+                </div>
+              ))}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   )
 }

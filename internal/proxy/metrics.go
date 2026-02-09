@@ -129,28 +129,7 @@ func (p *Server) recordMetrics(ctx context.Context, nodeID string, start time.Ti
 				p.logger.Printf("[metrics] failed to insert metrics for node %s: %v", nodeIDCopy, err)
 			}
 		}
-		// 记录使用日志 - 仅在最终尝试时记录，避免重试导致重复计费
-		if finalAttempt && u != nil && u.modelID != "" {
-			costUSD, err := p.store.CalculateCost(ctx, u.modelID, u.input, u.output)
-			if err != nil && (u.input > 0 || u.output > 0) {
-				p.logger.Printf("[metrics] failed to calculate cost for model %s: %v", u.modelID, err)
-			}
-			usageLog := store.UsageLogRecord{
-				AccountID:    accountID,
-				NodeID:       nodeIDCopy,
-				NodeName:     nodeName,
-				ModelID:      u.modelID,
-				InputTokens:  u.input,
-				OutputTokens: u.output,
-				CostUSD:      costUSD,
-				Success:      mw == nil || mw.status == http.StatusOK,
-				RequestID:    u.requestID,
-				DurationMs:   end.Sub(start).Milliseconds(),
-			}
-			if err := p.store.InsertUsageLog(ctx, usageLog); err != nil {
-				p.logger.Printf("[metrics] failed to insert usage log for account %s, model %s: %v", accountID, u.modelID, err)
-			}
-		}
+		// 使用日志由 writeUsageLogWithAttempts 统一写入（包含完整 attempts 链路），此处不再重复记录
 	}
 
 	if p.wsHub != nil {

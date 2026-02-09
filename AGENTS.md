@@ -56,7 +56,7 @@ docker compose up -d
 - **测试框架**: go test
 - **运行测试**: `go test -v -cover ./...`
 - **覆盖率报告**: `go test -coverprofile=coverage.out ./... && go tool cover -html=coverage.out`
-- **部署方式**: 本地部署（不部署到远程服务器）
+- **部署方式**: 本地 Docker 部署（`docker compose up -d --build`，不部署到远程服务器）
 
 ## 🚀 开发工作流
 

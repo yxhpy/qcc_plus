@@ -146,8 +146,13 @@ func (h *HealthScheduler) checkLoop() {
 	defer h.recoverPanic("check loop")
 
 	// 延迟 30 秒后执行首次检查，避免启动时负载峰值。
-	time.Sleep(30 * time.Second)
-	h.checkAllNodes()
+	// 使用 select 确保在等待期间可以响应停止信号。
+	select {
+	case <-time.After(30 * time.Second):
+		h.checkAllNodes()
+	case <-h.stopCh:
+		return
+	}
 
 	ticker := time.NewTicker(h.interval)
 	defer ticker.Stop()

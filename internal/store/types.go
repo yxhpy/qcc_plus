@@ -264,16 +264,35 @@ type ModelPricingRecord struct {
 
 // UsageLogRecord 使用日志记录
 type UsageLogRecord struct {
-	ID           int64     `json:"id"`
-	AccountID    string    `json:"account_id"`
-	NodeID       string    `json:"node_id"`
-	ModelID      string    `json:"model_id"`       // 使用的模型
-	InputTokens  int64     `json:"input_tokens"`   // 输入 tokens
-	OutputTokens int64     `json:"output_tokens"`  // 输出 tokens
-	CostUSD      float64   `json:"cost_usd"`       // 费用（美元）
-	RequestID    string    `json:"request_id"`     // 请求 ID（可选，用于追踪）
-	Success      bool      `json:"success"`        // 请求是否成功
-	CreatedAt    time.Time `json:"created_at"`
+	ID            int64             `json:"id"`
+	AccountID     string            `json:"account_id"`
+	NodeID        string            `json:"node_id"`
+	NodeName      string            `json:"node_name"`
+	ModelID       string            `json:"model_id"`
+	InputTokens   int64             `json:"input_tokens"`
+	OutputTokens  int64             `json:"output_tokens"`
+	CostUSD       float64           `json:"cost_usd"`
+	RequestID     string            `json:"request_id,omitempty"`
+	Success       bool              `json:"success"`
+	DurationMs    int64             `json:"duration_ms"`
+	TotalAttempts int               `json:"total_attempts"`
+	CreatedAt     time.Time         `json:"created_at"`
+	Attempts      []UsageLogAttempt `json:"attempts,omitempty"`
+}
+
+// UsageLogAttempt 单次尝试记录（链路追踪）
+type UsageLogAttempt struct {
+	ID         int64  `json:"id"`
+	LogID      int64  `json:"log_id"`
+	Seq        int    `json:"seq"` // 尝试序号（从 1 开始）
+	NodeID     string `json:"node_id"`
+	NodeName   string `json:"node_name"`
+	StatusCode int    `json:"status_code"` // HTTP 状态码
+	Success    bool   `json:"success"`
+	DurationMs int64  `json:"duration_ms"`
+	ErrorMsg   string `json:"error_msg,omitempty"`
+	Severity   string `json:"severity,omitempty"` // transient/node_down/key_invalid/permanent/account_issue
+	Action     string `json:"action,omitempty"`   // retry/fail/success/circuit_open
 }
 
 // UsageSummary 使用汇总统计
@@ -297,4 +316,5 @@ type QueryUsageParams struct {
 	To        time.Time
 	Limit     int
 	Offset    int
+	Success   *bool // nil=all, true=success only, false=failed only
 }

@@ -54,13 +54,17 @@ func (s *Store) GetNotificationChannel(ctx context.Context, id string) (*Notific
 	ctx, cancel := withTimeout(ctx)
 	defer cancel()
 	var rec NotificationChannelRecord
+	var config sql.NullString
 	err := s.db.QueryRowContext(ctx, `SELECT id,account_id,channel_type,name,config,enabled,created_at,updated_at FROM notification_channels WHERE id=?`, id).
-		Scan(&rec.ID, &rec.AccountID, &rec.ChannelType, &rec.Name, &rec.Config, &rec.Enabled, &rec.CreatedAt, &rec.UpdatedAt)
+		Scan(&rec.ID, &rec.AccountID, &rec.ChannelType, &rec.Name, &config, &rec.Enabled, &rec.CreatedAt, &rec.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
 		return nil, err
+	}
+	if config.Valid {
+		rec.Config = []byte(config.String)
 	}
 	return &rec, nil
 }
@@ -78,8 +82,12 @@ func (s *Store) ListNotificationChannels(ctx context.Context, accountID string) 
 	var res []NotificationChannelRecord
 	for rows.Next() {
 		var rec NotificationChannelRecord
-		if err := rows.Scan(&rec.ID, &rec.AccountID, &rec.ChannelType, &rec.Name, &rec.Config, &rec.Enabled, &rec.CreatedAt, &rec.UpdatedAt); err != nil {
+		var config sql.NullString
+		if err := rows.Scan(&rec.ID, &rec.AccountID, &rec.ChannelType, &rec.Name, &config, &rec.Enabled, &rec.CreatedAt, &rec.UpdatedAt); err != nil {
 			return nil, err
+		}
+		if config.Valid {
+			rec.Config = []byte(config.String)
 		}
 		res = append(res, rec)
 	}
@@ -198,12 +206,12 @@ func (s *Store) UpsertNotificationSubscription(ctx context.Context, rec Notifica
 	if s.IsSQLite() {
 		_, err = s.db.ExecContext(ctx, `INSERT INTO notification_subscriptions (id,account_id,channel_id,event_type,enabled,created_at,updated_at)
 			VALUES (?,?,?,?,?,?,?)
-			ON CONFLICT(id) DO UPDATE SET enabled=excluded.enabled, updated_at=excluded.updated_at`,
+			ON CONFLICT(account_id, channel_id, event_type) DO UPDATE SET id=excluded.id, enabled=excluded.enabled, updated_at=excluded.updated_at`,
 			rec.ID, rec.AccountID, rec.ChannelID, rec.EventType, rec.Enabled, rec.CreatedAt, rec.UpdatedAt)
 	} else {
 		_, err = s.db.ExecContext(ctx, `INSERT INTO notification_subscriptions (id,account_id,channel_id,event_type,enabled,created_at,updated_at)
 			VALUES (?,?,?,?,?,?,?)
-			ON DUPLICATE KEY UPDATE enabled=VALUES(enabled), updated_at=VALUES(updated_at)`,
+			ON DUPLICATE KEY UPDATE id=VALUES(id), enabled=VALUES(enabled), updated_at=VALUES(updated_at)`,
 			rec.ID, rec.AccountID, rec.ChannelID, rec.EventType, rec.Enabled, rec.CreatedAt, rec.UpdatedAt)
 	}
 	return err
@@ -229,11 +237,15 @@ WHERE ns.account_id=? AND ns.event_type=? AND ns.enabled=1 AND nc.enabled=1`, ac
 	for rows.Next() {
 		var sub NotificationSubscriptionRecord
 		var ch NotificationChannelRecord
+		var config sql.NullString
 		if err := rows.Scan(
 			&sub.ID, &sub.AccountID, &sub.ChannelID, &sub.EventType, &sub.Enabled, &sub.CreatedAt, &sub.UpdatedAt,
-			&ch.ID, &ch.AccountID, &ch.ChannelType, &ch.Name, &ch.Config, &ch.Enabled, &ch.CreatedAt, &ch.UpdatedAt,
+			&ch.ID, &ch.AccountID, &ch.ChannelType, &ch.Name, &config, &ch.Enabled, &ch.CreatedAt, &ch.UpdatedAt,
 		); err != nil {
 			return nil, err
+		}
+		if config.Valid {
+			ch.Config = []byte(config.String)
 		}
 		res = append(res, SubscriptionWithChannel{Subscription: sub, Channel: ch})
 	}

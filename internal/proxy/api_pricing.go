@@ -149,13 +149,29 @@ func (p *Server) handleUsageLogs(w http.ResponseWriter, r *http.Request) {
 			params.Offset = o
 		}
 	}
+	if successStr := r.URL.Query().Get("success"); successStr != "" {
+		switch successStr {
+		case "true", "1":
+			v := true
+			params.Success = &v
+		case "false", "0":
+			v := false
+			params.Success = &v
+		}
+	}
+
+	total, err := p.store.CountUsageLogs(r.Context(), params)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
 
 	logs, err := p.store.QueryUsageLogs(r.Context(), params)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]interface{}{"logs": logs, "count": len(logs)})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"logs": logs, "count": len(logs), "total": total})
 }
 
 // handleUsageSummary 处理使用统计汇总 API

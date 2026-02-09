@@ -191,10 +191,24 @@ func (s *Store) UpsertSetting(setting *Setting) error {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 	if s.IsSQLite() {
-		_, err = s.db.ExecContext(ctx, "INSERT INTO settings (`key`, scope, account_id, value, data_type, category, description, is_secret, version, updated_by) "+
-			"VALUES (?,?,?,?,?,?,?,?,1,?) "+
-			"ON CONFLICT(`key`, scope, account_id) DO UPDATE SET value=excluded.value, data_type=excluded.data_type, category=excluded.category, description=excluded.description, is_secret=excluded.is_secret, updated_by=excluded.updated_by, version=version+1",
-			setting.Key, setting.Scope, accountArgPtr(setting.AccountID), body, setting.DataType, setting.Category, nullOrStringPtr(setting.Description), setting.IsSecret, nullOrStringPtr(setting.UpdatedBy))
+		// SQLite treats NULL as distinct in UNIQUE constraints, so ON CONFLICT won't match
+		// when account_id is NULL. Use a manual check-then-update approach instead.
+		accArg := accountArgPtr(setting.AccountID)
+		var exists bool
+		checkQuery := "SELECT EXISTS(SELECT 1 FROM settings WHERE `key`=? AND scope=? AND " + s.nullSafeEqualExpr("account_id") + ")"
+		checkArgs := []interface{}{setting.Key, setting.Scope}
+		checkArgs = append(checkArgs, s.nullSafeEqualArgs(accArg)...)
+		_ = s.db.QueryRowContext(ctx, checkQuery, checkArgs...).Scan(&exists)
+		if exists {
+			updateQuery := "UPDATE settings SET value=?, data_type=?, category=?, description=?, is_secret=?, updated_by=?, version=version+1 WHERE `key`=? AND scope=? AND " + s.nullSafeEqualExpr("account_id")
+			updateArgs := []interface{}{body, setting.DataType, setting.Category, nullOrStringPtr(setting.Description), setting.IsSecret, nullOrStringPtr(setting.UpdatedBy), setting.Key, setting.Scope}
+			updateArgs = append(updateArgs, s.nullSafeEqualArgs(accArg)...)
+			_, err = s.db.ExecContext(ctx, updateQuery, updateArgs...)
+		} else {
+			_, err = s.db.ExecContext(ctx, "INSERT INTO settings (`key`, scope, account_id, value, data_type, category, description, is_secret, version, updated_by) "+
+				"VALUES (?,?,?,?,?,?,?,?,1,?)",
+				setting.Key, setting.Scope, accArg, body, setting.DataType, setting.Category, nullOrStringPtr(setting.Description), setting.IsSecret, nullOrStringPtr(setting.UpdatedBy))
+		}
 	} else {
 		_, err = s.db.ExecContext(ctx, "INSERT INTO settings (`key`, scope, account_id, value, data_type, category, description, is_secret, version, updated_by) "+
 			"VALUES (?,?,?,?,?,?,?,?,1,?) "+

@@ -18,9 +18,11 @@ const (
 	EnvCategoryRetry       EnvVarCategory = "retry"       // HTTP 重试
 	EnvCategoryTransport   EnvVarCategory = "transport"   // 传输层连接池
 	EnvCategoryCircuit     EnvVarCategory = "circuit"     // 熔断保护
+	EnvCategoryLoadBalance EnvVarCategory = "loadBalance" // 负载均衡
 	EnvCategoryMetrics     EnvVarCategory = "metrics"     // 指标调度
 	EnvCategoryMySQL       EnvVarCategory = "mysql"       // MySQL 持久化
 	EnvCategoryTunnel      EnvVarCategory = "tunnel"      // Cloudflare Tunnel
+	EnvCategoryGraceful    EnvVarCategory = "graceful"    // 优雅关闭
 )
 
 // EnvVarDefinition 环境变量定义
@@ -52,9 +54,11 @@ func GetEnvVarCategories() []EnvVarCategoryInfo {
 		{Key: EnvCategoryRetry, Label: "HTTP 重试", Description: "HTTP 请求重试策略配置"},
 		{Key: EnvCategoryTransport, Label: "传输层连接池", Description: "HTTP 传输层连接池配置"},
 		{Key: EnvCategoryCircuit, Label: "熔断保护", Description: "熔断器相关的保护配置"},
+		{Key: EnvCategoryLoadBalance, Label: "负载均衡", Description: "节点负载均衡策略和慢节点降级配置"},
 		{Key: EnvCategoryMetrics, Label: "指标调度", Description: "监控指标聚合和清理配置"},
 		{Key: EnvCategoryMySQL, Label: "MySQL 持久化", Description: "MySQL 数据库连接和连接池配置"},
 		{Key: EnvCategoryTunnel, Label: "Cloudflare Tunnel", Description: "内网穿透隧道配置"},
+		{Key: EnvCategoryGraceful, Label: "优雅关闭", Description: "服务优雅关闭相关配置"},
 	}
 }
 
@@ -92,6 +96,11 @@ func GetAllEnvVarDefinitions() []EnvVarDefinition {
 		{Name: "HEALTH_ALL_INTERVAL_MIN", Category: EnvCategoryHealth, DefaultValue: "10", Description: "全量健康检查间隔（分钟，备选）"},
 		{Name: "HEALTH_CHECK_CONCURRENCY", Category: EnvCategoryHealth, DefaultValue: "2", Description: "全量健康检查并发数（HEAD/API，自动限制 1~4）"},
 		{Name: "HEALTH_CHECK_CONCURRENCY_CLI", Category: EnvCategoryHealth, DefaultValue: "1", Description: "CLI 健康检查并发数（建议 1~2）"},
+		{Name: "HEALTH_MODEL_AWARE", Category: EnvCategoryHealth, DefaultValue: "0", Description: "模型感知健康检查（1=使用节点配置模型，0=使用默认轻量模型）"},
+		{Name: "HEALTH_VALIDATE_USAGE", Category: EnvCategoryHealth, DefaultValue: "1", Description: "健康检查时验证响应体 usage 字段（1=启用，0=仅检查状态码）"},
+		{Name: "HEALTH_VALIDATE_CONTENT", Category: EnvCategoryHealth, DefaultValue: "0", Description: "健康检查时验证响应体 content 字段（1=启用，0=关闭）"},
+		{Name: "KEY_COOLDOWN_SEC", Category: EnvCategoryHealth, DefaultValue: "60", Description: "API Key 限流冷却时间（秒）"},
+		{Name: "KEY_AUTO_RECOVER_SEC", Category: EnvCategoryHealth, DefaultValue: "300", Description: "API Key 自动恢复检测间隔（秒，0=不自动恢复）"},
 
 		// ========== 预热配置 ==========
 		{Name: "WARMUP_ENABLED", Category: EnvCategoryWarmup, DefaultValue: "1", Description: "预热开关（1=启用，0=关闭）"},
@@ -128,6 +137,15 @@ func GetAllEnvVarDefinitions() []EnvVarDefinition {
 		{Name: "CB_COOLDOWN_SECONDS", Category: EnvCategoryCircuit, DefaultValue: "30", Description: "冷却时间（秒）"},
 		{Name: "CB_HALFOPEN_MAX_CALLS", Category: EnvCategoryCircuit, DefaultValue: "3", Description: "半开状态最大试探次数"},
 
+		// ========== 负载均衡 ==========
+		{Name: "LB_STRATEGY", Category: EnvCategoryLoadBalance, DefaultValue: "weighted_random", Description: "负载均衡策略（priority=严格优先级, weighted_random=加权随机, round_robin=轮询, least_conn=最少连接）"},
+		{Name: "LB_SLOW_THRESHOLD_MS", Category: EnvCategoryLoadBalance, DefaultValue: "5000", Description: "慢节点阈值（毫秒），首字节延迟超过此值视为慢请求"},
+		{Name: "LB_SLOW_DEGRADE_WEIGHT", Category: EnvCategoryLoadBalance, DefaultValue: "10", Description: "慢节点降级权重增量（越大越不容易被选中）"},
+		{Name: "LB_SLOW_WINDOW_SIZE", Category: EnvCategoryLoadBalance, DefaultValue: "10", Description: "慢节点检测滑动窗口大小（请求数）"},
+		{Name: "LB_SLOW_RECOVER_AFTER_MS", Category: EnvCategoryLoadBalance, DefaultValue: "60000", Description: "慢节点恢复检测间隔（毫秒）"},
+		{Name: "LB_PRECONNECT_ENABLED", Category: EnvCategoryLoadBalance, DefaultValue: "1", Description: "启用备用节点预连接保活（1=启用，0=关闭）"},
+		{Name: "LB_PRECONNECT_INTERVAL_SEC", Category: EnvCategoryLoadBalance, DefaultValue: "30", Description: "预连接保活间隔（秒）"},
+
 		// ========== 指标调度 ==========
 		{Name: "METRICS_SCHEDULER_ENABLED", Category: EnvCategoryMetrics, DefaultValue: "1", Description: "启用指标调度器（需持久化）"},
 		{Name: "METRICS_AGGREGATE_INTERVAL", Category: EnvCategoryMetrics, DefaultValue: "1h", Description: "指标聚合间隔"},
@@ -145,6 +163,9 @@ func GetAllEnvVarDefinitions() []EnvVarDefinition {
 		{Name: "TUNNEL_SUBDOMAIN", Category: EnvCategoryTunnel, DefaultValue: "", Description: "隧道子域名"},
 		{Name: "TUNNEL_ZONE", Category: EnvCategoryTunnel, DefaultValue: "", Description: "Cloudflare Zone（域名）"},
 		{Name: "TUNNEL_ENABLED", Category: EnvCategoryTunnel, DefaultValue: "0", Description: "启用隧道功能（1=启用，0=关闭）"},
+
+		// ========== 优雅关闭 ==========
+		{Name: "GRACEFUL_SHUTDOWN_TIMEOUT_SEC", Category: EnvCategoryGraceful, DefaultValue: "30", Description: "优雅关闭超时（秒），超时后强制关闭"},
 	}
 
 	// 填充当前值，并对敏感变量进行脱敏

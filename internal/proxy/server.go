@@ -2,19 +2,114 @@ package proxy
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
+	"os"
+	"os/signal"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"qcc_plus/internal/notify"
 	"qcc_plus/internal/store"
 	"qcc_plus/internal/tunnel"
 )
+
+// startPreconnect 启动备用节点预连接保活协程。
+// 定期对所有非活跃的健康节点发起 TCP+TLS 握手，保持连接池热度，
+// 使得切换时无需等待冷启动连接。
+func (p *Server) startPreconnect() {
+	if p.preconnectStop != nil {
+		return
+	}
+	p.preconnectStop = make(chan struct{})
+	interval := p.lbConfig.PreconnectInterval
+	if interval <= 0 {
+		interval = 30 * time.Second
+	}
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				p.preconnectStandbyNodes()
+			case <-p.preconnectStop:
+				return
+			}
+		}
+	}()
+}
+
+// stopPreconnect 停止预连接保活协程。
+func (p *Server) stopPreconnect() {
+	if p.preconnectStop != nil {
+		close(p.preconnectStop)
+		p.preconnectStop = nil
+	}
+}
+
+// preconnectStandbyNodes 对所有备用（非活跃）健康节点发起预连接。
+func (p *Server) preconnectStandbyNodes() {
+	p.mu.RLock()
+	var targets []*url.URL
+	for _, acc := range p.accountByID {
+		for id, n := range acc.Nodes {
+			if id == acc.ActiveID || n.Failed || n.Disabled {
+				continue
+			}
+			if n.URL != nil {
+				targets = append(targets, n.URL)
+			}
+		}
+	}
+	p.mu.RUnlock()
+
+	for _, u := range targets {
+		go p.preconnectOne(u)
+	}
+}
+
+// preconnectOne 对单个节点 URL 发起 TCP+TLS 握手以保持连接池热度。
+func (p *Server) preconnectOne(u *url.URL) {
+	host := u.Host
+	if !strings.Contains(host, ":") {
+		if u.Scheme == "https" {
+			host += ":443"
+		} else {
+			host += ":80"
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	dialer := &net.Dialer{Timeout: 5 * time.Second}
+	conn, err := dialer.DialContext(ctx, "tcp", host)
+	if err != nil {
+		return
+	}
+
+	if u.Scheme == "https" {
+		hostname := u.Hostname()
+		tlsConn := tls.Client(conn, &tls.Config{
+			ServerName: hostname,
+		})
+		if err := tlsConn.HandshakeContext(ctx); err != nil {
+			conn.Close()
+			return
+		}
+		tlsConn.Close()
+	} else {
+		conn.Close()
+	}
+}
 
 // Server 负责在多个上游节点间切换并提供管理页面。
 type Server struct {
@@ -65,9 +160,15 @@ type Server struct {
 	circuitBreakers map[string]*CircuitBreaker // 每个节点一个熔断器
 	cbMu            sync.RWMutex               // 保护 circuitBreakers
 	cbConfig        CircuitBreakerConfig       // 熔断器配置
+
+	nodeScorer      *NodeScorer        // 节点评分器（负载均衡 + 慢节点降级）
+	lbConfig        LoadBalancerConfig // 负载均衡配置
+	preconnectStop  chan struct{}      // 预连接保活停止信号
+	shutdownTimeout time.Duration      // 优雅关闭超时，默认 30s
 }
 
-// Start 运行反向代理并阻塞直到关闭。
+// Start 运行反向代理并阻塞直到收到关闭信号或出错。
+// 支持优雅关闭：收到 SIGINT/SIGTERM 后等待在途请求完成。
 func (p *Server) Start() error {
 	if p.healthScheduler != nil {
 		if err := p.healthScheduler.Start(); err != nil {
@@ -83,6 +184,12 @@ func (p *Server) Start() error {
 	}
 
 	go p.healthLoop()
+
+	// 启动备用节点预连接保活
+	if p.lbConfig.PreconnectEnabled {
+		p.startPreconnect()
+	}
+
 	server := &http.Server{
 		Addr:         p.listenAddr,
 		Handler:      p.handler(),
@@ -98,6 +205,15 @@ func (p *Server) Start() error {
 	p.logger.Printf("⚠️  生产环境请立即修改默认密码！")
 	p.logger.Printf("API Keys:")
 	p.logger.Printf("  - Admin API Key: %s", p.adminKey)
+	p.logger.Printf("负载均衡策略: %s", p.lbConfig.Strategy)
+	if p.lbConfig.SlowThresholdMs > 0 {
+		p.logger.Printf("慢节点降级: 阈值=%dms, 降权=%d, 窗口=%d, 恢复=%dms",
+			p.lbConfig.SlowThresholdMs, p.lbConfig.SlowDegradeWeight,
+			p.lbConfig.SlowWindowSize, p.lbConfig.SlowRecoverAfterMs)
+	}
+	if p.lbConfig.PreconnectEnabled {
+		p.logger.Printf("预连接保活: 间隔=%s", p.lbConfig.PreconnectInterval)
+	}
 
 	p.mu.RLock()
 	for _, acc := range p.accounts {
@@ -105,11 +221,43 @@ func (p *Server) Start() error {
 	}
 	p.mu.RUnlock()
 
-	return server.ListenAndServe()
+	// 优雅关闭：监听 SIGINT/SIGTERM
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	errCh := make(chan error, 1)
+
+	go func() {
+		errCh <- server.ListenAndServe()
+	}()
+
+	select {
+	case sig := <-sigCh:
+		p.logger.Printf("收到信号 %s，开始优雅关闭...", sig)
+		timeout := p.shutdownTimeout
+		if timeout <= 0 {
+			timeout = 30 * time.Second
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+
+		// 停止预连接保活
+		p.stopPreconnect()
+
+		if err := server.Shutdown(ctx); err != nil {
+			p.logger.Printf("优雅关闭超时: %v，强制关闭", err)
+			return server.Close()
+		}
+		p.logger.Printf("优雅关闭完成，所有在途请求已处理")
+		return nil
+	case err := <-errCh:
+		p.stopPreconnect()
+		return err
+	}
 }
 
 // Stop 用于优雅关闭后台任务。
 func (p *Server) Stop() {
+	p.stopPreconnect()
 	if p.healthScheduler != nil {
 		p.healthScheduler.Stop()
 	}
@@ -378,6 +526,11 @@ func (p *Server) loadAccountsFromStore(defaultUpstream *url.URL, defaultCfg stor
 						LastPingErr:       r.LastPingErr,
 						LastHealthCheckAt: r.LastHealthCheckAt,
 					},
+				}
+				// 如果 API Key 包含逗号，启用多密钥轮换
+				if strings.Contains(r.APIKey, ",") {
+					n.APIKeys = NewKeyRotator(r.APIKey, loadKeyRotatorConfig())
+					n.APIKey = n.APIKeys.GetPrimaryKey()
 				}
 				acc.Nodes[n.ID] = n
 				// 重启后恢复失败节点到 FailedSet，确保健康检查能够探活这些节点

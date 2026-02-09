@@ -35,18 +35,23 @@ type HealthSummary struct {
 }
 
 type MonitorNode struct {
-	ID          string        `json:"id"`
-	Name        string        `json:"name"`
-	URL         string        `json:"url"`
-	Status      string        `json:"status"` // 综合状态: online/degraded/offline/unknown/disabled
-	Weight      int           `json:"weight"`
-	IsActive    bool          `json:"is_active"`
-	CircuitOpen bool          `json:"circuit_open"` // 熔断器是否打开
-	Disabled    bool          `json:"disabled"`
-	LastError   string        `json:"last_error"`
-	Traffic     ProxySummary  `json:"traffic"` // 代理流量指标
-	Health      HealthSummary `json:"health"`  // 健康检查指标
-	Trend24h    []TrendPoint  `json:"trend_24h"`
+	ID             string        `json:"id"`
+	Name           string        `json:"name"`
+	URL            string        `json:"url"`
+	Status         string        `json:"status"` // 综合状态: online/degraded/offline/unknown/disabled
+	Weight         int           `json:"weight"`
+	IsActive       bool          `json:"is_active"`
+	CircuitOpen    bool          `json:"circuit_open"` // 熔断器是否打开
+	Disabled       bool          `json:"disabled"`
+	Degraded       bool          `json:"degraded"`         // 慢节点降级
+	ActiveConns    int64         `json:"active_conns"`     // 活跃连接数
+	KeyCount       int           `json:"key_count"`        // API Key 总数
+	ActiveKeyCount int           `json:"active_key_count"` // 可用 Key 数
+	ErrorSeverity  string        `json:"error_severity"`   // 语义化错误级别
+	LastError      string        `json:"last_error"`
+	Traffic        ProxySummary  `json:"traffic"` // 代理流量指标
+	Health         HealthSummary `json:"health"`  // 健康检查指标
+	Trend24h       []TrendPoint  `json:"trend_24h"`
 }
 
 type TrendPoint struct {
@@ -56,16 +61,19 @@ type TrendPoint struct {
 }
 
 type nodeSnapshot struct {
-	ID        string
-	Name      string
-	URL       string
-	Weight    int
-	Failed    bool
-	Disabled  bool
-	LastError string
-	Method    string
-	Metrics   metrics
-	CreatedAt time.Time
+	ID             string
+	Name           string
+	URL            string
+	Weight         int
+	Failed         bool
+	Disabled       bool
+	LastError      string
+	Method         string
+	Metrics        metrics
+	CreatedAt      time.Time
+	KeyCount       int
+	ActiveKeyCount int
+	APIKeys        *KeyRotator
 }
 
 func (p *Server) handleMonitorDashboard(w http.ResponseWriter, r *http.Request) {
@@ -140,17 +148,29 @@ func (p *Server) buildMonitorDashboardResponse(ctx context.Context, target *Acco
 			urlStr = n.URL.String()
 		}
 		nodeIDs = append(nodeIDs, n.ID)
+		keyCount := 0
+		activeKeyCount := 0
+		if n.APIKeys != nil && n.APIKeys.KeyCount() > 0 {
+			keyCount = n.APIKeys.KeyCount()
+			activeKeyCount = n.APIKeys.ActiveKeyCount()
+		} else if n.APIKey != "" {
+			keyCount = 1
+			activeKeyCount = 1
+		}
 		snapshots = append(snapshots, nodeSnapshot{
-			ID:        n.ID,
-			Name:      n.Name,
-			URL:       urlStr,
-			Weight:    n.Weight,
-			Failed:    n.Failed,
-			Disabled:  n.Disabled,
-			LastError: n.LastError,
-			Method:    n.HealthCheckMethod,
-			Metrics:   n.Metrics,
-			CreatedAt: n.CreatedAt,
+			ID:             n.ID,
+			Name:           n.Name,
+			URL:            urlStr,
+			Weight:         n.Weight,
+			Failed:         n.Failed,
+			Disabled:       n.Disabled,
+			LastError:      n.LastError,
+			Method:         n.HealthCheckMethod,
+			Metrics:        n.Metrics,
+			CreatedAt:      n.CreatedAt,
+			KeyCount:       keyCount,
+			ActiveKeyCount: activeKeyCount,
+			APIKeys:        n.APIKeys,
 		})
 	}
 	p.mu.RUnlock()
@@ -214,19 +234,51 @@ func (p *Server) buildMonitorDashboardResponse(ctx context.Context, target *Acco
 			circuitOpen = cb.GetState() == StateOpen
 		}
 
+		// 检查降级状态
+		degraded := false
+		if p.nodeScorer != nil {
+			degraded = p.nodeScorer.IsDegraded(snap.ID)
+		}
+
+		// 活跃连接数
+		var activeConns int64
+		if p.nodeScorer != nil {
+			activeConns = p.nodeScorer.GetActiveConns(snap.ID)
+		}
+
+		// 语义化错误级别
+		errorSeverity := ""
+		if snap.Failed {
+			errorSeverity = "node_down"
+		}
+		if snap.APIKeys != nil && snap.APIKeys.AllKeysDisabled() {
+			errorSeverity = "key_invalid"
+		}
+		if degraded && !snap.Failed {
+			errorSeverity = "degraded"
+			if status == "online" {
+				status = "degraded"
+			}
+		}
+
 		nodes = append(nodes, MonitorNode{
-			ID:          snap.ID,
-			Name:        snap.Name,
-			URL:         snap.URL,
-			Status:      status,
-			Weight:      snap.Weight,
-			IsActive:    snap.ID == activeID,
-			CircuitOpen: circuitOpen,
-			Disabled:    snap.Disabled,
-			LastError:   lastError,
-			Traffic:     traffic,
-			Health:      health,
-			Trend24h:    buildTrendPoints(trendRecords[snap.ID]),
+			ID:             snap.ID,
+			Name:           snap.Name,
+			URL:            snap.URL,
+			Status:         status,
+			Weight:         snap.Weight,
+			IsActive:       snap.ID == activeID,
+			CircuitOpen:    circuitOpen,
+			Disabled:       snap.Disabled,
+			Degraded:       degraded,
+			ActiveConns:    activeConns,
+			KeyCount:       snap.KeyCount,
+			ActiveKeyCount: snap.ActiveKeyCount,
+			ErrorSeverity:  errorSeverity,
+			LastError:      lastError,
+			Traffic:        traffic,
+			Health:         health,
+			Trend24h:       buildTrendPoints(trendRecords[snap.ID]),
 		})
 	}
 

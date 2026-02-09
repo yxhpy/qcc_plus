@@ -39,6 +39,12 @@ func buildServerNoWarmup(t *testing.T, b *Builder) *Server {
 		t.Fatalf("build proxy: %v", err)
 	}
 	srv.warmupConfig.Enabled = false
+	// Ensure store is closed before TempDir cleanup to release SQLite file locks
+	t.Cleanup(func() {
+		if srv.store != nil {
+			srv.store.Close()
+		}
+	})
 	return srv
 }
 

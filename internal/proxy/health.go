@@ -3,7 +3,6 @@ package proxy
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -437,23 +436,31 @@ func healthMethodRequiresAPIKey(method string) bool {
 }
 
 func (p *Server) healthCheckViaAPI(ctx context.Context, node Node) (bool, string, time.Duration) {
-	if node.APIKey == "" {
+	// 获取活跃 API Key（支持多密钥轮换）
+	apiKey := node.APIKey
+	if node.APIKeys != nil && node.APIKeys.KeyCount() > 0 {
+		apiKey = node.APIKeys.GetCurrentKey()
+	}
+	if apiKey == "" {
 		return false, "api health check requires api key", 0
 	}
-	prompt := map[string]interface{}{
-		"model":      "claude-3-5-haiku-20241022",
-		"max_tokens": 1,
-		"messages": []map[string]string{
-			{"role": "user", "content": "hi"},
-		},
+
+	// 模型感知：选择合适的健康检查模型
+	hcModelCfg := loadHealthCheckModelConfig()
+	model := ChooseHealthCheckModel(node.HealthCheckModel, hcModelCfg)
+
+	// 构造模型感知的健康检查请求
+	bodyBytes, err := BuildHealthCheckPayload(model)
+	if err != nil {
+		return false, fmt.Sprintf("build health check payload failed: %v", err), 0
 	}
-	bodyBytes, _ := json.Marshal(prompt)
+
 	apiURL := strings.TrimSuffix(node.URL.String(), "/") + "/v1/messages"
 	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, bytes.NewReader(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("anthropic-version", "2023-06-01")
-	req.Header.Set("x-api-key", node.APIKey)
-	req.Header.Set("Authorization", "Bearer "+node.APIKey)
+	req.Header.Set("x-api-key", apiKey)
+	req.Header.Set("Authorization", "Bearer "+apiKey)
 
 	client := &http.Client{Transport: p.healthRT, Timeout: 5 * time.Second}
 	start := time.Now()
@@ -463,12 +470,65 @@ func (p *Server) healthCheckViaAPI(ctx context.Context, node Node) (bool, string
 		return false, err.Error(), latency
 	}
 	defer resp.Body.Close()
-	ok := resp.StatusCode >= 200 && resp.StatusCode < 300
-	if ok {
+
+	// 读取响应体用于深度验证
+	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+
+	// 深度验证响应
+	if hcModelCfg.ValidateUsage || hcModelCfg.ValidateContent {
+		result := ValidateHealthCheckResponse(resp.StatusCode, respBody)
+		result.ResponseMs = latency.Milliseconds()
+
+		if !result.Success {
+			errMsg := FormatHealthCheckError(result)
+
+			// 语义化错误分析：Key 相关错误时尝试切换 key
+			if result.Error.Severity.ShouldSwitchKey() && node.APIKeys != nil {
+				shouldSwitch := node.APIKeys.RecordFailure(apiKey, result.Error)
+				if shouldSwitch {
+					p.logger.Printf("[health-key-rotate] node %s: API key failed (%s), rotating",
+						node.Name, result.Error.Code)
+				}
+			}
+
+			return false, errMsg, latency
+		}
+
+		// 成功：记录 key 成功
+		if node.APIKeys != nil {
+			node.APIKeys.RecordSuccess(apiKey)
+		}
 		return true, "", latency
 	}
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 500))
-	return false, fmt.Sprintf("status %d: %s", resp.StatusCode, string(body)), latency
+
+	// 简单验证：仅检查 HTTP 状态码
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		if node.APIKeys != nil {
+			node.APIKeys.RecordSuccess(apiKey)
+		}
+		return true, "", latency
+	}
+
+	// 失败：语义化错误分析
+	classified := ClassifyError(resp.StatusCode, respBody)
+	errMsg := fmt.Sprintf("status %d", resp.StatusCode)
+	if classified.Message != "" {
+		errMsg = classified.Message
+	}
+	if classified.Code != "" {
+		errMsg = fmt.Sprintf("[%s] %s", classified.Code, errMsg)
+	}
+
+	// Key 相关错误时尝试切换 key
+	if classified.Severity.ShouldSwitchKey() && node.APIKeys != nil {
+		shouldSwitch := node.APIKeys.RecordFailure(apiKey, classified)
+		if shouldSwitch {
+			p.logger.Printf("[health-key-rotate] node %s: API key failed (%s), rotating",
+				node.Name, classified.Code)
+		}
+	}
+
+	return false, errMsg, latency
 }
 
 func (p *Server) healthCheckViaHEAD(ctx context.Context, node Node) (bool, string, time.Duration) {

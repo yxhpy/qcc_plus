@@ -11,6 +11,7 @@ type Node struct {
 	Name              string
 	URL               *url.URL
 	APIKey            string
+	APIKeys           *KeyRotator // 多密钥轮换器（当 APIKey 包含逗号时自动启用）
 	HealthCheckMethod string
 	HealthCheckModel  string // CLI 健康检查使用的模型，默认为 claude-haiku-4-5-20251001
 	AccountID         string
@@ -20,6 +21,14 @@ type Node struct {
 	Failed            bool
 	Disabled          bool // 用户手动禁用
 	LastError         string
+}
+
+// GetActiveAPIKey 获取当前应使用的 API Key（支持多密钥轮换）
+func (n *Node) GetActiveAPIKey() string {
+	if n.APIKeys != nil && n.APIKeys.KeyCount() > 0 {
+		return n.APIKeys.GetCurrentKey()
+	}
+	return n.APIKey
 }
 
 // metrics 记录节点请求与健康状况统计。

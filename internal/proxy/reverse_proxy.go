@@ -334,9 +334,11 @@ func (p *Server) newReverseProxy(node *Node, u *usage) (*httputil.ReverseProxy, 
 		streaming := isStreamRequest(req)
 		originalDirector(req)
 		req.Host = node.URL.Host
-		if node.APIKey != "" {
-			req.Header.Set("x-api-key", node.APIKey)
-			req.Header.Set("Authorization", "Bearer "+node.APIKey)
+		// 使用多密钥轮换器获取当前活跃 key
+		activeKey := node.GetActiveAPIKey()
+		if activeKey != "" {
+			req.Header.Set("x-api-key", activeKey)
+			req.Header.Set("Authorization", "Bearer "+activeKey)
 		}
 
 		// 仅处理 JSON 体的写请求，剔除 tools 中的非标准字段（如 custom）。
@@ -437,9 +439,10 @@ func (p *Server) newPassthroughProxy(node *Node) *httputil.ReverseProxy {
 	proxy.Director = func(req *http.Request) {
 		originalDirector(req)
 		req.Host = node.URL.Host
-		if node.APIKey != "" {
-			req.Header.Set("x-api-key", node.APIKey)
-			req.Header.Set("Authorization", "Bearer "+node.APIKey)
+		activeKey := node.GetActiveAPIKey()
+		if activeKey != "" {
+			req.Header.Set("x-api-key", activeKey)
+			req.Header.Set("Authorization", "Bearer "+activeKey)
 		}
 	}
 

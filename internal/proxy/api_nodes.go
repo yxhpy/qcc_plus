@@ -140,6 +140,42 @@ func (p *Server) listNodes(acc *Account) []map[string]interface{} {
 			}
 		}
 		lastHealthCheckAt := timeutil.FormatBeijingTime(n.Metrics.LastHealthCheckAt)
+
+		// 多密钥信息
+		keyCount := 0
+		activeKeyCount := 0
+		if n.APIKeys != nil && n.APIKeys.KeyCount() > 0 {
+			keyCount = n.APIKeys.KeyCount()
+			activeKeyCount = n.APIKeys.ActiveKeyCount()
+		} else if n.APIKey != "" {
+			keyCount = 1
+			activeKeyCount = 1
+		}
+
+		// 活跃连接数
+		var activeConns int64
+		if p.nodeScorer != nil {
+			activeConns = p.nodeScorer.GetActiveConns(id)
+		}
+
+		// 降级状态
+		degraded := false
+		if p.nodeScorer != nil {
+			degraded = p.nodeScorer.IsDegraded(id)
+		}
+
+		// 语义化错误分类
+		errorSeverity := ""
+		if n.LastError != "" && n.Failed {
+			errorSeverity = "node_down"
+		}
+		if n.APIKeys != nil && n.APIKeys.AllKeysDisabled() {
+			errorSeverity = "key_invalid"
+		}
+		if degraded {
+			errorSeverity = "degraded"
+		}
+
 		views = append(views, nodeView{
 			weight:    n.Weight,
 			createdAt: n.CreatedAt,
@@ -151,6 +187,11 @@ func (p *Server) listNodes(acc *Account) []map[string]interface{} {
 				"health_check_model":    chooseNonEmpty(n.HealthCheckModel, defaultHealthCheckModel),
 				"active":                id == acc.ActiveID,
 				"has_api_key":           n.APIKey != "",
+				"key_count":             keyCount,
+				"active_key_count":      activeKeyCount,
+				"active_conns":          activeConns,
+				"degraded":              degraded,
+				"error_severity":        errorSeverity,
 				"created_at":            timeutil.FormatBeijingTime(n.CreatedAt),
 				"requests":              n.Metrics.Requests,
 				"fail_count":            n.Metrics.FailCount,

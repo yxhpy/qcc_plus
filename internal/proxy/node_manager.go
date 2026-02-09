@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
 
 	"qcc_plus/internal/notify"
@@ -53,6 +54,12 @@ func (p *Server) addNodeWithMethod(acc *Account, name, rawURL, apiKey string, we
 	}
 	id := fmt.Sprintf("n-%d", time.Now().UnixNano())
 	node := &Node{ID: id, Name: name, URL: u, APIKey: apiKey, HealthCheckMethod: healthMethod, HealthCheckModel: model, AccountID: acc.ID, CreatedAt: time.Now(), Weight: weight}
+
+	// 如果 API Key 包含逗号，启用多密钥轮换
+	if strings.Contains(apiKey, ",") {
+		node.APIKeys = NewKeyRotator(apiKey, loadKeyRotatorConfig())
+		node.APIKey = node.APIKeys.GetPrimaryKey()
+	}
 
 	p.mu.Lock()
 	acc.Nodes[id] = node
@@ -135,6 +142,17 @@ func (p *Server) updateNode(id, name, rawURL string, apiKey *string, weight int,
 	n.Weight = weight
 	n.HealthCheckMethod = desiredMethod
 	n.HealthCheckModel = desiredModel
+
+	// 更新多密钥轮换器
+	if apiKey != nil {
+		if strings.Contains(newAPIKey, ",") {
+			n.APIKeys = NewKeyRotator(newAPIKey, loadKeyRotatorConfig())
+			n.APIKey = n.APIKeys.GetPrimaryKey()
+		} else {
+			n.APIKeys = nil
+		}
+	}
+
 	acc := p.nodeAccount[id]
 	p.mu.Unlock()
 
@@ -184,6 +202,11 @@ func (p *Server) deleteNode(id string) error {
 	delete(p.nodeIndex, id)
 	delete(p.nodeAccount, id)
 	p.mu.Unlock()
+
+	// 清理节点评分器数据
+	if p.nodeScorer != nil {
+		p.nodeScorer.RemoveNode(id)
+	}
 
 	if p.store != nil {
 		if err := p.store.DeleteNode(context.Background(), id); err != nil {
@@ -260,23 +283,37 @@ func (p *Server) getActiveNode(acc ...*Account) (*Node, error) {
 }
 
 // selectHealthyNodeExcluding 选择健康节点，排除 skipNodes
+// 使用 NodeScorer 进行负载均衡选择（支持加权随机、轮询、最少连接等策略）
 func (p *Server) selectHealthyNodeExcluding(acc *Account, skipNodes map[string]bool) *Node {
 	if acc == nil {
 		return nil
 	}
 
 	p.mu.RLock()
-	defer p.mu.RUnlock()
-
-	var bestNode *Node
+	var candidates []*Node
 	for id, n := range acc.Nodes {
-		if n.Failed || n.Disabled || p.isInFailedSet(acc, id) || skipNodes[id] {
+		if n.Failed || n.Disabled || p.isInFailedSet(acc, id) {
 			continue
 		}
+		candidates = append(candidates, n)
+	}
+	p.mu.RUnlock()
 
-		// 不在选择阶段过滤熔断器状态，交由请求阶段的 AllowRequest() 控制
-		// 这样熔断器可以在冷却后进入 Half-Open 状态进行试探
+	if len(candidates) == 0 {
+		return nil
+	}
 
+	// 使用 NodeScorer 进行智能选择
+	if p.nodeScorer != nil {
+		return p.nodeScorer.SelectNode(candidates, skipNodes)
+	}
+
+	// 降级：无 scorer 时使用原始逻辑
+	var bestNode *Node
+	for _, n := range candidates {
+		if skipNodes != nil && skipNodes[n.ID] {
+			continue
+		}
 		if bestNode == nil || n.Weight < bestNode.Weight {
 			bestNode = n
 		}
@@ -294,6 +331,7 @@ func (p *Server) isInFailedSet(acc *Account, nodeID string) bool {
 }
 
 // 选择最低权重（最高优先级）的健康节点并激活。
+// 使用 NodeScorer 的有效权重（考虑慢节点降级）进行选择。
 func (p *Server) selectBestAndActivate(acc *Account, reason ...string) (*Node, error) {
 	if acc == nil {
 		return nil, ErrNoActiveNode
@@ -306,21 +344,39 @@ func (p *Server) selectBestAndActivate(acc *Account, reason ...string) (*Node, e
 	p.mu.Lock()
 	prevID := acc.ActiveID
 	prevNode := acc.Nodes[prevID]
-	bestID := ""
-	var bestNode *Node
+
+	// 收集候选节点
+	var candidates []*Node
 	for id, n := range acc.Nodes {
 		if n.Failed || n.Disabled || p.isInFailedSet(acc, id) {
 			continue
 		}
-		if bestNode == nil || n.Weight < bestNode.Weight || (n.Weight == bestNode.Weight && n.CreatedAt.Before(bestNode.CreatedAt)) {
-			bestNode = n
-			bestID = id
+		candidates = append(candidates, n)
+	}
+
+	if len(candidates) == 0 {
+		p.mu.Unlock()
+		return nil, ErrNoActiveNode
+	}
+
+	// 使用 NodeScorer 选择最佳节点
+	var bestNode *Node
+	if p.nodeScorer != nil {
+		bestNode = p.nodeScorer.SelectNode(candidates, nil)
+	}
+	if bestNode == nil {
+		// 降级：无 scorer 时使用原始逻辑
+		for _, n := range candidates {
+			if bestNode == nil || n.Weight < bestNode.Weight || (n.Weight == bestNode.Weight && n.CreatedAt.Before(bestNode.CreatedAt)) {
+				bestNode = n
+			}
 		}
 	}
 	if bestNode == nil {
 		p.mu.Unlock()
 		return nil, ErrNoActiveNode
 	}
+	bestID := bestNode.ID
 
 	if p.warmupConfig.Enabled {
 		p.mu.Unlock()
@@ -404,16 +460,31 @@ func (p *Server) selectBestAndActivateExcluding(acc *Account, skipNodes map[stri
 	p.mu.Lock()
 	prevID := acc.ActiveID
 	prevNode := acc.Nodes[prevID]
-	bestID := ""
-	var bestNode *Node
 
+	// 收集候选节点
+	var candidates []*Node
 	for id, n := range acc.Nodes {
 		if n.Failed || n.Disabled || p.isInFailedSet(acc, id) || (skipNodes != nil && skipNodes[id]) {
 			continue
 		}
-		if bestNode == nil || n.Weight < bestNode.Weight || (n.Weight == bestNode.Weight && n.CreatedAt.Before(bestNode.CreatedAt)) {
-			bestNode = n
-			bestID = id
+		candidates = append(candidates, n)
+	}
+
+	if len(candidates) == 0 {
+		p.mu.Unlock()
+		return nil, ErrNoActiveNode
+	}
+
+	// 使用 NodeScorer 选择最佳节点
+	var bestNode *Node
+	if p.nodeScorer != nil {
+		bestNode = p.nodeScorer.SelectNode(candidates, nil)
+	}
+	if bestNode == nil {
+		for _, n := range candidates {
+			if bestNode == nil || n.Weight < bestNode.Weight || (n.Weight == bestNode.Weight && n.CreatedAt.Before(bestNode.CreatedAt)) {
+				bestNode = n
+			}
 		}
 	}
 
@@ -421,6 +492,7 @@ func (p *Server) selectBestAndActivateExcluding(acc *Account, skipNodes map[stri
 		p.mu.Unlock()
 		return nil, ErrNoActiveNode
 	}
+	bestID := bestNode.ID
 
 	if p.warmupConfig.Enabled {
 		p.mu.Unlock()

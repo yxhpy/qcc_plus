@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 )
 
@@ -95,6 +96,54 @@ func (s *Store) ensurePricingTables(ctx context.Context) error {
 		s.db.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS idx_model_time ON usage_logs(model_id, created_at)`)
 		s.db.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS idx_account_node ON usage_logs(account_id, node_id)`)
 		s.db.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS idx_created_at ON usage_logs(created_at)`)
+	}
+
+	// 迁移：添加 node_name 和 duration_ms 列（已有表不会重复添加）
+	if s.IsSQLite() {
+		s.db.ExecContext(ctx, `ALTER TABLE usage_logs ADD COLUMN node_name TEXT NOT NULL DEFAULT ''`)
+		s.db.ExecContext(ctx, `ALTER TABLE usage_logs ADD COLUMN duration_ms INTEGER NOT NULL DEFAULT 0`)
+		s.db.ExecContext(ctx, `ALTER TABLE usage_logs ADD COLUMN total_attempts INTEGER NOT NULL DEFAULT 1`)
+	} else {
+		s.db.ExecContext(ctx, "ALTER TABLE usage_logs ADD COLUMN node_name VARCHAR(255) NOT NULL DEFAULT ''")
+		s.db.ExecContext(ctx, "ALTER TABLE usage_logs ADD COLUMN duration_ms BIGINT NOT NULL DEFAULT 0")
+		s.db.ExecContext(ctx, "ALTER TABLE usage_logs ADD COLUMN total_attempts INT NOT NULL DEFAULT 1")
+	}
+
+	// 创建 usage_log_attempts 表（链路追踪）
+	attemptsTable := `CREATE TABLE IF NOT EXISTS usage_log_attempts (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		log_id INTEGER NOT NULL,
+		seq INTEGER NOT NULL DEFAULT 1,
+		node_id TEXT NOT NULL DEFAULT '',
+		node_name TEXT NOT NULL DEFAULT '',
+		status_code INTEGER NOT NULL DEFAULT 0,
+		success INTEGER NOT NULL DEFAULT 0,
+		duration_ms INTEGER NOT NULL DEFAULT 0,
+		error_msg TEXT NOT NULL DEFAULT '',
+		severity TEXT NOT NULL DEFAULT '',
+		action TEXT NOT NULL DEFAULT ''
+	)`
+	if !s.IsSQLite() {
+		attemptsTable = `CREATE TABLE IF NOT EXISTS usage_log_attempts (
+			id BIGINT AUTO_INCREMENT PRIMARY KEY,
+			log_id BIGINT NOT NULL,
+			seq INT NOT NULL DEFAULT 1,
+			node_id VARCHAR(255) NOT NULL DEFAULT '',
+			node_name VARCHAR(255) NOT NULL DEFAULT '',
+			status_code INT NOT NULL DEFAULT 0,
+			success TINYINT(1) NOT NULL DEFAULT 0,
+			duration_ms BIGINT NOT NULL DEFAULT 0,
+			error_msg TEXT NOT NULL DEFAULT (''),
+			severity VARCHAR(50) NOT NULL DEFAULT '',
+			action VARCHAR(50) NOT NULL DEFAULT '',
+			INDEX idx_log_id (log_id)
+		)`
+	}
+	if _, err := s.db.ExecContext(ctx, attemptsTable); err != nil {
+		return err
+	}
+	if s.IsSQLite() {
+		s.db.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS idx_attempts_log_id ON usage_log_attempts(log_id)`)
 	}
 
 	return nil
@@ -280,12 +329,35 @@ func (s *Store) InsertUsageLog(ctx context.Context, log UsageLogRecord) error {
 	if log.CreatedAt.IsZero() {
 		log.CreatedAt = time.Now().UTC()
 	}
+	if log.TotalAttempts == 0 {
+		log.TotalAttempts = 1
+	}
 
-	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO usage_logs (account_id, node_id, model_id, input_tokens, output_tokens, cost_usd, request_id, success, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		log.AccountID, log.NodeID, log.ModelID, log.InputTokens, log.OutputTokens, log.CostUSD, log.RequestID, log.Success, log.CreatedAt)
-	return err
+	result, err := s.db.ExecContext(ctx,
+		`INSERT INTO usage_logs (account_id, node_id, node_name, model_id, input_tokens, output_tokens, cost_usd, request_id, success, duration_ms, total_attempts, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		log.AccountID, log.NodeID, log.NodeName, log.ModelID, log.InputTokens, log.OutputTokens, log.CostUSD, log.RequestID, log.Success, log.DurationMs, log.TotalAttempts, log.CreatedAt)
+	if err != nil {
+		return err
+	}
+
+	// 写入 attempts 子记录
+	if len(log.Attempts) > 0 {
+		logID, err := result.LastInsertId()
+		if err != nil {
+			return err
+		}
+		for _, a := range log.Attempts {
+			_, err := s.db.ExecContext(ctx,
+				`INSERT INTO usage_log_attempts (log_id, seq, node_id, node_name, status_code, success, duration_ms, error_msg, severity, action)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				logID, a.Seq, a.NodeID, a.NodeName, a.StatusCode, a.Success, a.DurationMs, a.ErrorMsg, a.Severity, a.Action)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // QueryUsageLogs 查询使用日志
@@ -293,7 +365,7 @@ func (s *Store) QueryUsageLogs(ctx context.Context, params QueryUsageParams) ([]
 	ctx, cancel := withTimeout(ctx)
 	defer cancel()
 
-	query := `SELECT id, account_id, node_id, model_id, input_tokens, output_tokens, cost_usd, request_id, success, created_at
+	query := `SELECT id, account_id, node_id, node_name, model_id, input_tokens, output_tokens, cost_usd, request_id, success, duration_ms, total_attempts, created_at
 		FROM usage_logs WHERE 1=1`
 	var args []interface{}
 
@@ -308,6 +380,10 @@ func (s *Store) QueryUsageLogs(ctx context.Context, params QueryUsageParams) ([]
 	if params.ModelID != "" {
 		query += " AND model_id = ?"
 		args = append(args, params.ModelID)
+	}
+	if params.Success != nil {
+		query += " AND success = ?"
+		args = append(args, *params.Success)
 	}
 	if !params.From.IsZero() {
 		query += " AND created_at >= ?"
@@ -339,15 +415,94 @@ func (s *Store) QueryUsageLogs(ctx context.Context, params QueryUsageParams) ([]
 	for rows.Next() {
 		var log UsageLogRecord
 		var reqID sql.NullString
-		if err := rows.Scan(&log.ID, &log.AccountID, &log.NodeID, &log.ModelID, &log.InputTokens, &log.OutputTokens, &log.CostUSD, &reqID, &log.Success, &log.CreatedAt); err != nil {
+		var nodeName sql.NullString
+		if err := rows.Scan(&log.ID, &log.AccountID, &log.NodeID, &nodeName, &log.ModelID, &log.InputTokens, &log.OutputTokens, &log.CostUSD, &reqID, &log.Success, &log.DurationMs, &log.TotalAttempts, &log.CreatedAt); err != nil {
 			return nil, err
 		}
 		if reqID.Valid {
 			log.RequestID = reqID.String
 		}
+		if nodeName.Valid {
+			log.NodeName = nodeName.String
+		}
 		results = append(results, log)
 	}
 	return results, rows.Err()
+}
+
+// CountUsageLogs 统计使用日志总数（用于分页）
+func (s *Store) CountUsageLogs(ctx context.Context, params QueryUsageParams) (int64, error) {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
+	query := `SELECT COUNT(*) FROM usage_logs WHERE 1=1`
+	var args []interface{}
+
+	if params.AccountID != "" {
+		query += " AND account_id = ?"
+		args = append(args, normalizeAccount(params.AccountID))
+	}
+	if params.NodeID != "" {
+		query += " AND node_id = ?"
+		args = append(args, params.NodeID)
+	}
+	if params.ModelID != "" {
+		query += " AND model_id = ?"
+		args = append(args, params.ModelID)
+	}
+	if params.Success != nil {
+		query += " AND success = ?"
+		args = append(args, *params.Success)
+	}
+	if !params.From.IsZero() {
+		query += " AND created_at >= ?"
+		args = append(args, params.From.UTC())
+	}
+	if !params.To.IsZero() {
+		query += " AND created_at < ?"
+		args = append(args, params.To.UTC())
+	}
+
+	var total int64
+	if err := s.db.QueryRowContext(ctx, query, args...).Scan(&total); err != nil {
+		return 0, err
+	}
+	return total, nil
+}
+
+// QueryAttemptsByLogIDs 批量查询指定日志 ID 的尝试记录
+func (s *Store) QueryAttemptsByLogIDs(ctx context.Context, logIDs []int64) (map[int64][]UsageLogAttempt, error) {
+	if len(logIDs) == 0 {
+		return nil, nil
+	}
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
+	// 构建 IN 子句
+	placeholders := make([]string, len(logIDs))
+	args := make([]interface{}, len(logIDs))
+	for i, id := range logIDs {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+	query := `SELECT id, log_id, seq, node_id, node_name, status_code, success, duration_ms, error_msg, severity, action
+		FROM usage_log_attempts WHERE log_id IN (` + strings.Join(placeholders, ",") + `) ORDER BY log_id, seq`
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[int64][]UsageLogAttempt)
+	for rows.Next() {
+		var a UsageLogAttempt
+		if err := rows.Scan(&a.ID, &a.LogID, &a.Seq, &a.NodeID, &a.NodeName, &a.StatusCode, &a.Success, &a.DurationMs, &a.ErrorMsg, &a.Severity, &a.Action); err != nil {
+			return nil, err
+		}
+		result[a.LogID] = append(result[a.LogID], a)
+	}
+	return result, rows.Err()
 }
 
 // GetUsageSummary 获取使用汇总（按账号、可选按节点或模型分组）

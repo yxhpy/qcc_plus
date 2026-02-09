@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"qcc_plus/internal/store"
 	"qcc_plus/internal/version"
 	"qcc_plus/web"
 )
@@ -229,6 +230,8 @@ func (p *Server) handler() http.Handler {
 			if maxLoops < 20 {
 				maxLoops = 20 // 至少尝试 20 次循环
 			}
+			var requestAttempts []store.UsageLogAttempt
+			requestStart := time.Now()
 			for loops := 0; loops < maxLoops; loops++ {
 				reqForAttempt := r.Clone(baseCtx)
 				if len(bodyBytes) > 0 {
@@ -255,6 +258,11 @@ func (p *Server) handler() http.Handler {
 				proxy, streamState := p.newReverseProxy(node, usage)
 				p.logger.Printf("%s %s via %s (account=%s, node %d/%d)", r.Method, r.URL.String(), node.Name, account.ID, attempt+1, len(account.Nodes))
 
+				// 追踪活跃连接数
+				if p.nodeScorer != nil {
+					p.nodeScorer.IncrActiveConn(node.ID)
+				}
+
 				start := time.Now()
 				mw := &metricsWriter{ResponseWriter: w, status: http.StatusOK}
 
@@ -280,8 +288,21 @@ func (p *Server) handler() http.Handler {
 				proxy.ServeHTTP(wrapFirstByteFlush(mw, streamState), reqForAttempt)
 				cancel()
 
+				// 释放活跃连接计数
+				if p.nodeScorer != nil {
+					p.nodeScorer.DecrActiveConn(node.ID)
+				}
+
 				// 真正发送了请求，计数器+1
 				attempt++
+
+				// 记录首字节延迟到评分器（用于慢节点检测）
+				if p.nodeScorer != nil && mw.firstWrite {
+					latencyMs := mw.firstAt.Sub(start).Milliseconds()
+					p.nodeScorer.RecordLatency(node.ID, latencyMs)
+					// 尝试恢复已降级的节点
+					p.nodeScorer.TryRecoverDegraded(node.ID)
+				}
 
 				upstreamStatus := extractUpstreamStatus(mw)
 				statusForRetry := upstreamStatus
@@ -323,31 +344,137 @@ func (p *Server) handler() http.Handler {
 
 				p.recordMetrics(r.Context(), node.ID, start, mw, usage, retryAttemptsTotal, retrySuccess, finalAttempt)
 
+				// 请求完成汇总日志：模型、节点、状态、耗时、token
+				{
+					elapsed := time.Since(start)
+					model := usage.modelID
+					if model == "" {
+						model = "unknown"
+					}
+					status := "SUCCESS"
+					if failed {
+						status = fmt.Sprintf("FAILED(%d)", statusForRetry)
+					}
+					p.logger.Printf("[request] model=%s node=%s status=%s duration=%s tokens(in=%d,out=%d) account=%s",
+						model, node.Name, status, elapsed.Round(time.Millisecond), usage.input, usage.output, account.ID)
+				}
+
 				if !failed {
+					// 成功：记录 attempt
+					requestAttempts = append(requestAttempts, store.UsageLogAttempt{
+						Seq: attempt, NodeID: node.ID, NodeName: node.Name,
+						StatusCode: statusForRetry, Success: true,
+						DurationMs: time.Since(start).Milliseconds(),
+						Action:     "success",
+					})
+					// 成功：记录 key 成功（多密钥轮换）
+					if node.APIKeys != nil {
+						node.APIKeys.RecordSuccess(node.GetActiveAPIKey())
+					}
+					// 写入带 attempts 的 usage log
+					p.writeUsageLogWithAttempts(r.Context(), account, node, usage, start, requestStart, true, requestAttempts)
 					return
 				}
 
 				// context 错误不记录健康事件和节点失败
 				if isContextError {
+					requestAttempts = append(requestAttempts, store.UsageLogAttempt{
+						Seq: attempt, NodeID: node.ID, NodeName: node.Name,
+						StatusCode: statusForRetry, Success: false,
+						DurationMs: time.Since(start).Milliseconds(),
+						ErrorMsg:   "context canceled/timeout", Severity: "context_error", Action: "abort",
+					})
 					p.logger.Printf("[context] request canceled/timeout for node %s, not marking as failure", node.Name)
+					p.writeUsageLogWithAttempts(r.Context(), account, node, usage, start, requestStart, false, requestAttempts)
 					return
 				}
 
+				// 语义化错误分析
 				errMsg := extractErrorMessage(mw, statusForRetry)
+				var respBody []byte
+				if bodyPreview := mw.Header().Get("X-Retry-Error"); bodyPreview != "" {
+					respBody = []byte(bodyPreview)
+				}
+				classified := ClassifyError(statusForRetry, respBody)
+				p.logger.Printf("[error] node %s: severity=%s, code=%s, msg=%s, key_related=%v",
+					node.Name, classified.Severity, classified.Code, classified.Message, classified.KeyRelated)
+
+				// 确定本次尝试的 action（后续可能被覆盖为 retry）
+				attemptAction := "fail"
+
+				// 多密钥轮换：Key 相关错误时尝试切换 key
+				if node.APIKeys != nil && classified.Severity.ShouldSwitchKey() {
+					shouldSwitch := node.APIKeys.RecordFailure(node.GetActiveAPIKey(), classified)
+					if shouldSwitch {
+						newKey := node.APIKeys.RotateToNext()
+						if newKey != "" {
+							p.logger.Printf("[key-rotate] node %s: switched to next API key (remaining active: %d)",
+								node.Name, node.APIKeys.ActiveKeyCount())
+							requestAttempts = append(requestAttempts, store.UsageLogAttempt{
+								Seq: attempt, NodeID: node.ID, NodeName: node.Name,
+								StatusCode: statusForRetry, Success: false,
+								DurationMs: time.Since(start).Milliseconds(),
+								ErrorMsg:   errMsg, Severity: classified.Severity.String(), Action: "key_rotate",
+							})
+							// Key 切换后不跳过此节点，用新 key 重试
+							continue
+						}
+					}
+					// 所有 key 都失效
+					if node.APIKeys.AllKeysDisabled() {
+						p.logger.Printf("[key-rotate] node %s: all API keys disabled", node.Name)
+						errMsg = "所有 API Key 已失效: " + classified.Message
+					}
+				}
+
 				if account != nil {
 					p.recordHealthEvent(account.ID, node.ID, HealthCheckMethodProxy, CheckSourceProxyFail, false, time.Since(start), errMsg, time.Now().UTC())
 				}
-				if p.shouldFail(node.ID, errMsg) {
-					// 仅在最后一次尝试失败时才把节点标记为全局失败，避免单请求重试耗尽所有节点
-					if isLastAttempt {
-						p.handleFailure(node.ID, errMsg)
-					} else {
-						p.logger.Printf("[retry] node %s failed in attempt %d, will try other nodes", node.Name, attempt+1)
-					}
-				}
-				skipNodes[node.ID] = true
 
-				if !shouldRetry {
+				// 根据错误严重程度决定是否标记节点失败
+				switch classified.Severity {
+				case SeverityPermanent:
+					// 永久错误（如 400）：不标记节点失败，不重试
+					p.logger.Printf("[permanent] node %s: %s, not marking as failed", node.Name, errMsg)
+					attemptAction = "permanent_fail"
+				case SeverityAccountIssue:
+					// 账号问题：标记节点失败（需人工介入）
+					p.handleFailure(node.ID, errMsg)
+					skipNodes[node.ID] = true
+				case SeverityKeyInvalid:
+					// Key 失效且无可用 key：标记节点失败
+					if node.APIKeys == nil || node.APIKeys.AllKeysDisabled() {
+						p.handleFailure(node.ID, errMsg)
+					}
+					skipNodes[node.ID] = true
+				case SeverityNodeDown:
+					if p.shouldFail(node.ID, errMsg) {
+						if isLastAttempt {
+							p.handleFailure(node.ID, errMsg)
+						} else {
+							p.logger.Printf("[retry] node %s failed in attempt %d, will try other nodes", node.Name, attempt+1)
+						}
+					}
+					skipNodes[node.ID] = true
+				default:
+					// SeverityTransient / SeverityDegraded：可重试
+					skipNodes[node.ID] = true
+				}
+
+				if shouldRetry && classified.Severity != SeverityPermanent {
+					attemptAction = "retry"
+				}
+
+				// 记录本次失败尝试
+				requestAttempts = append(requestAttempts, store.UsageLogAttempt{
+					Seq: attempt, NodeID: node.ID, NodeName: node.Name,
+					StatusCode: statusForRetry, Success: false,
+					DurationMs: time.Since(start).Milliseconds(),
+					ErrorMsg:   errMsg, Severity: classified.Severity.String(), Action: attemptAction,
+				})
+
+				if !shouldRetry || classified.Severity == SeverityPermanent {
+					p.writeUsageLogWithAttempts(r.Context(), account, node, usage, start, requestStart, false, requestAttempts)
 					return
 				}
 
@@ -614,4 +741,38 @@ func (p *Server) handleEnvVarsCategories(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"data": categories,
 	})
+}
+
+// writeUsageLogWithAttempts 写入带有链路追踪 attempts 的使用日志
+func (p *Server) writeUsageLogWithAttempts(ctx context.Context, account *Account, node *Node, u *usage, attemptStart, requestStart time.Time, success bool, attempts []store.UsageLogAttempt) {
+	if p.store == nil || u == nil || u.modelID == "" {
+		return
+	}
+	if account == nil || node == nil {
+		return
+	}
+
+	costUSD, err := p.store.CalculateCost(ctx, u.modelID, u.input, u.output)
+	if err != nil && (u.input > 0 || u.output > 0) {
+		p.logger.Printf("[usage] failed to calculate cost for model %s: %v", u.modelID, err)
+	}
+
+	usageLog := store.UsageLogRecord{
+		AccountID:     account.ID,
+		NodeID:        node.ID,
+		NodeName:      node.Name,
+		ModelID:       u.modelID,
+		InputTokens:   u.input,
+		OutputTokens:  u.output,
+		CostUSD:       costUSD,
+		RequestID:     u.requestID,
+		Success:       success,
+		DurationMs:    time.Since(requestStart).Milliseconds(),
+		TotalAttempts: len(attempts),
+		Attempts:      attempts,
+	}
+
+	if err := p.store.InsertUsageLog(ctx, usageLog); err != nil {
+		p.logger.Printf("[usage] failed to insert usage log for account %s, model %s: %v", account.ID, u.modelID, err)
+	}
 }

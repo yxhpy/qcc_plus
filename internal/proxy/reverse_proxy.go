@@ -358,6 +358,19 @@ func (p *Server) newReverseProxy(node *Node, u *usage, idleCfg *streamIdleConfig
 			req.Header.Set("Authorization", "Bearer "+activeKey)
 		}
 
+		// 移除 brotli 编码：Go 的 reverse proxy 不支持 br 解压，
+		// usageReader 包装 resp.Body 时会破坏 brotli 流导致客户端 BrotliDecompressionError。
+		if ae := req.Header.Get("Accept-Encoding"); ae != "" {
+			ae = strings.ReplaceAll(ae, "br", "")
+			ae = strings.ReplaceAll(ae, ",,", ",")
+			ae = strings.Trim(ae, ", ")
+			if ae == "" {
+				req.Header.Del("Accept-Encoding")
+			} else {
+				req.Header.Set("Accept-Encoding", ae)
+			}
+		}
+
 		// 仅处理 JSON 体的写请求，剔除 tools 中的非标准字段（如 custom）。
 		if req.Body != nil && (req.Method == http.MethodPost || req.Method == http.MethodPut) {
 			ct := strings.ToLower(req.Header.Get("Content-Type"))

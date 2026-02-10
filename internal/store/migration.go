@@ -248,7 +248,7 @@ func (s *Store) ensureNodesTable(ctx context.Context) error {
 		if s.IsSQLite() {
 			alterStmt = `ALTER TABLE nodes ADD COLUMN model_mapping TEXT DEFAULT ''`
 		} else {
-			alterStmt = `ALTER TABLE nodes ADD COLUMN model_mapping TEXT DEFAULT '' AFTER health_check_model`
+			alterStmt = `ALTER TABLE nodes ADD COLUMN model_mapping TEXT AFTER health_check_model`
 		}
 		if _, err := s.db.ExecContext(alterCtx, alterStmt); err != nil {
 			return err

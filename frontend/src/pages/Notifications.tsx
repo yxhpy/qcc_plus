@@ -16,6 +16,7 @@ const channelTypes = [
 
 const eventCategories: Record<string, string> = {
   node: '节点相关',
+  model: '模型恢复',
   request: '请求相关',
   account: '账号相关',
   system: '系统相关',
@@ -224,6 +225,14 @@ export default function Notifications() {
 
   const subscriptionMap = useMemo(() => new Map(subscriptions.map((s) => [s.event_type, s])), [subscriptions])
 
+  // 全部事件类型列表
+  const allEventTypeIds = useMemo(() => eventTypes.map((et) => et.type), [eventTypes])
+
+  // 全选/全不选状态
+  const allSelected = allEventTypeIds.length > 0 && allEventTypeIds.every((t) => selectedEvents.has(t))
+  const noneSelected = allEventTypeIds.length > 0 && allEventTypeIds.every((t) => !selectedEvents.has(t))
+  const someSelected = !allSelected && !noneSelected
+
   const handleToggleEvent = (eventType: string) => {
     setSelectedEvents((prev) => {
       const next = new Set(prev)
@@ -231,6 +240,44 @@ export default function Notifications() {
         next.delete(eventType)
       } else {
         next.add(eventType)
+      }
+      return next
+    })
+  }
+
+  // 全选所有事件
+  const handleSelectAll = () => {
+    setSelectedEvents(new Set(allEventTypeIds))
+  }
+
+  // 全不选
+  const handleDeselectAll = () => {
+    setSelectedEvents(new Set())
+  }
+
+  // 反选
+  const handleInvertSelection = () => {
+    setSelectedEvents((prev) => {
+      const next = new Set<string>()
+      for (const t of allEventTypeIds) {
+        if (!prev.has(t)) next.add(t)
+      }
+      return next
+    })
+  }
+
+  // 分类级别全选/取消
+  const handleToggleCategory = (categoryKey: string) => {
+    const list = groupedEventTypes[categoryKey] || []
+    if (list.length === 0) return
+    const categoryTypes = list.map((et) => et.type)
+    const allChecked = categoryTypes.every((t) => selectedEvents.has(t))
+    setSelectedEvents((prev) => {
+      const next = new Set(prev)
+      if (allChecked) {
+        categoryTypes.forEach((t) => next.delete(t))
+      } else {
+        categoryTypes.forEach((t) => next.add(t))
       }
       return next
     })
@@ -368,7 +415,7 @@ export default function Notifications() {
               scrollToForm()
             }}
           >
-            ➕ 新建渠道
+            + 新建渠道
           </button>
           <div className="spacer" />
           <button className="btn ghost" type="button" onClick={loadChannels}>
@@ -391,13 +438,13 @@ export default function Notifications() {
             <tbody>
               {channelLoading ? (
                 <tr>
-                  <td colSpan={5}>
+                  <td colSpan={7}>
                     <div className="skeleton" style={{ height: 24 }}></div>
                   </td>
                 </tr>
               ) : channels.length === 0 ? (
                 <tr>
-                  <td colSpan={5}>暂无渠道</td>
+                  <td colSpan={7}>暂无渠道</td>
                 </tr>
               ) : (
                 channels.map((ch) => {
@@ -487,26 +534,63 @@ export default function Notifications() {
           ) : eventLoading ? (
             <div className="empty-box">加载中...</div>
           ) : (
-            <div className="event-groups">
-              {Object.entries(eventCategories).map(([key, label]) => {
-                const list = groupedEventTypes[key] || []
-                return (
-                  <div className="event-group" key={key}>
-                    <div className="group-head">
-                      <div>
-                        <h4>{label}</h4>
-                        <small className="muted">{list.length ? `共 ${list.length} 项` : '暂无事件'}</small>
+            <>
+              {/* 批量操作工具栏 */}
+              <div className="batch-toolbar">
+                <div className="batch-left">
+                  <label className="batch-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      ref={(el) => { if (el) el.indeterminate = someSelected }}
+                      onChange={() => allSelected ? handleDeselectAll() : handleSelectAll()}
+                    />
+                    <span>全选</span>
+                  </label>
+                  <button className="btn ghost btn-sm" type="button" onClick={handleInvertSelection}>
+                    反选
+                  </button>
+                  <button className="btn ghost btn-sm" type="button" onClick={handleDeselectAll} disabled={noneSelected}>
+                    清空选择
+                  </button>
+                </div>
+                <div className="batch-right">
+                  <span className="selection-count">
+                    已选 <strong>{selectedEvents.size}</strong> / {allEventTypeIds.length}
+                  </span>
+                </div>
+              </div>
+
+              <div className="event-groups">
+                {Object.entries(eventCategories).map(([key, label]) => {
+                  const list = groupedEventTypes[key] || []
+                  if (list.length === 0) return null
+                  const categoryTypes = list.map((et) => et.type)
+                  const checkedCount = categoryTypes.filter((t) => selectedEvents.has(t)).length
+                  const allChecked = checkedCount === categoryTypes.length
+                  const someChecked = checkedCount > 0 && !allChecked
+                  return (
+                    <div className="event-group" key={key}>
+                      <div className="group-head">
+                        <div className="group-head-left">
+                          <label className="group-checkbox">
+                            <input
+                              type="checkbox"
+                              checked={allChecked}
+                              ref={(el) => { if (el) el.indeterminate = someChecked }}
+                              onChange={() => handleToggleCategory(key)}
+                            />
+                            <h4>{label}</h4>
+                          </label>
+                          <small className="muted">{checkedCount}/{list.length} 已选</small>
+                        </div>
+                        <span className="pill light">{key}.*</span>
                       </div>
-                      <span className="pill light">{key}.*</span>
-                    </div>
-                    {list.length === 0 ? (
-                      <div className="empty-box small">暂未提供该分类事件</div>
-                    ) : (
                       <div className="event-list">
                         {list.map((evt) => {
                           const sub = subscriptionMap.get(evt.type)
                           return (
-                            <label className="event-item" key={evt.type}>
+                            <label className={`event-item${selectedEvents.has(evt.type) ? ' checked' : ''}`} key={evt.type}>
                               <input
                                 type="checkbox"
                                 checked={selectedEvents.has(evt.type)}
@@ -525,11 +609,11 @@ export default function Notifications() {
                           )
                         })}
                       </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </>
           )}
           <div className="form-actions" style={{ marginTop: 16 }}>
             <button className="btn primary" type="button" onClick={handleSaveSubscriptions} disabled={!selectedChannelId || savingSubs}>

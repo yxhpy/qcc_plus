@@ -39,9 +39,10 @@ func NewModelRecoveryTracker() *ModelRecoveryTracker {
 
 // MarkFailed 标记某个节点上的某个模型为失败状态。
 // 如果该模型已经在失败列表中，只更新错误信息，不重置 FailedAt。
-func (t *ModelRecoveryTracker) MarkFailed(nodeID, modelID, accountID, errMsg string) {
+// 返回 true 表示是新增的失败记录（首次进入恢复列表），false 表示已存在只是更新。
+func (t *ModelRecoveryTracker) MarkFailed(nodeID, modelID, accountID, errMsg string) bool {
 	if nodeID == "" || modelID == "" {
-		return
+		return false
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -55,7 +56,7 @@ func (t *ModelRecoveryTracker) MarkFailed(nodeID, modelID, accountID, errMsg str
 	if existing, ok := models[modelID]; ok {
 		// 已存在，只更新错误信息
 		existing.Error = errMsg
-		return
+		return false
 	}
 
 	models[modelID] = &FailedModelInfo{
@@ -65,6 +66,7 @@ func (t *ModelRecoveryTracker) MarkFailed(nodeID, modelID, accountID, errMsg str
 		Error:     errMsg,
 		FailedAt:  time.Now(),
 	}
+	return true
 }
 
 // MarkRecovered 标记某个节点上的某个模型已恢复。

@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"qcc_plus/internal/notify"
 	"qcc_plus/internal/store"
 	"qcc_plus/internal/timeutil"
 	"qcc_plus/internal/version"
@@ -441,6 +442,16 @@ func (p *Server) handler() http.Handler {
 									"timestamp": timeutil.FormatBeijingTime(time.Now()),
 								})
 							}
+							if p.notifyMgr != nil && account != nil {
+								p.notifyMgr.Publish(notify.Event{
+									AccountID:  account.ID,
+									EventType:  notify.EventModelRecovered,
+									Title:      "模型已恢复",
+									Content:    fmt.Sprintf("**节点名称**: %s\n**模型**: %s\n**恢复方式**: 请求成功\n**时间**: %s", node.Name, usage.modelID, timeutil.FormatBeijingTime(time.Now())),
+									DedupKey:   node.ID + ":" + usage.modelID,
+									OccurredAt: time.Now(),
+								})
+							}
 						}
 					}
 					// 写入带 attempts 的 usage log
@@ -508,7 +519,7 @@ func (p *Server) handler() http.Handler {
 
 				// 模型级别故障跟踪：记录失败的模型（非永久错误才跟踪，永久错误如 400 是请求本身的问题）
 				if p.modelRecovery != nil && usage.modelID != "" && classified.Severity != SeverityPermanent {
-					p.modelRecovery.MarkFailed(node.ID, usage.modelID, account.ID, errMsg)
+					isNew := p.modelRecovery.MarkFailed(node.ID, usage.modelID, account.ID, errMsg)
 					p.logger.Printf("[model-recovery] model %s marked failed on node %s: %s", usage.modelID, node.Name, errMsg)
 					if p.wsHub != nil && account != nil {
 						p.wsHub.Broadcast(account.ID, "model_recovery", map[string]interface{}{
@@ -518,6 +529,17 @@ func (p *Server) handler() http.Handler {
 							"status":    "failed",
 							"error":     errMsg,
 							"timestamp": timeutil.FormatBeijingTime(time.Now()),
+						})
+					}
+					// 仅首次进入恢复列表时发送通知（避免重复通知）
+					if isNew && p.notifyMgr != nil && account != nil {
+						p.notifyMgr.Publish(notify.Event{
+							AccountID:  account.ID,
+							EventType:  notify.EventModelFailed,
+							Title:      "模型进入恢复列表",
+							Content:    fmt.Sprintf("**节点名称**: %s\n**模型**: %s\n**错误信息**: %s\n**时间**: %s", node.Name, usage.modelID, errMsg, timeutil.FormatBeijingTime(time.Now())),
+							DedupKey:   node.ID + ":" + usage.modelID,
+							OccurredAt: time.Now(),
 						})
 					}
 				}

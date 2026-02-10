@@ -16,6 +16,10 @@ const (
 	EventNodeDisabled         = "node.disabled"
 	EventNodeHealthCheckError = "node.health_check_failed"
 
+	// 模型恢复相关
+	EventModelFailed    = "model.failed"    // 模型进入恢复列表
+	EventModelRecovered = "model.recovered" // 模型从恢复列表恢复
+
 	// 请求相关
 	EventRequestFailed      = "request.failed"
 	EventRequestUpstreamErr = "request.upstream_error"

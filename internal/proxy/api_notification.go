@@ -668,6 +668,8 @@ func eventTypeCatalog() []eventTypeInfo {
 		{notify.EventNodeEnabled, "node", "节点启用"},
 		{notify.EventNodeDisabled, "node", "节点禁用"},
 		{notify.EventNodeHealthCheckError, "node", "节点健康检查失败"},
+		{notify.EventModelFailed, "model", "模型进入恢复列表"},
+		{notify.EventModelRecovered, "model", "模型恢复"},
 		{notify.EventRequestFailed, "request", "请求失败"},
 		{notify.EventRequestUpstreamErr, "request", "上游错误"},
 		{notify.EventRequestProxyError, "request", "代理错误"},

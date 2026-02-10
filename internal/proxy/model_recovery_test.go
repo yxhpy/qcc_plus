@@ -144,9 +144,13 @@ func TestModelRecoveryTracker_OfflineDuration(t *testing.T) {
 func TestModelRecoveryTracker_EmptyOperations(t *testing.T) {
 	tracker := NewModelRecoveryTracker()
 
-	// 空操作不应 panic
-	tracker.MarkFailed("", "model", "acc", "err")
-	tracker.MarkFailed("node", "", "acc", "err")
+	// 空操作不应 panic，且返回 false
+	if tracker.MarkFailed("", "model", "acc", "err") {
+		t.Fatal("empty nodeID should return false")
+	}
+	if tracker.MarkFailed("node", "", "acc", "err") {
+		t.Fatal("empty modelID should return false")
+	}
 	tracker.MarkRecovered("", "model")
 	tracker.MarkRecovered("node", "")
 	tracker.MarkNodeRecovered("")
@@ -162,5 +166,35 @@ func TestModelRecoveryTracker_EmptyOperations(t *testing.T) {
 	items := tracker.GetFailedModels("nonexistent")
 	if len(items) != 0 {
 		t.Fatalf("expected 0 items for nonexistent node, got %d", len(items))
+	}
+}
+
+func TestModelRecoveryTracker_MarkFailedReturnValue(t *testing.T) {
+	tracker := NewModelRecoveryTracker()
+
+	// 首次标记应返回 true（新增）
+	if !tracker.MarkFailed("node1", "model-a", "acc1", "error") {
+		t.Fatal("first MarkFailed should return true")
+	}
+
+	// 重复标记同一模型应返回 false（已存在）
+	if tracker.MarkFailed("node1", "model-a", "acc1", "updated error") {
+		t.Fatal("duplicate MarkFailed should return false")
+	}
+
+	// 不同模型应返回 true
+	if !tracker.MarkFailed("node1", "model-b", "acc1", "error") {
+		t.Fatal("different model MarkFailed should return true")
+	}
+
+	// 不同节点同模型应返回 true
+	if !tracker.MarkFailed("node2", "model-a", "acc1", "error") {
+		t.Fatal("different node MarkFailed should return true")
+	}
+
+	// 恢复后再次标记应返回 true
+	tracker.MarkRecovered("node1", "model-a")
+	if !tracker.MarkFailed("node1", "model-a", "acc1", "new error") {
+		t.Fatal("MarkFailed after recovery should return true")
 	}
 }

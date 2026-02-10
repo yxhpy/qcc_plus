@@ -303,9 +303,9 @@ func (p *Server) checkModelRecovery(acc *Account, node *Node, modelID string) {
 		if p.notifyMgr != nil {
 			p.notifyMgr.Publish(notify.Event{
 				AccountID:  acc.ID,
-				EventType:  notify.EventNodeRecovered,
+				EventType:  notify.EventModelRecovered,
 				Title:      "模型已恢复",
-				Content:    fmt.Sprintf("**节点名称**: %s\n**模型**: %s\n**恢复时间**: %s", node.Name, modelID, timeutil.FormatBeijingTime(time.Now())),
+				Content:    fmt.Sprintf("**节点名称**: %s\n**模型**: %s\n**恢复方式**: 健康检查\n**恢复时间**: %s", node.Name, modelID, timeutil.FormatBeijingTime(time.Now())),
 				DedupKey:   node.ID + ":" + modelID,
 				OccurredAt: time.Now(),
 			})

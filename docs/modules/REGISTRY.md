@@ -1,6 +1,6 @@
 # 模块注册表
 
-> 基于现有代码生成 | 最后更新: 2026-02-02
+> 基于现有代码生成 | 最后更新: 2026-02-10
 > 运行 `./.claude/scripts/update-registry.sh` 更新
 
 ## 说明
@@ -27,14 +27,17 @@
   - `SendMessage()` - 发送消息
   - `StreamMessage()` - 流式发送消息
 - **测试**: ✅ 有测试（client_test.go, integration_test.go）
-- **覆盖率**: 18.5%
+- **覆盖率**: 96.7%
 - **文档**: [Claude API 客户端](../frontend-tech-stack.md)
 
 ### proxy
 - **路径**: `internal/proxy/`
 - **功能**: 反向代理服务器，多租户管理、节点管理、健康检查、熔断器
 - **主要文件**:
-  - `handler.go` - 请求处理
+  - `handler.go` - 请求处理（流式/非流式超时策略）
+  - `reverse_proxy.go` - 反向代理核心（SSE 流修复、空闲超时注入）
+  - `idle_timeout.go` - SSE 流空闲超时检测（v1.11.0 新增）
+  - `retry.go` - 重试配置（含 StreamIdleTimeout）
   - `node_manager.go` - 节点管理
   - `health.go` - 健康检查
   - `circuit_breaker.go` - 熔断器
@@ -45,7 +48,8 @@
   - `HandleRequest()` - 处理请求
   - `SelectNode()` - 选择节点
   - `CheckHealth()` - 健康检查
-- **测试**: ✅ 有测试
+  - `newIdleTimeoutReader()` - 创建 SSE 流空闲超时 Reader
+- **测试**: ✅ 有测试（含 idle_timeout_test.go）
 - **文档**:
   - [多租户架构](../multi-tenant-architecture.md)
   - [健康检查机制](../health_check_mechanism.md)
@@ -71,7 +75,7 @@
   - `GetAccount()` - 获取账号
   - `UpsertNode()` - 更新节点
   - `RecordMetrics()` - 记录指标
-- **测试**: ❌ 无测试（需要补充）
+- **测试**: ✅ 有测试
 - **文档**: [数据持久化](../multi-tenant-architecture.md#数据模型)
 
 ### notify
@@ -88,7 +92,7 @@
   - `NewManager()` - 创建管理器
   - `SendNotification()` - 发送通知
   - `GetNotifications()` - 获取通知列表
-- **测试**: ❌ 无测试（需要补充）
+- **测试**: ✅ 有测试
 - **文档**: [通知系统](../notification-system.md)
 
 ### tunnel
@@ -102,7 +106,7 @@
   - `NewManager()` - 创建管理器
   - `CreateTunnel()` - 创建隧道
   - `DeleteTunnel()` - 删除隧道
-- **测试**: ❌ 无测试（需要补充）
+- **测试**: ✅ 有测试
 - **文档**: [Cloudflare Tunnel 集成](../cloudflare-tunnel.md)
 
 ### timeutil

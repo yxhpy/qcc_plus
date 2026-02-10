@@ -1,7 +1,7 @@
 # 项目记忆文件
 
 ## 元信息
-- **当前版本**: v1.10.0
+- **当前版本**: v1.11.0
 - **GitHub**: https://github.com/yxhpy/qcc_plus
 - **Docker Hub**: https://hub.docker.com/r/yxhpy520/qcc_plus
 - **npm**: https://www.npmjs.com/package/@qccplus/cli
@@ -131,12 +131,6 @@ docker compose up -d
 ### 模块和 API
 - @docs/modules/REGISTRY.md - 模块注册表 ⭐
 - @docs/api/INDEX.md - API 索引
-
-### 项目记忆
-- `.claude-memory/context.json` - 项目上下文
-- `.claude-memory/iterations.md` - 迭代历史
-- `.claude-memory/lessons-learned.md` - 经验教训
-- `.claude-memory/decisions/` - 架构决策记录
 
 ### 详细文档
 - @docs/claude/lessons-learned.md - 踩坑记录

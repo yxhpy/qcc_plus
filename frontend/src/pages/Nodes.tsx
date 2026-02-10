@@ -20,6 +20,7 @@ interface EditForm {
   api_key: string
   health_check_method: 'api' | 'head' | 'cli'
   health_check_model: string
+  model_mapping: Array<{ from: string; to: string }>
 }
 
 const healthMethodOptions: { value: 'api' | 'head' | 'cli'; label: string }[] = [
@@ -34,6 +35,14 @@ const modelOptions = [
   { value: 'claude-opus-4-20250514', label: 'Claude Opus 4（不推荐，最贵）' },
 ]
 
+const allModelIds = [
+  'claude-haiku-4-5-20251001',
+  'claude-sonnet-4-20250514',
+  'claude-sonnet-4-5-20250929',
+  'claude-opus-4-20250514',
+  'claude-opus-4-6-20250918',
+]
+
 export default function Nodes() {
   const [accounts, setAccounts] = useState<Account[]>([])
   const [accountId, setAccountId] = useState('')
@@ -46,7 +55,7 @@ export default function Nodes() {
   const [filter, setFilter] = useState('all')
   const [detailNode, setDetailNode] = useState<Node | null>(null)
   const [editingNode, setEditingNode] = useState<Node | null>(null)
-  const [editForm, setEditForm] = useState<EditForm>({ name: '', base_url: '', weight: '1', api_key: '', health_check_method: 'api', health_check_model: 'claude-haiku-4-5-20251001' })
+  const [editForm, setEditForm] = useState<EditForm>({ name: '', base_url: '', weight: '1', api_key: '', health_check_method: 'api', health_check_model: 'claude-haiku-4-5-20251001', model_mapping: [] })
   const [savingOrder, setSavingOrder] = useState(false)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
@@ -114,6 +123,12 @@ export default function Nodes() {
 
   useEffect(() => {
     if (!editingNode) return
+    const mapping: Array<{ from: string; to: string }> = []
+    if (editingNode.model_mapping) {
+      for (const [from, to] of Object.entries(editingNode.model_mapping)) {
+        mapping.push({ from, to })
+      }
+    }
     setEditForm({
       name: editingNode.name || '',
       base_url: editingNode.base_url || '',
@@ -121,6 +136,7 @@ export default function Nodes() {
       api_key: '',
       health_check_method: editingNode.health_check_method || 'api',
       health_check_model: editingNode.health_check_model || 'claude-haiku-4-5-20251001',
+      model_mapping: mapping,
     })
   }, [editingNode])
 
@@ -137,9 +153,10 @@ export default function Nodes() {
       const match =
         !q || (n.name || '').toLowerCase().includes(q) || (n.base_url || '').toLowerCase().includes(q)
       if (!match) return false
-      if (filter === 'active') return n.active && !n.failed && !n.disabled
-      if (filter === 'failed') return n.failed
-      if (filter === 'disabled') return n.disabled
+      if (filter === 'online') return n.status === 'online'
+      if (filter === 'offline') return n.status === 'offline'
+      if (filter === 'degraded') return n.status === 'degraded'
+      if (filter === 'disabled') return n.status === 'disabled'
       return true
     })
   }, [nodes, search, filter])
@@ -213,15 +230,15 @@ export default function Nodes() {
     try {
       setActionId(node.id)
       if (act === 'switch') {
-        if (node.active || node.disabled) return
+        if (node.is_active || node.status === 'disabled') return
         await api.activateNode(node.id)
         showToast('已切换')
         loadNodes()
         return
       }
       if (act === 'toggle') {
-        await api.toggleNode(node.id, node.disabled)
-        showToast(node.disabled ? '已启用' : '已禁用')
+        await api.toggleNode(node.id, node.status === 'disabled')
+        showToast(node.status === 'disabled' ? '已启用' : '已禁用')
         loadNodes()
         return
       }
@@ -260,6 +277,15 @@ export default function Nodes() {
     }
     setSaving(true)
     try {
+      // 将 model_mapping 数组转为 Record
+      const mappingObj: Record<string, string> = {}
+      for (const entry of editForm.model_mapping) {
+        const from = entry.from.trim()
+        const to = entry.to.trim()
+        if (from && to && from !== to) {
+          mappingObj[from] = to
+        }
+      }
       await api.updateNode(editingNode.id, {
         name: editForm.name.trim(),
         base_url: editForm.base_url.trim(),
@@ -267,6 +293,7 @@ export default function Nodes() {
         api_key: apiKeyInput ? apiKeyInput : undefined,
         health_check_method: healthMethod,
         health_check_model: healthModel,
+        model_mapping: mappingObj,
       })
       showToast('已保存')
       setEditingNode(null)
@@ -279,11 +306,13 @@ export default function Nodes() {
   }
 
   const statusInfo = (n: Node) => {
-    if (n.disabled) return { label: 'Disabled', cls: 'off', icon: '🚫' }
-    if (n.failed) return { label: 'Failed', cls: 'fail', icon: '⚠️' }
-    if (n.degraded) return { label: 'Degraded', cls: 'warn', icon: '🐢' }
-    if (n.active) return { label: 'Active', cls: 'ok', icon: '✔️' }
-    return { label: 'Standby', cls: 'warn', icon: '⏸' }
+    switch (n.status) {
+      case 'disabled': return { label: 'Disabled', cls: 'off' }
+      case 'offline':  return { label: 'Offline', cls: 'fail' }
+      case 'degraded': return { label: 'Degraded', cls: 'warn' }
+      case 'online':
+      default:         return { label: 'Online', cls: 'ok' }
+    }
   }
 
   const errorSeverityLabel = (severity?: string) => {
@@ -451,13 +480,15 @@ export default function Nodes() {
         </td>
         <td className="node-name-cell">{node.name || '未命名'}<RecoveryBadge nodeId={node.id} /></td>
         <td>
-          <div
-            className={`pill ${status.cls}`}
-            style={{ cursor: (node.failed || node.degraded) && node.last_error ? 'pointer' : 'default' }}
-            onClick={() => ((node.failed || node.degraded) ? openErrorDetail(node) : undefined)}
-          >
-            <span>{status.icon}</span>
-            <span>{status.label}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div
+              className={`pill ${status.cls}`}
+              style={{ cursor: (node.status === 'offline' || node.status === 'degraded') && node.last_error ? 'pointer' : 'default' }}
+              onClick={() => ((node.status === 'offline' || node.status === 'degraded') ? openErrorDetail(node) : undefined)}
+            >
+              <span>{status.label}</span>
+            </div>
+            {node.is_active && <span className="active-badge" title="当前选中节点">IN USE</span>}
           </div>
           {node.error_severity && errorSeverityLabel(node.error_severity) && (
             <div className={`error-severity-tag ${errorSeverityClass(node.error_severity)}`}>
@@ -486,7 +517,7 @@ export default function Nodes() {
         <td>
           <div className="table-actions" style={{ rowGap: 6 }}>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {!node.active && !node.disabled && (
+              {!node.is_active && node.status !== 'disabled' && (
                 <button
                   className="btn ghost"
                   type="button"
@@ -510,7 +541,7 @@ export default function Nodes() {
                 onClick={() => handleAction('toggle', node)}
                 disabled={actionId === node.id}
               >
-                {node.disabled ? '启用' : '禁用'}
+                {node.status === 'disabled' ? '启用' : '禁用'}
               </button>
               <button
                 className="btn danger"
@@ -568,8 +599,9 @@ export default function Nodes() {
           />
           <select id="filter" value={filter} onChange={(e) => setFilter(e.target.value)}>
             <option value="all">全部状态</option>
-            <option value="active">仅活跃</option>
-            <option value="failed">仅失败</option>
+            <option value="online">在线</option>
+            <option value="offline">离线</option>
+            <option value="degraded">降级</option>
             <option value="disabled">已禁用</option>
           </select>
         </div>
@@ -641,7 +673,18 @@ export default function Nodes() {
               {detailNode.health_check_method === 'cli' &&
                 renderStat('健康检查模型', detailNode.health_check_model || 'claude-haiku-4-5-20251001')}
               {renderStat('权重', detailNode.weight ?? '-')} {renderStat('状态', statusInfo(detailNode).label)}
+              {detailNode.is_active && renderStat('选中', '当前活跃节点')}
             </div>
+            {detailNode.model_mapping && Object.keys(detailNode.model_mapping).length > 0 && (
+              <div style={{ margin: '8px 0' }}>
+                <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>模型映射</div>
+                {Object.entries(detailNode.model_mapping).map(([from, to]) => (
+                  <div key={from} style={{ fontSize: 12, padding: '2px 0', color: 'var(--text)' }}>
+                    {from} &rarr; {to}
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="node-stats">
               {renderStat('最后健康检查', formatDateTime(detailNode.last_health_check_at))}
               {renderStat('Ping 延迟 (ms)', detailNode.last_ping_ms ?? '-')}
@@ -772,6 +815,83 @@ export default function Nodes() {
                   </span>
                 )}
               </label>
+            </div>
+
+            <div style={{ marginTop: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <span style={{ fontWeight: 600, fontSize: 13 }}>模型映射</span>
+                <button
+                  type="button"
+                  className="btn ghost"
+                  style={{ padding: '2px 8px', fontSize: 12, lineHeight: '20px' }}
+                  onClick={() =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      model_mapping: [...prev.model_mapping, { from: '', to: '' }],
+                    }))
+                  }
+                >
+                  + 添加映射
+                </button>
+                <span className="weight-hint" style={{ marginLeft: 4 }}>请求中的模型自动替换为目标模型</span>
+              </div>
+              {editForm.model_mapping.map((entry, idx) => (
+                <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <select
+                    value={entry.from}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      setEditForm((prev) => {
+                        const arr = [...prev.model_mapping]
+                        arr[idx] = { ...arr[idx], from: val }
+                        return { ...prev, model_mapping: arr }
+                      })
+                    }}
+                    style={{ flex: 1, fontSize: 12, padding: '4px 6px' }}
+                  >
+                    <option value="">-- 源模型 --</option>
+                    {allModelIds.map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                  <span style={{ fontSize: 13, color: 'var(--text-secondary)', flexShrink: 0 }}>&rarr;</span>
+                  <select
+                    value={entry.to}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      setEditForm((prev) => {
+                        const arr = [...prev.model_mapping]
+                        arr[idx] = { ...arr[idx], to: val }
+                        return { ...prev, model_mapping: arr }
+                      })
+                    }}
+                    style={{ flex: 1, fontSize: 12, padding: '4px 6px' }}
+                  >
+                    <option value="">-- 目标模型 --</option>
+                    {allModelIds.map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="btn ghost"
+                    style={{ padding: '2px 6px', fontSize: 12, color: 'var(--color-danger)', flexShrink: 0 }}
+                    onClick={() =>
+                      setEditForm((prev) => ({
+                        ...prev,
+                        model_mapping: prev.model_mapping.filter((_, i) => i !== idx),
+                      }))
+                    }
+                  >
+                    &times;
+                  </button>
+                </div>
+              ))}
+              {editForm.model_mapping.length === 0 && (
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', padding: '4px 0' }}>
+                  暂无映射规则，点击"+ 添加映射"创建
+                </div>
+              )}
             </div>
 
             <div className="node-stats">

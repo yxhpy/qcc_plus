@@ -509,6 +509,7 @@ func (p *Server) loadAccountsFromStore(defaultUpstream *url.URL, defaultCfg stor
 					APIKey:            r.APIKey,
 					HealthCheckMethod: hcMethod,
 					HealthCheckModel:  hcModel,
+					ModelMapping:      decodeModelMapping(r.ModelMapping),
 					AccountID:         r.AccountID,
 					CreatedAt:         r.CreatedAt,
 					Weight:            r.Weight,

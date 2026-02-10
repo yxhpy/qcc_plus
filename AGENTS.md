@@ -80,6 +80,7 @@ docker compose up -d
 3. **避免重复写入**: 同一个数据写入操作不要在多个地方调用（如 `metrics.go` 和 `handler.go` 都写 usage log 导致重复记录）。统一到一个入口。
 4. **页面对应关系**: 请求日志页面是 `RequestLogs.tsx`（`/admin/request-logs`），不是 `Usage.tsx`（`/admin/usage`）。修改功能前先确认用户实际使用的是哪个页面。
 5. **`.dockerignore`**: `frontend/dist` 被排除但 `web/dist` 没有被排除，这是正确的，因为 Go embed 需要 `web/dist`。
+6. **流式请求缓冲陷阱**: `retryBufferWriter` 的 `Flush()` 在未 flush 时是 no-op，会导致 SSE 流式数据被无限缓冲，客户端卡住。流式请求必须设置 `SetStreaming(true)`，确保数据到达即透传。
 
 ## 🔍 开发前必读
 

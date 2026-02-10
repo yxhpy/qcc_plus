@@ -15,16 +15,16 @@ import (
 
 // 添加新节点（默认账号）。
 func (p *Server) addNode(name, rawURL, apiKey string, weight int) (*Node, error) {
-	return p.addNodeWithMethod(p.defaultAccount, name, rawURL, apiKey, weight, "", "")
+	return p.addNodeWithMethod(p.defaultAccount, name, rawURL, apiKey, weight, "", "", nil)
 }
 
 // 添加指定账号的节点。
 func (p *Server) addNodeToAccount(acc *Account, name, rawURL, apiKey string, weight int) (*Node, error) {
-	return p.addNodeWithMethod(acc, name, rawURL, apiKey, weight, "", "")
+	return p.addNodeWithMethod(acc, name, rawURL, apiKey, weight, "", "", nil)
 }
 
 // 添加指定账号的节点并自定义健康检查方式。
-func (p *Server) addNodeWithMethod(acc *Account, name, rawURL, apiKey string, weight int, healthMethod string, healthModel string) (*Node, error) {
+func (p *Server) addNodeWithMethod(acc *Account, name, rawURL, apiKey string, weight int, healthMethod string, healthModel string, modelMapping map[string]string) (*Node, error) {
 	if acc == nil {
 		return nil, errors.New("account required")
 	}
@@ -53,7 +53,7 @@ func (p *Server) addNodeWithMethod(acc *Account, name, rawURL, apiKey string, we
 		healthMethod = HealthCheckMethodHEAD
 	}
 	id := fmt.Sprintf("n-%d", time.Now().UnixNano())
-	node := &Node{ID: id, Name: name, URL: u, APIKey: apiKey, HealthCheckMethod: healthMethod, HealthCheckModel: model, AccountID: acc.ID, CreatedAt: time.Now(), Weight: weight}
+	node := &Node{ID: id, Name: name, URL: u, APIKey: apiKey, HealthCheckMethod: healthMethod, HealthCheckModel: model, ModelMapping: modelMapping, AccountID: acc.ID, CreatedAt: time.Now(), Weight: weight}
 
 	// 如果 API Key 包含逗号，启用多密钥轮换
 	if strings.Contains(apiKey, ",") {
@@ -70,7 +70,7 @@ func (p *Server) addNodeWithMethod(acc *Account, name, rawURL, apiKey string, we
 	needSwitch := cur == nil || curFailed || node.Weight < cur.Weight
 	var rec store.NodeRecord
 	if p.store != nil {
-		rec = store.NodeRecord{ID: id, Name: name, BaseURL: rawURL, APIKey: apiKey, HealthCheckMethod: healthMethod, HealthCheckModel: model, AccountID: acc.ID, Weight: weight, CreatedAt: node.CreatedAt}
+		rec = store.NodeRecord{ID: id, Name: name, BaseURL: rawURL, APIKey: apiKey, HealthCheckMethod: healthMethod, HealthCheckModel: model, ModelMapping: encodeModelMapping(modelMapping), AccountID: acc.ID, Weight: weight, CreatedAt: node.CreatedAt}
 	}
 	p.mu.Unlock()
 
@@ -97,7 +97,7 @@ func (p *Server) addNodeWithMethod(acc *Account, name, rawURL, apiKey string, we
 	return node, nil
 }
 
-func (p *Server) updateNode(id, name, rawURL string, apiKey *string, weight int, healthMethod *string, healthModel *string) error {
+func (p *Server) updateNode(id, name, rawURL string, apiKey *string, weight int, healthMethod *string, healthModel *string, modelMapping *map[string]string) error {
 	if rawURL == "" {
 		return errors.New("base_url required")
 	}
@@ -142,6 +142,9 @@ func (p *Server) updateNode(id, name, rawURL string, apiKey *string, weight int,
 	n.Weight = weight
 	n.HealthCheckMethod = desiredMethod
 	n.HealthCheckModel = desiredModel
+	if modelMapping != nil {
+		n.ModelMapping = *modelMapping
+	}
 
 	// 更新多密钥轮换器
 	if apiKey != nil {
@@ -697,6 +700,7 @@ func (p *Server) enableNode(id string) error {
 }
 
 // resolveNodeStatus 根据节点状态返回对应的状态字符串
+// 状态优先级: disabled > offline > degraded > online
 func (p *Server) resolveNodeStatus(n *Node) string {
 	if n == nil {
 		return "unknown"
@@ -706,6 +710,9 @@ func (p *Server) resolveNodeStatus(n *Node) string {
 	}
 	if n.Failed {
 		return "offline"
+	}
+	if p.nodeScorer != nil && p.nodeScorer.IsDegraded(n.ID) {
+		return "degraded"
 	}
 	return "online"
 }

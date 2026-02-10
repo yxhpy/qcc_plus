@@ -381,6 +381,18 @@ func (p *Server) newReverseProxy(node *Node, u *usage, idleCfg *streamIdleConfig
 							u.modelID = modelID
 						}
 					}
+					// 模型映射：将请求中的模型替换为节点配置的目标模型
+					if len(node.ModelMapping) > 0 {
+						if modelID, ok := payload["model"].(string); ok && modelID != "" {
+							if mapped := node.MapModel(modelID); mapped != modelID {
+								payload["model"] = mapped
+								if rewritten, err := json.Marshal(payload); err == nil {
+									bodyBytes = rewritten
+								}
+								p.logger.Printf("model mapping: %s -> %s (node=%s)", modelID, mapped, node.Name)
+							}
+						}
+					}
 				}
 
 				if cleaned, ok := cleanTools(bodyBytes); ok {

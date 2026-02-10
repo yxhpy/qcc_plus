@@ -512,6 +512,21 @@ tbody tr.dragging td {
 
 /* === 多密钥 / 降级 / 语义化错误 === */
 
+/* Active Badge - 标记当前选中节点（非状态） */
+.active-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  background: color-mix(in srgb, var(--color-primary) 15%, transparent);
+  color: var(--color-primary);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 30%, transparent);
+}
+
 .error-severity-tag {
   display: inline-block;
   font-size: 11px;

@@ -5,6 +5,8 @@ export interface Account {
   is_admin: boolean;
 }
 
+export type NodeStatus = 'online' | 'offline' | 'degraded' | 'disabled';
+
 export interface Node {
   id: string;
   name: string;
@@ -12,14 +14,18 @@ export interface Node {
   weight: number;
   health_check_method?: 'api' | 'head' | 'cli';
   health_check_model?: string;
+  model_mapping?: Record<string, string>; // 模型映射：请求模型 -> 转发模型
   has_api_key?: boolean;
   key_count?: number;          // API Key 总数（多密钥轮换）
   active_key_count?: number;   // 可用 Key 数
   active_conns?: number;       // 活跃连接数
   degraded?: boolean;          // 慢节点降级状态
   error_severity?: string;     // 语义化错误级别: key_invalid/node_down/degraded/account_issue
-  active: boolean;
+  status: NodeStatus;          // 节点状态: online/offline/degraded/disabled
+  is_active: boolean;          // 是否为当前选中节点（非状态，仅标记）
+  /** @deprecated use status === 'offline' */
   failed: boolean;
+  /** @deprecated use status === 'disabled' */
   disabled: boolean;
   health_rate?: number;
   requests?: number;

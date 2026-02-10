@@ -87,7 +87,7 @@ func TestUpdateNode(t *testing.T) {
 
 	t.Run("update node successfully", func(t *testing.T) {
 		newAPIKey := "new-key"
-		err := srv.updateNode(node.ID, "updated", "http://updated.com", &newAPIKey, 3, nil, nil)
+		err := srv.updateNode(node.ID, "updated", "http://updated.com", &newAPIKey, 3, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("updateNode failed: %v", err)
 		}
@@ -108,21 +108,21 @@ func TestUpdateNode(t *testing.T) {
 	})
 
 	t.Run("update non-existent node fails", func(t *testing.T) {
-		err := srv.updateNode("non-existent", "test", "http://test.com", nil, 1, nil, nil)
+		err := srv.updateNode("non-existent", "test", "http://test.com", nil, 1, nil, nil, nil)
 		if err == nil {
 			t.Fatal("expected error for non-existent node")
 		}
 	})
 
 	t.Run("update node with empty URL fails", func(t *testing.T) {
-		err := srv.updateNode(node.ID, "test", "", nil, 1, nil, nil)
+		err := srv.updateNode(node.ID, "test", "", nil, 1, nil, nil, nil)
 		if err == nil {
 			t.Fatal("expected error for empty URL")
 		}
 	})
 
 	t.Run("update node with invalid URL fails", func(t *testing.T) {
-		err := srv.updateNode(node.ID, "test", "://invalid", nil, 1, nil, nil)
+		err := srv.updateNode(node.ID, "test", "://invalid", nil, 1, nil, nil, nil)
 		if err == nil {
 			t.Fatal("expected error for invalid URL")
 		}
@@ -130,7 +130,7 @@ func TestUpdateNode(t *testing.T) {
 
 	t.Run("update node preserves API key when nil", func(t *testing.T) {
 		originalKey := srv.getNode(node.ID).APIKey
-		err := srv.updateNode(node.ID, "test", "http://test.com", nil, 1, nil, nil)
+		err := srv.updateNode(node.ID, "test", "http://test.com", nil, 1, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("updateNode failed: %v", err)
 		}
@@ -140,7 +140,7 @@ func TestUpdateNode(t *testing.T) {
 	})
 
 	t.Run("update node with zero weight defaults to 1", func(t *testing.T) {
-		err := srv.updateNode(node.ID, "test", "http://test.com", nil, 0, nil, nil)
+		err := srv.updateNode(node.ID, "test", "http://test.com", nil, 0, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("updateNode failed: %v", err)
 		}

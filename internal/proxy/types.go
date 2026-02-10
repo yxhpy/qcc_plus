@@ -13,7 +13,8 @@ type Node struct {
 	APIKey            string
 	APIKeys           *KeyRotator // 多密钥轮换器（当 APIKey 包含逗号时自动启用）
 	HealthCheckMethod string
-	HealthCheckModel  string // CLI 健康检查使用的模型，默认为 claude-haiku-4-5-20251001
+	HealthCheckModel  string            // CLI 健康检查使用的模型，默认为 claude-haiku-4-5-20251001
+	ModelMapping      map[string]string // 模型映射：请求中的模型 -> 转发给上游的模型
 	AccountID         string
 	CreatedAt         time.Time
 	Metrics           metrics
@@ -21,6 +22,17 @@ type Node struct {
 	Failed            bool
 	Disabled          bool // 用户手动禁用
 	LastError         string
+}
+
+// MapModel 根据节点的模型映射表转换模型 ID，无映射则返回原值。
+func (n *Node) MapModel(model string) string {
+	if n.ModelMapping == nil {
+		return model
+	}
+	if mapped, ok := n.ModelMapping[model]; ok && mapped != "" {
+		return mapped
+	}
+	return model
 }
 
 // GetActiveAPIKey 获取当前应使用的 API Key（支持多密钥轮换）

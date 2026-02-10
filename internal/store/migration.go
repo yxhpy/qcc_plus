@@ -236,6 +236,24 @@ func (s *Store) ensureNodesTable(ctx context.Context) error {
 			return err
 		}
 	}
+
+	hasModelMapping, err := s.columnExists(context.Background(), "nodes", "model_mapping")
+	if err != nil {
+		return err
+	}
+	if !hasModelMapping {
+		alterCtx, cancel := withTimeout(context.Background())
+		defer cancel()
+		var alterStmt string
+		if s.IsSQLite() {
+			alterStmt = `ALTER TABLE nodes ADD COLUMN model_mapping TEXT DEFAULT ''`
+		} else {
+			alterStmt = `ALTER TABLE nodes ADD COLUMN model_mapping TEXT DEFAULT '' AFTER health_check_model`
+		}
+		if _, err := s.db.ExecContext(alterCtx, alterStmt); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

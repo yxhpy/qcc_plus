@@ -21,6 +21,7 @@ type NodeRecord struct {
 	APIKey            string
 	HealthCheckMethod string
 	HealthCheckModel  string
+	ModelMapping      string // JSON 格式的模型映射，如 {"claude-sonnet-4-20250514":"claude-sonnet-4-5-20250929"}
 	AccountID         string
 	Weight            int
 	Failed            bool

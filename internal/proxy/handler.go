@@ -236,11 +236,15 @@ func (p *Server) handler() http.Handler {
 
 			// 提前从请求体提取模型 ID，用于节点选择时跳过该模型失败的节点
 			var requestModelID string
+			var requestIsStreaming bool
 			if len(bodyBytes) > 0 {
 				var payload map[string]any
 				if err := json.Unmarshal(bodyBytes, &payload); err == nil {
 					if mid, ok := payload["model"].(string); ok {
 						requestModelID = mid
+					}
+					if streamFlagEnabled(payload["stream"]) {
+						requestIsStreaming = true
 					}
 				}
 			}
@@ -255,6 +259,13 @@ func (p *Server) handler() http.Handler {
 			var requestAttempts []store.UsageLogAttempt
 			requestStart := time.Now()
 			retryBuf := newRetryBufferWriter(w)
+			// 检测流式请求：从 header/query 或 body 中的 stream 字段判断
+			if requestIsStreaming || isStreamRequest(r) {
+				requestIsStreaming = true
+				// 流式模式：让 retryBuf 在收到成功响应数据后立即透传给客户端，
+				// 避免 SSE 数据被无限缓冲导致客户端"卡住"。
+				retryBuf.SetStreaming(true)
+			}
 			for loops := 0; loops < maxLoops; loops++ {
 				reqForAttempt := r.Clone(baseCtx)
 				if len(bodyBytes) > 0 {
@@ -279,7 +290,7 @@ func (p *Server) handler() http.Handler {
 
 				usage := &usage{}
 				// 判断请求是否为流式（SSE），流式请求使用空闲超时而非总超时
-				isStreaming := isStreamRequest(reqForAttempt)
+				isStreaming := requestIsStreaming || isStreamRequest(reqForAttempt)
 				var idleCfg *streamIdleConfig
 				if isStreaming && p.retryConfig.StreamIdleTimeout > 0 {
 					idleCfg = &streamIdleConfig{idleTimeout: p.retryConfig.StreamIdleTimeout}

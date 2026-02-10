@@ -162,6 +162,13 @@ func (u *usageReader) Close() error {
 
 const streamFlushInterval = 50 * time.Millisecond
 
+// streamIdleConfig 流式响应空闲超时配置，由 handler 传入 reverse proxy。
+// 当 cancel 非 nil 且 idleTimeout > 0 时，SSE 响应体会被 idleTimeoutReader 包装。
+type streamIdleConfig struct {
+	idleTimeout time.Duration
+	cancel      context.CancelFunc
+}
+
 type streamState struct {
 	flag atomic.Bool
 }
@@ -244,7 +251,7 @@ func wrapFirstByteFlush(w http.ResponseWriter, state *streamState) http.Response
 }
 
 // 构建指向指定节点的反向代理。
-func (p *Server) newReverseProxy(node *Node, u *usage) (*httputil.ReverseProxy, *streamState) {
+func (p *Server) newReverseProxy(node *Node, u *usage, idleCfg *streamIdleConfig) (*httputil.ReverseProxy, *streamState) {
 	proxy := httputil.NewSingleHostReverseProxy(node.URL)
 	proxy.Transport = p.transport
 	proxy.FlushInterval = -1
@@ -328,6 +335,10 @@ func (p *Server) newReverseProxy(node *Node, u *usage) (*httputil.ReverseProxy, 
 		ct := resp.Header.Get("Content-Type")
 		if strings.Contains(ct, "text/event-stream") {
 			resp.Body = newSSEFixReader(resp.Body)
+			// 对 SSE 流启用空闲超时：连续 idleTimeout 没收到数据则取消 context
+			if idleCfg != nil && idleCfg.idleTimeout > 0 && idleCfg.cancel != nil {
+				resp.Body = newIdleTimeoutReader(resp.Body, idleCfg.idleTimeout, idleCfg.cancel)
+			}
 		}
 
 		// 包装 body，捕获 SSE/JSON 中的 usage。

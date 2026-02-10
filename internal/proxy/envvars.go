@@ -117,6 +117,7 @@ func GetAllEnvVarDefinitions() []EnvVarDefinition {
 		{Name: "RETRY_BACKOFF_MIN_MS", Category: EnvCategoryRetry, DefaultValue: "10", Description: "最小退避时间（毫秒）"},
 		{Name: "RETRY_BACKOFF_MAX_MS", Category: EnvCategoryRetry, DefaultValue: "100", Description: "最大退避时间（毫秒）"},
 		{Name: "RETRY_ON_STATUS", Category: EnvCategoryRetry, DefaultValue: "502,503,504", Description: "需要重试的 HTTP 状态码"},
+		{Name: "RETRY_STREAM_IDLE_TIMEOUT_SEC", Category: EnvCategoryRetry, DefaultValue: "120", Description: "SSE 流式响应空闲超时（秒），连续无数据超过此时间则中断"},
 
 		// ========== 传输层连接池 ==========
 		{Name: "PROXY_TRANSPORT_MAX_IDLE_CONNS", Category: EnvCategoryTransport, DefaultValue: "200", Description: "最大空闲连接数"},

@@ -278,7 +278,13 @@ func (p *Server) handler() http.Handler {
 				}
 
 				usage := &usage{}
-				proxy, streamState := p.newReverseProxy(node, usage)
+				// 判断请求是否为流式（SSE），流式请求使用空闲超时而非总超时
+				isStreaming := isStreamRequest(reqForAttempt)
+				var idleCfg *streamIdleConfig
+				if isStreaming && p.retryConfig.StreamIdleTimeout > 0 {
+					idleCfg = &streamIdleConfig{idleTimeout: p.retryConfig.StreamIdleTimeout}
+				}
+				proxy, streamState := p.newReverseProxy(node, usage, idleCfg)
 				p.logger.Printf("%s %s via %s (account=%s, node %d/%d)", r.Method, r.URL.String(), node.Name, account.ID, attempt+1, len(account.Nodes))
 
 				// 追踪活跃连接数
@@ -307,7 +313,15 @@ func (p *Server) handler() http.Handler {
 				}
 
 				attemptCtx := context.WithValue(baseCtx, nodeContextKey{}, node)
-				attemptCtx, cancel := context.WithTimeout(attemptCtx, timeout)
+				var cancel context.CancelFunc
+				if isStreaming && idleCfg != nil {
+					// 流式请求：不设总超时，由 idleTimeoutReader 在无数据时取消
+					attemptCtx, cancel = context.WithCancel(attemptCtx)
+					idleCfg.cancel = cancel
+				} else {
+					// 非流式请求：保持原有的总超时
+					attemptCtx, cancel = context.WithTimeout(attemptCtx, timeout)
+				}
 				reqForAttempt = reqForAttempt.WithContext(attemptCtx)
 				proxy.ServeHTTP(wrapFirstByteFlush(mw, streamState), reqForAttempt)
 				cancel()
@@ -335,9 +349,11 @@ func (p *Server) handler() http.Handler {
 					statusForRetry = mw.status
 				}
 
-				// 判断是否是 context 错误（499=客户端关闭，504=网关超时）
-				// context 错误不应该触发熔断器和节点失败标记
-				isContextError := mw.status == 499 || mw.status == http.StatusGatewayTimeout
+				// 判断 context 错误类型：
+				// - 499（客户端主动关闭）：不标记失败、不重试
+				// - 504（代理超时，上游无响应）：标记失败、允许切换节点重试
+				isClientClosed := mw.status == 499
+				isProxyTimeout := mw.status == http.StatusGatewayTimeout
 
 				failed := mw.status != http.StatusOK || statusForRetry >= http.StatusInternalServerError
 
@@ -345,17 +361,21 @@ func (p *Server) handler() http.Handler {
 					firstAttemptFailed = true
 				}
 
-				// context 错误不记录到熔断器
-				if cb != nil && !isContextError {
+				// 客户端关闭不记录到熔断器，但代理超时应该记录
+				if cb != nil && !isClientClosed {
 					cb.RecordResult(!failed)
 				}
 
 				shouldRetry := failed && statusForRetry >= http.StatusInternalServerError && shouldRetryStatus(statusForRetry, p.retryConfig)
-				// context 错误不应该重试（客户端已断开或超时）
-				if isContextError {
+				isLastAttempt := attempt >= p.retryConfig.MaxAttempts
+				// 客户端主动关闭不应该重试
+				if isClientClosed {
 					shouldRetry = false
 				}
-				isLastAttempt := attempt >= p.retryConfig.MaxAttempts
+				// 代理超时（504）允许切换节点重试
+				if isProxyTimeout && !isLastAttempt {
+					shouldRetry = true
+				}
 				finalAttempt := !failed || !shouldRetry || isLastAttempt
 
 				var retryAttemptsTotal int64
@@ -418,15 +438,15 @@ func (p *Server) handler() http.Handler {
 					return
 				}
 
-				// context 错误不记录健康事件和节点失败
-				if isContextError {
+				// 客户端主动关闭：不记录健康事件，直接中止
+				if isClientClosed {
 					requestAttempts = append(requestAttempts, store.UsageLogAttempt{
 						Seq: attempt, NodeID: node.ID, NodeName: node.Name,
 						StatusCode: statusForRetry, Success: false,
 						DurationMs: time.Since(start).Milliseconds(),
-						ErrorMsg:   "context canceled/timeout", Severity: "context_error", Action: "abort",
+						ErrorMsg:   "client closed connection", Severity: "context_error", Action: "abort",
 					})
-					p.logger.Printf("[context] request canceled/timeout for node %s, not marking as failure", node.Name)
+					p.logger.Printf("[context] client closed connection for node %s, not marking as failure", node.Name)
 					p.writeUsageLogWithAttempts(r.Context(), account, node, usage, start, requestStart, false, requestAttempts)
 					retryBuf.FlushToReal()
 					return
@@ -541,6 +561,13 @@ func (p *Server) handler() http.Handler {
 
 				// 如果还有可尝试的节点，记录日志并继续
 				if shouldRetry {
+					// 安全检查：如果响应已经开始发送给客户端（retryBuf 已 flush），
+					// 则无法重试，直接返回（避免发送重复/损坏的数据）
+					if retryBuf.IsFlushed() {
+						p.logger.Printf("[retry] cannot retry: response already flushed to client for node %s", node.Name)
+						p.writeUsageLogWithAttempts(r.Context(), account, node, usage, start, requestStart, false, requestAttempts)
+						return
+					}
 					p.logger.Printf("retrying with next node (tried %d/%d nodes), %s failed: %s", attempt, len(account.Nodes), node.Name, errMsg)
 					retryBuf.Reset() // 丢弃失败节点的响应，对客户端无感
 					backoff := calculateBackoff(attempt-1, p.retryConfig)

@@ -403,7 +403,7 @@ func TestServer_newReverseProxy(t *testing.T) {
 	}
 
 	u := &usage{}
-	proxy, state := srv.newReverseProxy(node, u)
+	proxy, state := srv.newReverseProxy(node, u, nil)
 
 	if proxy == nil {
 		t.Fatal("newReverseProxy should return non-nil proxy")

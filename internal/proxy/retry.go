@@ -19,13 +19,15 @@ type RetryConfig struct {
 	PerRequestTimeout  time.Duration   // 单次请求超时，默认 30s
 	TotalTimeout       time.Duration   // 所有重试的总超时，0 表示关闭
 	PerAttemptTimeouts []time.Duration // 覆盖每次尝试的超时，缺省使用 PerRequestTimeout
+	StreamIdleTimeout  time.Duration   // SSE 流式响应空闲超时，默认 120s；连续这么久没收到数据则中断
 }
 
 const (
-	defaultRetryMaxAttempts = 3
-	defaultBackoffMin       = 10 * time.Millisecond
-	defaultBackoffMax       = 100 * time.Millisecond
-	defaultPerRequestTO     = 30 * time.Second
+	defaultRetryMaxAttempts  = 3
+	defaultBackoffMin        = 10 * time.Millisecond
+	defaultBackoffMax        = 100 * time.Millisecond
+	defaultPerRequestTO      = 30 * time.Second
+	defaultStreamIdleTimeout = 120 * time.Second
 )
 
 // 从环境变量加载 RetryConfig
@@ -37,6 +39,7 @@ func loadRetryConfig() RetryConfig {
 		RetryOnStatus:     []int{http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout},
 		PerRequestTimeout: defaultPerRequestTO,
 		TotalTimeout:      0,
+		StreamIdleTimeout: defaultStreamIdleTimeout,
 	}
 
 	if v := os.Getenv("RETRY_MAX_ATTEMPTS"); v != "" {
@@ -83,6 +86,12 @@ func loadRetryConfig() RetryConfig {
 	if v := os.Getenv("RETRY_TOTAL_TIMEOUT_SEC"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
 			cfg.TotalTimeout = time.Duration(n) * time.Second
+		}
+	}
+
+	if v := os.Getenv("RETRY_STREAM_IDLE_TIMEOUT_SEC"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			cfg.StreamIdleTimeout = time.Duration(n) * time.Second
 		}
 	}
 

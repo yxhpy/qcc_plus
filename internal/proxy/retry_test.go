@@ -169,6 +169,10 @@ func TestRetryConfigDefaults(t *testing.T) {
 			t.Errorf("expected RetryOnStatus[%d]=%d, got %d", i, status, cfg.RetryOnStatus[i])
 		}
 	}
+
+	if cfg.StreamIdleTimeout != defaultStreamIdleTimeout {
+		t.Errorf("expected StreamIdleTimeout=%v, got %v", defaultStreamIdleTimeout, cfg.StreamIdleTimeout)
+	}
 }
 
 // TestRetryConfigFromEnv 测试从环境变量加载配置
@@ -178,6 +182,7 @@ func TestRetryConfigFromEnv(t *testing.T) {
 	t.Setenv("RETRY_BACKOFF_MAX_MS", "200")
 	t.Setenv("RETRY_ON_STATUS", "500,502,503")
 	t.Setenv("RETRY_PER_REQUEST_TIMEOUT_SEC", "60")
+	t.Setenv("RETRY_STREAM_IDLE_TIMEOUT_SEC", "180")
 
 	cfg := loadRetryConfig()
 
@@ -195,6 +200,10 @@ func TestRetryConfigFromEnv(t *testing.T) {
 
 	if cfg.PerRequestTimeout != 60*time.Second {
 		t.Errorf("expected PerRequestTimeout=60s, got %v", cfg.PerRequestTimeout)
+	}
+
+	if cfg.StreamIdleTimeout != 180*time.Second {
+		t.Errorf("expected StreamIdleTimeout=180s, got %v", cfg.StreamIdleTimeout)
 	}
 
 	expectedStatus := []int{500, 502, 503}

@@ -837,7 +837,8 @@ export default function Nodes() {
               </div>
               {editForm.model_mapping.map((entry, idx) => (
                 <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                  <select
+                  <input
+                    list="model-list-from"
                     value={entry.from}
                     onChange={(e) => {
                       const val = e.target.value
@@ -847,15 +848,12 @@ export default function Nodes() {
                         return { ...prev, model_mapping: arr }
                       })
                     }}
+                    placeholder="源模型（选择或输入）"
                     style={{ flex: 1, fontSize: 12, padding: '4px 6px' }}
-                  >
-                    <option value="">-- 源模型 --</option>
-                    {allModelIds.map((m) => (
-                      <option key={m} value={m}>{m}</option>
-                    ))}
-                  </select>
+                  />
                   <span style={{ fontSize: 13, color: 'var(--text-secondary)', flexShrink: 0 }}>&rarr;</span>
-                  <select
+                  <input
+                    list="model-list-to"
                     value={entry.to}
                     onChange={(e) => {
                       const val = e.target.value
@@ -865,13 +863,9 @@ export default function Nodes() {
                         return { ...prev, model_mapping: arr }
                       })
                     }}
+                    placeholder="目标模型（选择或输入）"
                     style={{ flex: 1, fontSize: 12, padding: '4px 6px' }}
-                  >
-                    <option value="">-- 目标模型 --</option>
-                    {allModelIds.map((m) => (
-                      <option key={m} value={m}>{m}</option>
-                    ))}
-                  </select>
+                  />
                   <button
                     type="button"
                     className="btn ghost"
@@ -887,6 +881,12 @@ export default function Nodes() {
                   </button>
                 </div>
               ))}
+              <datalist id="model-list-from">
+                {allModelIds.map((m) => <option key={m} value={m} />)}
+              </datalist>
+              <datalist id="model-list-to">
+                {allModelIds.map((m) => <option key={m} value={m} />)}
+              </datalist>
               {editForm.model_mapping.length === 0 && (
                 <div style={{ fontSize: 12, color: 'var(--text-secondary)', padding: '4px 0' }}>
                   暂无映射规则，点击"+ 添加映射"创建

@@ -591,6 +591,8 @@ func (p *Server) healthCheckViaAPI(ctx context.Context, node Node) (bool, string
 	// 模型感知：选择合适的健康检查模型
 	hcModelCfg := loadHealthCheckModelConfig()
 	model := ChooseHealthCheckModel(node.HealthCheckModel, hcModelCfg)
+	// 应用节点模型映射
+	model = node.MapModel(model)
 
 	// 构造模型感知的健康检查请求
 	bodyBytes, err := BuildHealthCheckPayload(model)
@@ -707,6 +709,8 @@ func (p *Server) healthCheckViaCLI(ctx context.Context, node Node) (bool, string
 	if model == "" {
 		model = defaultHealthCheckModel
 	}
+	// 应用节点模型映射
+	model = node.MapModel(model)
 	env := map[string]string{
 		"ANTHROPIC_API_KEY":    node.APIKey,
 		"ANTHROPIC_AUTH_TOKEN": chooseNonEmpty(os.Getenv("ANTHROPIC_AUTH_TOKEN"), node.APIKey),

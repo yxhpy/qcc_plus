@@ -114,6 +114,15 @@ const icons = {
       <path d="M7 13h4" />
     </svg>
   ),
+  modelRecovery: (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 10a6 6 0 0 1 6-6" />
+      <path d="M16 10a6 6 0 0 1-6 6" />
+      <path d="M4 10l2-2m-2 2l2 2" />
+      <path d="M16 10l-2 2m2-2l-2-2" />
+      <circle cx="10" cy="10" r="2" />
+    </svg>
+  ),
   collapse: (
     <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="m11.5 5.5-4 4 4 4" />
@@ -166,6 +175,7 @@ const navItems: NavItem[] = [
 	{ path: '/admin/nodes', label: '节点管理', icon: 'nodes', group: 'core' },
 	{ path: '/admin/usage', label: '使用统计', icon: 'usage', group: 'core' },
 	{ path: '/admin/request-logs', label: '请求日志', icon: 'requestLogs', group: 'core' },
+	{ path: '/admin/model-recovery', label: '模型恢复', icon: 'modelRecovery', group: 'core' },
 	{ path: '/admin/accounts', label: '账号管理', icon: 'accounts', adminOnly: true, group: 'system' },
 	{ path: '/admin/pricing', label: '模型定价', icon: 'pricing', adminOnly: true, group: 'system' },
 	{ path: '/admin/monitor-shares', label: '分享链接', icon: 'share', group: 'system' },

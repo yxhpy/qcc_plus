@@ -9,6 +9,7 @@ import './Pricing.css'
 export default function Pricing() {
   const [pricingList, setPricingList] = useState<ModelPricing[]>([])
   const [loading, setLoading] = useState(true)
+  const [syncing, setSyncing] = useState(false)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
@@ -42,6 +43,20 @@ export default function Pricing() {
   useEffect(() => {
     loadPricing()
   }, [])
+
+  const handleSync = async () => {
+    if (!confirm('确定要从官方同步定价数据吗？已有模型的价格将被更新为官方最新价格。')) return
+    setSyncing(true)
+    try {
+      const result = await api.syncOfficialPricing()
+      showToast(`同步完成，已更新 ${result.synced} 个模型定价`)
+      loadPricing()
+    } catch (err) {
+      showToast((err as Error).message || '同步失败', 'error')
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   const resetForm = () => {
     setFormData({
@@ -111,6 +126,9 @@ export default function Pricing() {
           <div className="spacer" />
           <button className="btn ghost" type="button" onClick={loadPricing} disabled={loading}>
             刷新
+          </button>
+          <button className="btn ghost" type="button" onClick={handleSync} disabled={syncing}>
+            {syncing ? '同步中...' : '同步官方定价'}
           </button>
           <button
             className="btn primary"

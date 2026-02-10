@@ -460,6 +460,7 @@ func (b *Builder) Build() (*Server, error) {
 		shutdownTimeout:  time.Duration(GetEnvInt("GRACEFUL_SHUTDOWN_TIMEOUT_SEC", 30)) * time.Second,
 	}
 	srv.nodeScorer = NewNodeScorer(srv.lbConfig)
+	srv.modelRecovery = NewModelRecoveryTracker()
 
 	if st != nil {
 		srv.settingsCache = NewSettingsCache(st)

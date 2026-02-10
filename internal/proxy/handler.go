@@ -3,6 +3,7 @@ package proxy
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"qcc_plus/internal/store"
+	"qcc_plus/internal/timeutil"
 	"qcc_plus/internal/version"
 	"qcc_plus/web"
 )
@@ -101,12 +103,16 @@ func (p *Server) handler() http.Handler {
 	apiMux.HandleFunc("/api/claude-config/download/", p.handleClaudeConfigDownload)
 	// 定价和使用统计 API
 	apiMux.HandleFunc("/api/pricing", p.requireSession(p.handlePricing))
+	apiMux.HandleFunc("/api/pricing/sync", p.requireSession(p.handlePricingSync))
 	apiMux.HandleFunc("/api/usage/logs", p.requireSession(p.handleUsageLogs))
 	apiMux.HandleFunc("/api/usage/summary", p.requireSession(p.handleUsageSummary))
 	apiMux.HandleFunc("/api/usage/cleanup", p.requireSession(p.handleUsageCleanup))
 	// 环境变量 API
 	apiMux.HandleFunc("/api/envvars", p.requireSession(p.handleEnvVars))
 	apiMux.HandleFunc("/api/envvars/categories", p.requireSession(p.handleEnvVarsCategories))
+	// 模型恢复 API
+	apiMux.HandleFunc("/api/model-recovery", p.requireSession(p.handleModelRecovery))
+	apiMux.HandleFunc("/api/model-recovery/dismiss", p.requireSession(p.handleModelRecoveryDismiss))
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
@@ -173,6 +179,11 @@ func (p *Server) handler() http.Handler {
 			return
 		}
 
+		if strings.HasPrefix(path, "/api/model-recovery") {
+			apiMux.ServeHTTP(w, r)
+			return
+		}
+
 		if strings.HasPrefix(path, "/api/claude-config/") {
 			apiMux.ServeHTTP(w, r)
 			return
@@ -223,6 +234,17 @@ func (p *Server) handler() http.Handler {
 				r.Body.Close()
 			}
 
+			// 提前从请求体提取模型 ID，用于节点选择时跳过该模型失败的节点
+			var requestModelID string
+			if len(bodyBytes) > 0 {
+				var payload map[string]any
+				if err := json.Unmarshal(bodyBytes, &payload); err == nil {
+					if mid, ok := payload["model"].(string); ok {
+						requestModelID = mid
+					}
+				}
+			}
+
 			// attempt 只计算真正发送请求的次数，maxLoops 防止无限循环
 			// maxLoops = 节点数量 * 2，确保即使有熔断器也能尝试所有节点
 			attempt := 0
@@ -232,13 +254,14 @@ func (p *Server) handler() http.Handler {
 			}
 			var requestAttempts []store.UsageLogAttempt
 			requestStart := time.Now()
+			retryBuf := newRetryBufferWriter(w)
 			for loops := 0; loops < maxLoops; loops++ {
 				reqForAttempt := r.Clone(baseCtx)
 				if len(bodyBytes) > 0 {
 					reqForAttempt.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 					reqForAttempt.ContentLength = int64(len(bodyBytes))
 				}
-				node := p.selectHealthyNodeExcluding(account, skipNodes)
+				node := p.selectHealthyNodeExcluding(account, skipNodes, requestModelID)
 				if node == nil {
 					break
 				}
@@ -261,10 +284,11 @@ func (p *Server) handler() http.Handler {
 				// 追踪活跃连接数
 				if p.nodeScorer != nil {
 					p.nodeScorer.IncrActiveConn(node.ID)
+					p.nodeScorer.IncrActiveModel(node.ID, requestModelID)
 				}
 
 				start := time.Now()
-				mw := &metricsWriter{ResponseWriter: w, status: http.StatusOK}
+				mw := &metricsWriter{ResponseWriter: retryBuf, status: http.StatusOK}
 
 				// 计算本次尝试的超时时间：按配置的 per-attempt 优先，其次单次超时，再受总超时约束
 				timeout := p.retryConfig.PerRequestTimeout
@@ -291,6 +315,7 @@ func (p *Server) handler() http.Handler {
 				// 释放活跃连接计数
 				if p.nodeScorer != nil {
 					p.nodeScorer.DecrActiveConn(node.ID)
+					p.nodeScorer.DecrActiveModel(node.ID, requestModelID)
 				}
 
 				// 真正发送了请求，计数器+1
@@ -371,8 +396,25 @@ func (p *Server) handler() http.Handler {
 					if node.APIKeys != nil {
 						node.APIKeys.RecordSuccess(node.GetActiveAPIKey())
 					}
+					// 模型级别恢复：请求成功说明该模型在此节点可用
+					if p.modelRecovery != nil && usage.modelID != "" {
+						if p.modelRecovery.IsModelFailed(node.ID, usage.modelID) {
+							p.modelRecovery.MarkRecovered(node.ID, usage.modelID)
+							p.logger.Printf("[model-recovery] model %s recovered on node %s via successful request", usage.modelID, node.Name)
+							if p.wsHub != nil {
+								p.wsHub.Broadcast(account.ID, "model_recovery", map[string]interface{}{
+									"node_id":   node.ID,
+									"node_name": node.Name,
+									"model_id":  usage.modelID,
+									"status":    "recovered",
+									"timestamp": timeutil.FormatBeijingTime(time.Now()),
+								})
+							}
+						}
+					}
 					// 写入带 attempts 的 usage log
 					p.writeUsageLogWithAttempts(r.Context(), account, node, usage, start, requestStart, true, requestAttempts)
+					retryBuf.FlushToReal()
 					return
 				}
 
@@ -386,6 +428,7 @@ func (p *Server) handler() http.Handler {
 					})
 					p.logger.Printf("[context] request canceled/timeout for node %s, not marking as failure", node.Name)
 					p.writeUsageLogWithAttempts(r.Context(), account, node, usage, start, requestStart, false, requestAttempts)
+					retryBuf.FlushToReal()
 					return
 				}
 
@@ -417,6 +460,7 @@ func (p *Server) handler() http.Handler {
 								ErrorMsg:   errMsg, Severity: classified.Severity.String(), Action: "key_rotate",
 							})
 							// Key 切换后不跳过此节点，用新 key 重试
+							retryBuf.Reset()
 							continue
 						}
 					}
@@ -429,6 +473,22 @@ func (p *Server) handler() http.Handler {
 
 				if account != nil {
 					p.recordHealthEvent(account.ID, node.ID, HealthCheckMethodProxy, CheckSourceProxyFail, false, time.Since(start), errMsg, time.Now().UTC())
+				}
+
+				// 模型级别故障跟踪：记录失败的模型（非永久错误才跟踪，永久错误如 400 是请求本身的问题）
+				if p.modelRecovery != nil && usage.modelID != "" && classified.Severity != SeverityPermanent {
+					p.modelRecovery.MarkFailed(node.ID, usage.modelID, account.ID, errMsg)
+					p.logger.Printf("[model-recovery] model %s marked failed on node %s: %s", usage.modelID, node.Name, errMsg)
+					if p.wsHub != nil && account != nil {
+						p.wsHub.Broadcast(account.ID, "model_recovery", map[string]interface{}{
+							"node_id":   node.ID,
+							"node_name": node.Name,
+							"model_id":  usage.modelID,
+							"status":    "failed",
+							"error":     errMsg,
+							"timestamp": timeutil.FormatBeijingTime(time.Now()),
+						})
+					}
 				}
 
 				// 根据错误严重程度决定是否标记节点失败
@@ -475,21 +535,24 @@ func (p *Server) handler() http.Handler {
 
 				if !shouldRetry || classified.Severity == SeverityPermanent {
 					p.writeUsageLogWithAttempts(r.Context(), account, node, usage, start, requestStart, false, requestAttempts)
+					retryBuf.FlushToReal()
 					return
 				}
 
 				// 如果还有可尝试的节点，记录日志并继续
 				if shouldRetry {
 					p.logger.Printf("retrying with next node (tried %d/%d nodes), %s failed: %s", attempt, len(account.Nodes), node.Name, errMsg)
+					retryBuf.Reset() // 丢弃失败节点的响应，对客户端无感
 					backoff := calculateBackoff(attempt-1, p.retryConfig)
 					time.Sleep(backoff)
 				}
 			}
 
-			// 检查响应是否已写入（避免重复调用 WriteHeader）
-			if _, ok := w.(interface{ Header() http.Header }); ok {
+			// 所有节点都不可用，返回 503
+			if !retryBuf.IsFlushed() {
+				retryBuf.FlushToReal()
+				// 检查响应是否已写入（避免重复调用 WriteHeader）
 				if w.Header().Get("Content-Type") == "" {
-					// 响应头未写入，返回 503 表示服务暂时不可用（所有节点不可用）
 					w.Header().Set("Content-Type", "application/json")
 					http.Error(w, `{"error":{"type":"service_unavailable","message":"all nodes unavailable"}}`, http.StatusServiceUnavailable)
 				}
@@ -537,7 +600,8 @@ func (p *Server) requireSession(next http.HandlerFunc) http.HandlerFunc {
 			strings.HasPrefix(r.URL.Path, "/api/claude-config/") ||
 			strings.HasPrefix(r.URL.Path, "/api/pricing") ||
 			strings.HasPrefix(r.URL.Path, "/api/usage/") ||
-			strings.HasPrefix(r.URL.Path, "/api/envvars")
+			strings.HasPrefix(r.URL.Path, "/api/envvars") ||
+			strings.HasPrefix(r.URL.Path, "/api/model-recovery")
 
 		cookie, err := r.Cookie("session_token")
 		if err != nil || cookie.Value == "" {
@@ -770,6 +834,16 @@ func (p *Server) writeUsageLogWithAttempts(ctx context.Context, account *Account
 		DurationMs:    time.Since(requestStart).Milliseconds(),
 		TotalAttempts: len(attempts),
 		Attempts:      attempts,
+	}
+
+	// 从 attempts 链中提取最后一条错误信息，写入主日志便于直接展示
+	if !success {
+		for i := len(attempts) - 1; i >= 0; i-- {
+			if attempts[i].ErrorMsg != "" {
+				usageLog.ErrorMsg = attempts[i].ErrorMsg
+				break
+			}
+		}
 	}
 
 	if err := p.store.InsertUsageLog(ctx, usageLog); err != nil {

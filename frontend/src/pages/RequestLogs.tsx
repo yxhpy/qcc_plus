@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Card from '../components/Card'
+import RecoveryBadge from '../components/RecoveryBadge'
 import Toast from '../components/Toast'
 import api from '../services/api'
 import type { Account, Node, UsageLog, UsageLogAttempt } from '../types'
@@ -362,12 +363,16 @@ function ReqLogRow({ log, hasAttempts, isExpanded, onToggle, formatDate, formatD
         <td className="model-cell">{log.model_id || '-'}</td>
         <td className="node-cell">
           {log.node_name || log.node_id?.slice(0, 8) || '-'}
+          <RecoveryBadge nodeId={log.node_id} />
           {(log.total_attempts || 0) > 1 && <span className="attempts-badge">{log.total_attempts}次</span>}
         </td>
         <td>
           <span className={`status-badge ${log.success ? 'success' : 'failed'}`}>
             {log.success ? '成功' : '失败'}
           </span>
+          {!log.success && log.error_msg && (
+            <span className="error-msg" title={log.error_msg}>{log.error_msg}</span>
+          )}
         </td>
         <td className="duration-cell">{formatDuration(log.duration_ms)}</td>
         <td className="token-cell">{formatTokens(log.input_tokens)}</td>

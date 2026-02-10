@@ -91,6 +91,9 @@ type NodeScorer struct {
 	// 每个节点的活跃连接数
 	activeConns map[string]*int64
 
+	// 每个节点正在处理的模型计数: nodeID -> modelID -> count
+	activeModels map[string]map[string]int
+
 	// 每个节点的有效权重（可能因慢节点降级而调整）
 	effectiveWeights map[string]int
 
@@ -177,6 +180,7 @@ func NewNodeScorer(cfg LoadBalancerConfig) *NodeScorer {
 	return &NodeScorer{
 		latencyWindows:   make(map[string]*latencyWindow),
 		activeConns:      make(map[string]*int64),
+		activeModels:     make(map[string]map[string]int),
 		effectiveWeights: make(map[string]int),
 		degradedAt:       make(map[string]time.Time),
 		config:           cfg,
@@ -226,6 +230,52 @@ func (ns *NodeScorer) DecrActiveConn(nodeID string) {
 	}
 }
 
+// IncrActiveModel 增加节点上某模型的活跃请求计数
+func (ns *NodeScorer) IncrActiveModel(nodeID, modelID string) {
+	if modelID == "" {
+		return
+	}
+	ns.mu.Lock()
+	defer ns.mu.Unlock()
+	if ns.activeModels[nodeID] == nil {
+		ns.activeModels[nodeID] = make(map[string]int)
+	}
+	ns.activeModels[nodeID][modelID]++
+}
+
+// DecrActiveModel 减少节点上某模型的活跃请求计数
+func (ns *NodeScorer) DecrActiveModel(nodeID, modelID string) {
+	if modelID == "" {
+		return
+	}
+	ns.mu.Lock()
+	defer ns.mu.Unlock()
+	if m, ok := ns.activeModels[nodeID]; ok {
+		m[modelID]--
+		if m[modelID] <= 0 {
+			delete(m, modelID)
+		}
+		if len(m) == 0 {
+			delete(ns.activeModels, nodeID)
+		}
+	}
+}
+
+// GetActiveModels 获取节点上正在处理的模型列表
+func (ns *NodeScorer) GetActiveModels(nodeID string) []string {
+	ns.mu.RLock()
+	defer ns.mu.RUnlock()
+	m, ok := ns.activeModels[nodeID]
+	if !ok || len(m) == 0 {
+		return nil
+	}
+	models := make([]string, 0, len(m))
+	for modelID := range m {
+		models = append(models, modelID)
+	}
+	return models
+}
+
 // GetActiveConns 获取活跃连接数
 func (ns *NodeScorer) GetActiveConns(nodeID string) int64 {
 	ns.mu.RLock()
@@ -237,27 +287,10 @@ func (ns *NodeScorer) GetActiveConns(nodeID string) int64 {
 	return atomic.LoadInt64(c)
 }
 
-// GetEffectiveWeight 获取节点的有效权重（考虑慢节点降级）
+// GetEffectiveWeight 获取节点的有效权重
+// 注意：降级检测仅用于 UI 展示，不影响实际路由选择，始终返回原始权重
 func (ns *NodeScorer) GetEffectiveWeight(nodeID string, baseWeight int) int {
-	ns.mu.RLock()
-	defer ns.mu.RUnlock()
-
-	degradedTime, isDegraded := ns.degradedAt[nodeID]
-	if !isDegraded {
-		return baseWeight
-	}
-
-	// 检查是否已过恢复期
-	if time.Since(degradedTime).Milliseconds() > ns.config.SlowRecoverAfterMs {
-		// 检查最近的延迟是否已恢复
-		w, ok := ns.latencyWindows[nodeID]
-		if ok && w.hasEnoughSamples() && w.slowRate(ns.config.SlowThresholdMs) < ns.config.SlowRateThreshold {
-			// 已恢复，需要在写锁下删除（这里只读，标记后由 RecordLatency 清理）
-			return baseWeight
-		}
-	}
-
-	return baseWeight + ns.config.SlowDegradeWeight
+	return baseWeight
 }
 
 // TryRecoverDegraded 尝试恢复已降级的节点（在写锁下调用）

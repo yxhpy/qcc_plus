@@ -158,6 +158,19 @@
   color: var(--color-danger);
 }
 
+/* Error Message (inline in status column) */
+.error-msg {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--color-danger-text, #B91C1C);
+  line-height: 1.3;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Pagination */
 .pagination {
   display: flex;

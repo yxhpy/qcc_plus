@@ -274,6 +274,7 @@ type UsageLogRecord struct {
 	CostUSD       float64           `json:"cost_usd"`
 	RequestID     string            `json:"request_id,omitempty"`
 	Success       bool              `json:"success"`
+	ErrorMsg      string            `json:"error_msg,omitempty"`
 	DurationMs    int64             `json:"duration_ms"`
 	TotalAttempts int               `json:"total_attempts"`
 	CreatedAt     time.Time         `json:"created_at"`

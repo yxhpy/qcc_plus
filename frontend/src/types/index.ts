@@ -169,6 +169,7 @@ export interface MonitorNode {
   disabled: boolean;
   degraded?: boolean;           // 慢节点降级
   active_conns?: number;        // 活跃连接数
+  active_models?: string[];     // 正在处理的模型列表
   key_count?: number;           // API Key 总数
   active_key_count?: number;    // 可用 Key 数
   error_severity?: string;      // 语义化错误级别
@@ -258,6 +259,7 @@ export interface UsageLog {
   cost_usd: number;
   request_id?: string;
   success: boolean;
+  error_msg?: string;
   duration_ms: number;
   total_attempts: number;
   created_at: string;
@@ -302,4 +304,23 @@ export interface UsageQueryParams {
   offset?: number;
   group_by?: 'model' | 'node';
   success?: string; // 'true' | 'false' | ''
+}
+
+// 模型恢复状态
+export interface ModelRecoveryItem {
+  node_id: string;
+  node_name: string;
+  model_id: string;
+  account_id: string;
+  error: string;
+  failed_at: string;
+  offline_sec: number;
+  offline_human: string;
+  last_check?: string;
+  check_count: number;
+}
+
+export interface ModelRecoveryResponse {
+  total: number;
+  items: ModelRecoveryItem[];
 }

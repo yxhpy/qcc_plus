@@ -140,6 +140,7 @@ func (p *Server) healthLoop() {
 		}
 		time.Sleep(interval)
 		p.checkFailedNodes()
+		p.checkFailedModels()
 	}
 }
 
@@ -191,6 +192,144 @@ func (p *Server) checkFailedNodes() {
 			p.checkNodeHealth(acc, id, CheckSourceRecovery)
 		}
 	}
+}
+
+// checkFailedModels 定时检查失败的模型是否已恢复。
+// 与 checkFailedNodes 不同，这里是模型粒度：节点本身可能是健康的，
+// 但某个特定模型在该节点上不可用。恢复检查使用实际失败的模型发送 API 请求。
+func (p *Server) checkFailedModels() {
+	if p.modelRecovery == nil || p.modelRecovery.Count() == 0 {
+		return
+	}
+
+	pending := p.modelRecovery.GetPendingRecoveryChecks()
+	if len(pending) == 0 {
+		return
+	}
+
+	p.logger.Printf("[model-recovery] checking %d node-model pairs for recovery", countPairs(pending))
+
+	for nodeID, models := range pending {
+		p.mu.RLock()
+		node := p.nodeIndex[nodeID]
+		acc := p.nodeAccount[nodeID]
+		p.mu.RUnlock()
+
+		if node == nil || acc == nil {
+			// 节点已删除，清理跟踪记录
+			p.modelRecovery.MarkNodeRecovered(nodeID)
+			continue
+		}
+
+		// 如果节点本身已失败或禁用，跳过模型级别检查（等节点恢复后再说）
+		if node.Failed || node.Disabled {
+			continue
+		}
+
+		for _, modelID := range models {
+			p.checkModelRecovery(acc, node, modelID)
+		}
+	}
+}
+
+// checkModelRecovery 对指定节点上的指定模型执行恢复检查。
+// 使用 API 方式发送一个最小请求来验证模型是否可用。
+func (p *Server) checkModelRecovery(acc *Account, node *Node, modelID string) {
+	if node == nil || modelID == "" {
+		return
+	}
+
+	// 获取 API Key
+	apiKey := node.GetActiveAPIKey()
+	if apiKey == "" {
+		p.logger.Printf("[model-recovery] skip model %s on node %s: no api key", modelID, node.Name)
+		return
+	}
+
+	// 构造使用指定模型的健康检查请求
+	bodyBytes, err := BuildHealthCheckPayload(modelID)
+	if err != nil {
+		p.logger.Printf("[model-recovery] build payload failed for model %s: %v", modelID, err)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	apiURL := strings.TrimSuffix(node.URL.String(), "/") + "/v1/messages"
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, bytes.NewReader(bodyBytes))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("anthropic-version", "2023-06-01")
+	req.Header.Set("x-api-key", apiKey)
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+
+	client := &http.Client{Transport: p.healthRT, Timeout: 10 * time.Second}
+	start := time.Now()
+	resp, err := client.Do(req)
+	latency := time.Since(start)
+
+	if err != nil {
+		errMsg := fmt.Sprintf("网络错误: %v", err)
+		p.modelRecovery.MarkFailed(node.ID, modelID, acc.ID, errMsg)
+		p.logger.Printf("[model-recovery] model %s on node %s still failing: %v (latency=%s)", modelID, node.Name, err, latency)
+		return
+	}
+	defer resp.Body.Close()
+
+	// 读取响应体
+	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		// 模型恢复成功
+		p.modelRecovery.MarkRecovered(node.ID, modelID)
+		p.logger.Printf("[model-recovery] model %s recovered on node %s (latency=%s)", modelID, node.Name, latency)
+
+		// 记录恢复事件
+		p.recordHealthEvent(acc.ID, node.ID, HealthCheckMethodAPI, "model_recovery", true, latency, "", time.Now().UTC())
+
+		// 推送 WebSocket 通知
+		if p.wsHub != nil {
+			p.wsHub.Broadcast(acc.ID, "model_recovery", map[string]interface{}{
+				"node_id":    node.ID,
+				"node_name":  node.Name,
+				"model_id":   modelID,
+				"status":     "recovered",
+				"latency_ms": latency.Milliseconds(),
+				"timestamp":  timeutil.FormatBeijingTime(time.Now()),
+			})
+		}
+
+		// 发送通知
+		if p.notifyMgr != nil {
+			p.notifyMgr.Publish(notify.Event{
+				AccountID:  acc.ID,
+				EventType:  notify.EventNodeRecovered,
+				Title:      "模型已恢复",
+				Content:    fmt.Sprintf("**节点名称**: %s\n**模型**: %s\n**恢复时间**: %s", node.Name, modelID, timeutil.FormatBeijingTime(time.Now())),
+				DedupKey:   node.ID + ":" + modelID,
+				OccurredAt: time.Now(),
+			})
+		}
+		return
+	}
+
+	// 仍然失败
+	classified := ClassifyError(resp.StatusCode, respBody)
+	errMsg := fmt.Sprintf("status %d", resp.StatusCode)
+	if classified.Message != "" {
+		errMsg = classified.Message
+	}
+	p.modelRecovery.MarkFailed(node.ID, modelID, acc.ID, errMsg)
+	p.logger.Printf("[model-recovery] model %s on node %s still failing: %s (latency=%s)", modelID, node.Name, errMsg, latency)
+}
+
+// countPairs 统计 pending map 中的总对数。
+func countPairs(m map[string][]string) int {
+	n := 0
+	for _, v := range m {
+		n += len(v)
+	}
+	return n
 }
 
 func (p *Server) checkNodeHealth(acc *Account, id string, source string) {
@@ -365,6 +504,10 @@ func (p *Server) checkNodeHealth(acc *Account, id string, source string) {
 		(wasFailed || activeID == "" || n.Weight < activeWeight)
 
 	if ok && wasFailed && !isWarmup {
+		// 节点整体恢复时，清除该节点上所有失败的模型记录
+		if p.modelRecovery != nil {
+			p.modelRecovery.MarkNodeRecovered(id)
+		}
 		// 恢复后重新在健康节点中选择最优的一个。
 		if p.notifyMgr != nil && acc != nil && n != nil {
 			p.notifyMgr.Publish(notify.Event{

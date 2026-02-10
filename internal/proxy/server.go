@@ -165,6 +165,8 @@ type Server struct {
 	lbConfig        LoadBalancerConfig // 负载均衡配置
 	preconnectStop  chan struct{}      // 预连接保活停止信号
 	shutdownTimeout time.Duration      // 优雅关闭超时，默认 30s
+
+	modelRecovery *ModelRecoveryTracker // 模型级别故障恢复跟踪器
 }
 
 // Start 运行反向代理并阻塞直到收到关闭信号或出错。

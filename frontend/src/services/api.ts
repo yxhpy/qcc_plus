@@ -456,6 +456,12 @@ async function deletePricing(modelId: string): Promise<void> {
   })
 }
 
+async function syncOfficialPricing(): Promise<{ message: string; synced: number }> {
+  return request<{ message: string; synced: number }>('/api/pricing/sync', {
+    method: 'POST',
+  })
+}
+
 // 使用统计 API
 async function getUsageLogs(params: UsageQueryParams = {}, includeAttempts = false): Promise<{ logs: UsageLog[]; count: number; total: number }> {
   const search = new URLSearchParams()
@@ -526,6 +532,18 @@ async function getEnvVars(category?: string): Promise<EnvVarDefinition[]> {
   return data.data || []
 }
 
+// 模型恢复 API
+async function getModelRecovery(accountId?: string): Promise<{ total: number; items: any[] }> {
+  const params = accountId ? `?account_id=${encodeURIComponent(accountId)}` : ''
+  return request<{ total: number; items: any[] }>(`/api/model-recovery${params}`)
+}
+
+async function dismissModelRecovery(nodeId: string, modelId: string): Promise<{ status: string }> {
+  return request<{ status: string }>(`/api/model-recovery/dismiss?node_id=${encodeURIComponent(nodeId)}&model_id=${encodeURIComponent(modelId)}`, {
+    method: 'POST',
+  })
+}
+
 export default {
   login,
   logout,
@@ -570,10 +588,14 @@ export default {
   getPricing,
   savePricing,
   deletePricing,
+  syncOfficialPricing,
   getUsageLogs,
   getUsageSummary,
   cleanupUsageLogs,
   // 环境变量
   getEnvVarCategories,
   getEnvVars,
+  // 模型恢复
+  getModelRecovery,
+  dismissModelRecovery,
 }

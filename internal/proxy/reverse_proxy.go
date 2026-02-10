@@ -324,6 +324,12 @@ func (p *Server) newReverseProxy(node *Node, u *usage) (*httputil.ReverseProxy, 
 		}
 		resp.Header.Set("X-Proxy-Node", node.Name)
 
+		// 对 SSE 流响应，插入修复层确保事件分隔正确
+		ct := resp.Header.Get("Content-Type")
+		if strings.Contains(ct, "text/event-stream") {
+			resp.Body = newSSEFixReader(resp.Body)
+		}
+
 		// 包装 body，捕获 SSE/JSON 中的 usage。
 		resp.Body = &usageReader{ReadCloser: resp.Body, tracker: u, buf: &bytes.Buffer{}}
 		return nil

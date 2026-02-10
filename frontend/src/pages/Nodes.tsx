@@ -4,6 +4,7 @@ import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } 
 import { CSS } from '@dnd-kit/utilities'
 import Card from '../components/Card'
 import Modal from '../components/Modal'
+import RecoveryBadge from '../components/RecoveryBadge'
 import Toast from '../components/Toast'
 import useDialog from '../hooks/useDialog'
 import usePrompt from '../hooks/usePrompt'
@@ -448,7 +449,7 @@ export default function Nodes() {
             ⋮⋮
           </button>
         </td>
-        <td className="node-name-cell">{node.name || '未命名'}</td>
+        <td className="node-name-cell">{node.name || '未命名'}<RecoveryBadge nodeId={node.id} /></td>
         <td>
           <div
             className={`pill ${status.cls}`}

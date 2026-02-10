@@ -10,6 +10,7 @@ import {
   Tooltip,
 } from 'chart.js'
 import Card from '../components/Card'
+import RecoveryBadge from '../components/RecoveryBadge'
 import Toast from '../components/Toast'
 import api from '../services/api'
 import type { Account, Node } from '../types'
@@ -452,7 +453,7 @@ export default function Dashboard() {
                     return (
                       <tr key={n.id}>
                         <td>
-                          {n.name || '未命名'}
+                          {n.name || '未命名'}<RecoveryBadge nodeId={n.id} />
                           <div className="muted" style={{ fontSize: 12 }}>权重 {n.weight || 1}</div>
                         </td>
                         <td>

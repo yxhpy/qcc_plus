@@ -95,6 +95,33 @@ func (p *Server) handlePricing(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handlePricingSync 从官方定价同步模型价格
+// POST /api/pricing/sync - 同步官方定价
+func (p *Server) handlePricingSync(w http.ResponseWriter, r *http.Request) {
+	if p.store == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "database not configured"})
+		return
+	}
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+		return
+	}
+	if !isAdmin(r.Context()) {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "admin required"})
+		return
+	}
+
+	synced, err := p.store.SyncOfficialPricing(r.Context())
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"message": "sync completed",
+		"synced":  synced,
+	})
+}
+
 // handleUsageLogs 处理使用日志查询 API
 // GET /api/usage/logs - 查询使用日志
 // 参数: account_id, node_id, model_id, from, to, limit, offset

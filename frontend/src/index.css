@@ -145,3 +145,22 @@ table tr {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-border-default);
 }
+
+/* Recovery Badge - global reusable style */
+.recovery-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  margin-left: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  color: #fff;
+  background: var(--color-danger-500, #EF4444);
+  border-radius: 8px;
+  cursor: pointer;
+  vertical-align: middle;
+}

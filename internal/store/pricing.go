@@ -109,6 +109,13 @@ func (s *Store) ensurePricingTables(ctx context.Context) error {
 		s.db.ExecContext(ctx, "ALTER TABLE usage_logs ADD COLUMN total_attempts INT NOT NULL DEFAULT 1")
 	}
 
+	// 迁移：添加 error_msg 列（存储最终错误信息，便于直接展示）
+	if s.IsSQLite() {
+		s.db.ExecContext(ctx, `ALTER TABLE usage_logs ADD COLUMN error_msg TEXT NOT NULL DEFAULT ''`)
+	} else {
+		s.db.ExecContext(ctx, "ALTER TABLE usage_logs ADD COLUMN error_msg TEXT NOT NULL DEFAULT ('')")
+	}
+
 	// 创建 usage_log_attempts 表（链路追踪）
 	attemptsTable := `CREATE TABLE IF NOT EXISTS usage_log_attempts (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -161,23 +168,6 @@ func (s *Store) SeedDefaultPricing(ctx context.Context) error {
 		return nil // 已有数据，不再预置
 	}
 
-	// Claude 官方定价（截至 2025-12-06）
-	defaultPricing := []ModelPricingRecord{
-		// 最新旗舰模型
-		{ModelID: "claude-opus-4-5-20251101", ModelName: "Claude Opus 4.5", InputPriceMTok: 5.0, OutputPriceMTok: 25.0, IsActive: true},
-		{ModelID: "claude-sonnet-4-5-20250929", ModelName: "Claude Sonnet 4.5", InputPriceMTok: 3.0, OutputPriceMTok: 15.0, IsActive: true},
-		{ModelID: "claude-haiku-4-5-20251001", ModelName: "Claude Haiku 4.5", InputPriceMTok: 1.0, OutputPriceMTok: 5.0, IsActive: true},
-
-		// Legacy 模型
-		{ModelID: "claude-opus-4-20250514", ModelName: "Claude Opus 4", InputPriceMTok: 15.0, OutputPriceMTok: 75.0, IsActive: true},
-		{ModelID: "claude-sonnet-4-20250514", ModelName: "Claude Sonnet 4", InputPriceMTok: 3.0, OutputPriceMTok: 15.0, IsActive: true},
-		{ModelID: "claude-3-5-sonnet-20241022", ModelName: "Claude 3.5 Sonnet", InputPriceMTok: 3.0, OutputPriceMTok: 15.0, IsActive: true},
-		{ModelID: "claude-3-5-haiku-20241022", ModelName: "Claude 3.5 Haiku", InputPriceMTok: 0.8, OutputPriceMTok: 4.0, IsActive: true},
-		{ModelID: "claude-3-opus-20240229", ModelName: "Claude 3 Opus", InputPriceMTok: 15.0, OutputPriceMTok: 75.0, IsActive: true},
-		{ModelID: "claude-3-sonnet-20240229", ModelName: "Claude 3 Sonnet", InputPriceMTok: 3.0, OutputPriceMTok: 15.0, IsActive: true},
-		{ModelID: "claude-3-haiku-20240307", ModelName: "Claude 3 Haiku", InputPriceMTok: 0.25, OutputPriceMTok: 1.25, IsActive: true},
-	}
-
 	ctx, cancel := withTimeout(ctx)
 	defer cancel()
 
@@ -188,7 +178,7 @@ func (s *Store) SeedDefaultPricing(ctx context.Context) error {
 		stmt = `INSERT IGNORE INTO model_pricing (id, model_id, model_name, input_price_mtok, output_price_mtok, is_active) VALUES (?, ?, ?, ?, ?, ?)`
 	}
 
-	for _, p := range defaultPricing {
+	for _, p := range OfficialPricing() {
 		p.ID = genUUID()
 		_, err := s.db.ExecContext(ctx, stmt,
 			p.ID, p.ModelID, p.ModelName, p.InputPriceMTok, p.OutputPriceMTok, p.IsActive)
@@ -197,6 +187,44 @@ func (s *Store) SeedDefaultPricing(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// OfficialPricing 返回 Anthropic 官方模型定价表（截至 2026-02）
+// 数据来源: https://docs.anthropic.com/en/docs/about-claude/pricing
+func OfficialPricing() []ModelPricingRecord {
+	return []ModelPricingRecord{
+		// 最新一代模型
+		{ModelID: "claude-opus-4-6", ModelName: "Claude Opus 4.6", InputPriceMTok: 5.0, OutputPriceMTok: 25.0, IsActive: true},
+		{ModelID: "claude-sonnet-4-5-20250929", ModelName: "Claude Sonnet 4.5", InputPriceMTok: 3.0, OutputPriceMTok: 15.0, IsActive: true},
+		{ModelID: "claude-haiku-4-5-20251001", ModelName: "Claude Haiku 4.5", InputPriceMTok: 1.0, OutputPriceMTok: 5.0, IsActive: true},
+
+		// Legacy 模型
+		{ModelID: "claude-opus-4-5-20251101", ModelName: "Claude Opus 4.5", InputPriceMTok: 5.0, OutputPriceMTok: 25.0, IsActive: true},
+		{ModelID: "claude-opus-4-1-20250805", ModelName: "Claude Opus 4.1", InputPriceMTok: 15.0, OutputPriceMTok: 75.0, IsActive: true},
+		{ModelID: "claude-sonnet-4-20250514", ModelName: "Claude Sonnet 4", InputPriceMTok: 3.0, OutputPriceMTok: 15.0, IsActive: true},
+		{ModelID: "claude-3-7-sonnet-20250219", ModelName: "Claude Sonnet 3.7", InputPriceMTok: 3.0, OutputPriceMTok: 15.0, IsActive: true},
+		{ModelID: "claude-opus-4-20250514", ModelName: "Claude Opus 4", InputPriceMTok: 15.0, OutputPriceMTok: 75.0, IsActive: true},
+		{ModelID: "claude-3-5-sonnet-20241022", ModelName: "Claude 3.5 Sonnet", InputPriceMTok: 3.0, OutputPriceMTok: 15.0, IsActive: true},
+		{ModelID: "claude-3-5-haiku-20241022", ModelName: "Claude 3.5 Haiku", InputPriceMTok: 0.8, OutputPriceMTok: 4.0, IsActive: true},
+		{ModelID: "claude-3-opus-20240229", ModelName: "Claude 3 Opus", InputPriceMTok: 15.0, OutputPriceMTok: 75.0, IsActive: true},
+		{ModelID: "claude-3-sonnet-20240229", ModelName: "Claude 3 Sonnet", InputPriceMTok: 3.0, OutputPriceMTok: 15.0, IsActive: true},
+		{ModelID: "claude-3-haiku-20240307", ModelName: "Claude 3 Haiku", InputPriceMTok: 0.25, OutputPriceMTok: 1.25, IsActive: true},
+	}
+}
+
+// SyncOfficialPricing 从官方定价表同步所有模型定价到数据库
+// 已存在的模型会更新价格，新模型会插入，返回同步数量
+func (s *Store) SyncOfficialPricing(ctx context.Context) (int, error) {
+	official := OfficialPricing()
+	synced := 0
+	for _, p := range official {
+		p.ID = genUUID()
+		if err := s.UpsertModelPricing(ctx, p); err != nil {
+			return synced, fmt.Errorf("sync model %s failed: %w", p.ModelID, err)
+		}
+		synced++
+	}
+	return synced, nil
 }
 
 // GetModelPricing 获取单个模型定价
@@ -334,9 +362,9 @@ func (s *Store) InsertUsageLog(ctx context.Context, log UsageLogRecord) error {
 	}
 
 	result, err := s.db.ExecContext(ctx,
-		`INSERT INTO usage_logs (account_id, node_id, node_name, model_id, input_tokens, output_tokens, cost_usd, request_id, success, duration_ms, total_attempts, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		log.AccountID, log.NodeID, log.NodeName, log.ModelID, log.InputTokens, log.OutputTokens, log.CostUSD, log.RequestID, log.Success, log.DurationMs, log.TotalAttempts, log.CreatedAt)
+		`INSERT INTO usage_logs (account_id, node_id, node_name, model_id, input_tokens, output_tokens, cost_usd, request_id, success, error_msg, duration_ms, total_attempts, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		log.AccountID, log.NodeID, log.NodeName, log.ModelID, log.InputTokens, log.OutputTokens, log.CostUSD, log.RequestID, log.Success, log.ErrorMsg, log.DurationMs, log.TotalAttempts, log.CreatedAt)
 	if err != nil {
 		return err
 	}
@@ -365,7 +393,7 @@ func (s *Store) QueryUsageLogs(ctx context.Context, params QueryUsageParams) ([]
 	ctx, cancel := withTimeout(ctx)
 	defer cancel()
 
-	query := `SELECT id, account_id, node_id, node_name, model_id, input_tokens, output_tokens, cost_usd, request_id, success, duration_ms, total_attempts, created_at
+	query := `SELECT id, account_id, node_id, node_name, model_id, input_tokens, output_tokens, cost_usd, request_id, success, error_msg, duration_ms, total_attempts, created_at
 		FROM usage_logs WHERE 1=1`
 	var args []interface{}
 
@@ -416,7 +444,8 @@ func (s *Store) QueryUsageLogs(ctx context.Context, params QueryUsageParams) ([]
 		var log UsageLogRecord
 		var reqID sql.NullString
 		var nodeName sql.NullString
-		if err := rows.Scan(&log.ID, &log.AccountID, &log.NodeID, &nodeName, &log.ModelID, &log.InputTokens, &log.OutputTokens, &log.CostUSD, &reqID, &log.Success, &log.DurationMs, &log.TotalAttempts, &log.CreatedAt); err != nil {
+		var errorMsg sql.NullString
+		if err := rows.Scan(&log.ID, &log.AccountID, &log.NodeID, &nodeName, &log.ModelID, &log.InputTokens, &log.OutputTokens, &log.CostUSD, &reqID, &log.Success, &errorMsg, &log.DurationMs, &log.TotalAttempts, &log.CreatedAt); err != nil {
 			return nil, err
 		}
 		if reqID.Valid {
@@ -424,6 +453,9 @@ func (s *Store) QueryUsageLogs(ctx context.Context, params QueryUsageParams) ([]
 		}
 		if nodeName.Valid {
 			log.NodeName = nodeName.String
+		}
+		if errorMsg.Valid {
+			log.ErrorMsg = errorMsg.String
 		}
 		results = append(results, log)
 	}

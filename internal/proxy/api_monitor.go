@@ -45,6 +45,7 @@ type MonitorNode struct {
 	Disabled       bool          `json:"disabled"`
 	Degraded       bool          `json:"degraded"`         // 慢节点降级
 	ActiveConns    int64         `json:"active_conns"`     // 活跃连接数
+	ActiveModels   []string      `json:"active_models"`    // 正在处理的模型列表
 	KeyCount       int           `json:"key_count"`        // API Key 总数
 	ActiveKeyCount int           `json:"active_key_count"` // 可用 Key 数
 	ErrorSeverity  string        `json:"error_severity"`   // 语义化错误级别
@@ -242,8 +243,10 @@ func (p *Server) buildMonitorDashboardResponse(ctx context.Context, target *Acco
 
 		// 活跃连接数
 		var activeConns int64
+		var activeModels []string
 		if p.nodeScorer != nil {
 			activeConns = p.nodeScorer.GetActiveConns(snap.ID)
+			activeModels = p.nodeScorer.GetActiveModels(snap.ID)
 		}
 
 		// 语义化错误级别
@@ -272,6 +275,7 @@ func (p *Server) buildMonitorDashboardResponse(ctx context.Context, target *Acco
 			Disabled:       snap.Disabled,
 			Degraded:       degraded,
 			ActiveConns:    activeConns,
+			ActiveModels:   activeModels,
 			KeyCount:       snap.KeyCount,
 			ActiveKeyCount: snap.ActiveKeyCount,
 			ErrorSeverity:  errorSeverity,

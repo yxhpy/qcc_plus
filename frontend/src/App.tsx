@@ -5,6 +5,7 @@ import Loading from './components/Loading'
 import { useAuth } from './hooks/useAuth'
 import { NodeMetricsProvider } from './contexts/NodeMetricsContext'
 import { SettingsProvider } from './contexts/SettingsContext'
+import { ModelRecoveryProvider } from './contexts/ModelRecoveryContext'
 
 // Route-level code splitting to keep initial bundle light
 const Login = lazy(() => import('./pages/Login'))
@@ -23,6 +24,7 @@ const ClaudeConfig = lazy(() => import('./pages/ClaudeConfig'))
 const Pricing = lazy(() => import('./pages/Pricing'))
 const Usage = lazy(() => import('./pages/Usage'))
 const RequestLogs = lazy(() => import('./pages/RequestLogs'))
+const ModelRecovery = lazy(() => import('./pages/ModelRecovery'))
 
 function ProtectedRoute({ children, adminOnly = false }: { children: ReactElement; adminOnly?: boolean }) {
   const { isAuthenticated, loading, isAdmin } = useAuth()
@@ -49,6 +51,7 @@ export default function App() {
   return (
     <SettingsProvider>
       <NodeMetricsProvider>
+        <ModelRecoveryProvider>
         <BrowserRouter>
           <Suspense fallback={<Loading />}>
             <Routes>
@@ -194,11 +197,22 @@ export default function App() {
                   </ProtectedRoute>
                 }
               />
+              <Route
+                path="/admin/model-recovery"
+                element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <ModelRecovery />
+                    </Layout>
+                  </ProtectedRoute>
+                }
+              />
               <Route path="/monitor/share/:token" element={<SharedMonitor />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Suspense>
         </BrowserRouter>
+        </ModelRecoveryProvider>
       </NodeMetricsProvider>
     </SettingsProvider>
   )

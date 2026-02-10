@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Card from '../components/Card'
+import RecoveryBadge from '../components/RecoveryBadge'
 import Toast from '../components/Toast'
 import api from '../services/api'
 import type { Account, Node, UsageLog, UsageLogAttempt, UsageSummary, UsageQueryParams } from '../types'
@@ -336,7 +337,7 @@ export default function Usage() {
                 <tbody>
                   {nodeSummaries.map((ns, idx) => (
                     <tr key={idx}>
-                      <td className="node-cell">{getNodeName(ns.node_id || '')}</td>
+                      <td className="node-cell">{getNodeName(ns.node_id || '')}<RecoveryBadge nodeId={ns.node_id || ''} /></td>
                       <td>{ns.total_requests.toLocaleString()}</td>
                       <td>{formatTokens(ns.total_input_tokens)}</td>
                       <td>{formatTokens(ns.total_output_tokens)}</td>
@@ -460,6 +461,7 @@ function LogRow({ log, hasAttempts, isExpanded, onToggle, getNodeName, formatDat
         <td className="model-cell">{log.model_id}</td>
         <td>
           {log.node_name || getNodeName(log.node_id)}
+          <RecoveryBadge nodeId={log.node_id} />
           {hasAttempts && <span className="attempts-badge">{log.total_attempts}次</span>}
         </td>
         <td>{formatTokens(log.input_tokens)}</td>
@@ -468,6 +470,9 @@ function LogRow({ log, hasAttempts, isExpanded, onToggle, getNodeName, formatDat
         <td className="duration-cell">{formatDuration(log.duration_ms)}</td>
         <td>
           <span className={`status-dot ${log.success ? 'success' : 'failed'}`} />
+          {!log.success && log.error_msg && (
+            <span className="error-msg" title={log.error_msg}>{log.error_msg}</span>
+          )}
         </td>
       </tr>
       {isExpanded && log.attempts && log.attempts.length > 0 && (

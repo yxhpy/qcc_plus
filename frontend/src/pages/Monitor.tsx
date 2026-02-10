@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import Card from '../components/Card'
 import NodeCard from '../components/NodeCard'
 import Toast from '../components/Toast'
@@ -26,6 +26,7 @@ interface MonitorProps {
 export default function Monitor({ shared = false }: MonitorProps) {
   const params = useParams<{ token?: string }>()
   const shareToken = shared ? params.token : undefined
+  const navigate = useNavigate()
   const { isAdmin } = useAuth()
   const { preference, setPreference, resetToDefault } = useNodeMetrics()
   const { getSetting } = useSettings()
@@ -43,6 +44,7 @@ export default function Monitor({ shared = false }: MonitorProps) {
   const [expireIn, setExpireIn] = useState<CreateMonitorShareRequest['expire_in']>('24h')
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0)
   const [healthEvents, setHealthEvents] = useState<Record<string, HealthCheckRecord>>({})
+  const [modelRecoveryCount, setModelRecoveryCount] = useState(0)
   const lastNodeIdsRef = useRef('')
 
   const wsAccountId = shared ? undefined : accountId || undefined
@@ -87,6 +89,13 @@ export default function Monitor({ shared = false }: MonitorProps) {
           }
           return v
         })
+        // 同时获取模型恢复数量
+        if (!shared) {
+          try {
+            const recovery = await api.getModelRecovery(accountId || undefined)
+            setModelRecoveryCount(recovery.total || 0)
+          } catch { /* ignore */ }
+        }
       } catch (err) {
         showToast((err as Error).message || '加载失败', 'error')
       } finally {
@@ -103,6 +112,7 @@ export default function Monitor({ shared = false }: MonitorProps) {
     try {
       const res = await api.getMonitorShares(accountId)
       setShares(res.shares || [])
+
     } catch (err) {
       showToast('加载分享列表失败', 'error')
     } finally {
@@ -154,6 +164,14 @@ export default function Monitor({ shared = false }: MonitorProps) {
           check_method: payload.check_method || 'api',
         },
       }))
+      return
+    }
+
+    // 模型恢复事件：刷新恢复计数
+    if ((lastMessage as any).type === 'model_recovery') {
+      api.getModelRecovery(accountId || undefined).then(r => {
+        setModelRecoveryCount(r.total || 0)
+      }).catch(() => {})
       return
     }
 
@@ -407,6 +425,28 @@ export default function Monitor({ shared = false }: MonitorProps) {
           </div>
         )}
       </Card>
+
+      {!shared && modelRecoveryCount > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '8px 14px',
+            borderRadius: '8px',
+            border: '1px solid var(--color-status-error-border, var(--color-border-default))',
+            background: 'var(--color-status-error-bg, #fef2f2)',
+            fontSize: '13px',
+            cursor: 'pointer',
+          }}
+          onClick={() => navigate('/admin/model-recovery')}
+        >
+          <span>
+            <strong>{modelRecoveryCount}</strong> 个模型正在恢复中 — 部分节点的特定模型不可用，系统正在自动检测恢复
+          </span>
+          <span style={{ color: 'var(--color-primary)', fontWeight: 500 }}>查看详情 &rarr;</span>
+        </div>
+      )}
 
       <Card title="节点实时状态" extra={<div className="badge gray">每 30 秒自动刷新 · WebSocket 增量更新</div>}>
         {loading ? (

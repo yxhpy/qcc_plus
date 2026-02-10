@@ -1,5 +1,6 @@
 import type { HealthCheckRecord, MonitorNode } from '../types'
 import HealthTimeline from './HealthTimeline'
+import RecoveryBadge from './RecoveryBadge'
 import Tooltip from './Tooltip'
 import { useNodeMetrics } from '../contexts/NodeMetricsContext'
 import './NodeCard.css'
@@ -44,7 +45,7 @@ export default function NodeCard({ node, historyRefreshKey, healthEvent, shareTo
     ? 'node-card node-card--circuit-open'
     : node.degraded
       ? 'node-card node-card--degraded'
-      : node.is_active
+      : activeConns > 0
         ? 'node-card node-card--active'
         : 'node-card'
 
@@ -60,7 +61,7 @@ export default function NodeCard({ node, historyRefreshKey, healthEvent, shareTo
       {/* Header: 节点名 + 双状态徽章 */}
       <div className="node-card__header">
         <div className="node-card__title-wrap">
-          <div className="node-card__title">{node.name || '未命名节点'}</div>
+          <div className="node-card__title">{node.name || '未命名节点'}<RecoveryBadge nodeId={node.id} /></div>
           <div className="node-card__url">{node.url || '-'}</div>
         </div>
       </div>
@@ -118,7 +119,14 @@ export default function NodeCard({ node, historyRefreshKey, healthEvent, shareTo
         <div className="node-card__badges">
           {node.circuit_open && <span className="badge badge-warning">熔断中</span>}
           {node.degraded && !node.circuit_open && <span className="badge badge-degraded">降级</span>}
-          {node.is_active && !node.circuit_open && <span className="badge badge-primary">使用中</span>}
+          {activeConns > 0 && (
+            <>
+              <span className="badge badge-active">正在使用 ({activeConns})</span>
+              {(node.active_models || []).map((m) => (
+                <span key={m} className="badge badge-model">{m}</span>
+              ))}
+            </>
+          )}
           {node.disabled && <span className="badge badge-muted">已停用</span>}
           {node.error_severity && errorSeverityLabel(node.error_severity) && (
             <span className={`badge ${node.error_severity === 'degraded' ? 'badge-degraded' : 'badge-danger'}`}>

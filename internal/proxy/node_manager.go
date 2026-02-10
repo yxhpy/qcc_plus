@@ -284,41 +284,68 @@ func (p *Server) getActiveNode(acc ...*Account) (*Node, error) {
 
 // selectHealthyNodeExcluding 选择健康节点，排除 skipNodes
 // 使用 NodeScorer 进行负载均衡选择（支持加权随机、轮询、最少连接等策略）
-func (p *Server) selectHealthyNodeExcluding(acc *Account, skipNodes map[string]bool) *Node {
+// modelID 用于跳过该模型在该节点上失败的节点（模型级别故障感知）
+func (p *Server) selectHealthyNodeExcluding(acc *Account, skipNodes map[string]bool, modelID ...string) *Node {
 	if acc == nil {
 		return nil
 	}
 
+	reqModel := ""
+	if len(modelID) > 0 {
+		reqModel = modelID[0]
+	}
+
 	p.mu.RLock()
 	var candidates []*Node
+	var modelFailedCandidates []*Node // 模型失败但节点本身健康的候选（fallback）
 	for id, n := range acc.Nodes {
 		if n.Failed || n.Disabled || p.isInFailedSet(acc, id) {
+			continue
+		}
+		// 检查该模型是否在此节点上失败
+		if reqModel != "" && p.modelRecovery != nil && p.modelRecovery.IsModelFailed(id, reqModel) {
+			modelFailedCandidates = append(modelFailedCandidates, n)
 			continue
 		}
 		candidates = append(candidates, n)
 	}
 	p.mu.RUnlock()
 
-	if len(candidates) == 0 {
-		return nil
+	// 优先使用模型未失败的节点
+	if len(candidates) > 0 {
+		if p.nodeScorer != nil {
+			return p.nodeScorer.SelectNode(candidates, skipNodes)
+		}
+		var bestNode *Node
+		for _, n := range candidates {
+			if skipNodes != nil && skipNodes[n.ID] {
+				continue
+			}
+			if bestNode == nil || n.Weight < bestNode.Weight {
+				bestNode = n
+			}
+		}
+		return bestNode
 	}
 
-	// 使用 NodeScorer 进行智能选择
-	if p.nodeScorer != nil {
-		return p.nodeScorer.SelectNode(candidates, skipNodes)
+	// Fallback：所有节点的该模型都失败了，仍然尝试（总比不发请求好）
+	if len(modelFailedCandidates) > 0 {
+		if p.nodeScorer != nil {
+			return p.nodeScorer.SelectNode(modelFailedCandidates, skipNodes)
+		}
+		var bestNode *Node
+		for _, n := range modelFailedCandidates {
+			if skipNodes != nil && skipNodes[n.ID] {
+				continue
+			}
+			if bestNode == nil || n.Weight < bestNode.Weight {
+				bestNode = n
+			}
+		}
+		return bestNode
 	}
 
-	// 降级：无 scorer 时使用原始逻辑
-	var bestNode *Node
-	for _, n := range candidates {
-		if skipNodes != nil && skipNodes[n.ID] {
-			continue
-		}
-		if bestNode == nil || n.Weight < bestNode.Weight {
-			bestNode = n
-		}
-	}
-	return bestNode
+	return nil
 }
 
 // isInFailedSet 判断节点是否在失败集合中。调用方需确保并发安全（外部加锁或只读场景）。

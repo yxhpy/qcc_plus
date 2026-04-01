@@ -376,7 +376,7 @@ const duration = {
 **核心框架**：
 ```json
 {
-  "framework": "Next.js 14",
+  "framework": "Next.js 16",
   "reason": "SSR + 性能优化 + SEO友好",
 
   "3D引擎": "Three.js + React Three Fiber",

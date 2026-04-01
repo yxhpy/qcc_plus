@@ -3,7 +3,7 @@
 
 **项目代号**: Quantum Gateway
 **设计理念**: 前无古人后无来者的3D交互式产品官网
-**技术栈**: Next.js 14 + Three.js + GSAP + React
+**技术栈**: Next.js 16 + Three.js + GSAP + React 19
 
 ---
 
@@ -156,8 +156,8 @@
 
 ```
 前端框架
-├── Next.js 14 (App Router)
-├── React 18
+├── Next.js 16 (App Router)
+├── React 19
 └── TypeScript 5
 
 3D渲染
@@ -394,4 +394,3 @@ vercel --prod
 | 日期 | 版本 | 更新内容 | 作者 |
 |------|------|----------|------|
 | 2025-11-23 | v1.0 | 初始版本，完整设计文档集 | Claude Code |
-

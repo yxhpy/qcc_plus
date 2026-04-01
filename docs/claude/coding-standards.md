@@ -19,7 +19,7 @@
 |------|------|
 | Builder 模式 | 代理服务器使用 Builder 模式构建，参考 `internal/proxy/` |
 | 环境变量配置 | 所有配置通过环境变量注入，参考 `.env.example` |
-| MySQL 持久化 | 节点配置持久化到 MySQL，设置 `PROXY_MYSQL_DSN` 启用 |
+| 存储模式 | 默认使用 SQLite，可通过 `PROXY_MYSQL_DSN` 切换到 MySQL |
 | SSE 流处理 | SSE 流读取逻辑在 `internal/client/` 中实现 |
 | 请求指纹复刻 | 保持与官方 CLI 一致的请求头和参数 |
 | 节点权重与切换 | 权重值越小优先级越高（1 > 2 > 3）；事件驱动切换 |

@@ -142,6 +142,10 @@ func (s *Store) DeleteAccount(ctx context.Context, id string) error {
 		tx.Rollback()
 		return err
 	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM sessions WHERE account_id=?`, id); err != nil {
+		tx.Rollback()
+		return err
+	}
 	res, err := tx.ExecContext(ctx, `DELETE FROM accounts WHERE id=?`, id)
 	if err != nil {
 		tx.Rollback()

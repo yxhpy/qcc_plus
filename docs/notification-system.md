@@ -318,4 +318,4 @@ type NotificationChannel interface {
 1. **安全性**：Webhook URL 等敏感信息不会在 API 响应中返回
 2. **去重**：默认 5 分钟内相同事件只通知一次，可通过配置调整
 3. **限流**：队列满时会丢弃新事件并记录日志
-4. **持久化**：需要配置 MySQL（`PROXY_MYSQL_DSN`）才能使用通知功能
+4. **持久化**：通知功能依赖存储层，默认 SQLite 即可使用；多实例或集中部署可切换到 MySQL（`PROXY_MYSQL_DSN`）

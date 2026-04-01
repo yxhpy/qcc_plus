@@ -30,7 +30,7 @@ pnpm start
 
 ## 🛠️ 技术栈
 
-- **框架**: Next.js 14 + React 18 + TypeScript
+- **框架**: Next.js 16 + React 19 + TypeScript
 - **3D渲染**: Three.js + React Three Fiber
 - **动画**: GSAP + Framer Motion
 - **样式**: Tailwind CSS

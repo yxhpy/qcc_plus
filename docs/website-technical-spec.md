@@ -2,7 +2,7 @@
 ## Technical Implementation Specification
 
 **项目代号**: Quantum Gateway
-**技术栈**: Next.js 14 + Three.js + GSAP
+**技术栈**: Next.js 16 + Three.js + GSAP
 **目标**: 创建业界领先的3D交互式产品官网
 
 ---
@@ -25,7 +25,7 @@
 ```json
 {
   "framework": {
-    "core": "Next.js 14.0.4",
+    "core": "Next.js 16.0.3",
     "react": "18.2.0",
     "typescript": "5.3.3"
   },
@@ -107,7 +107,7 @@
 
 ```
 website/
-├── app/                          # Next.js 14 App Router
+├── app/                          # Next.js 16 App Router
 │   ├── layout.tsx               # 根布局
 │   ├── page.tsx                 # 主页
 │   ├── globals.css              # 全局样式

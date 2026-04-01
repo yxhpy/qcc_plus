@@ -495,45 +495,7 @@ func (p *Server) loadAccountsFromStore(defaultUpstream *url.URL, defaultCfg stor
 			_ = p.store.SetActive(context.Background(), acc.ID, node.ID)
 		} else {
 			for _, r := range recs {
-				u, _ := url.Parse(r.BaseURL)
-				hcMethod := normalizeHealthCheckMethod(chooseNonEmpty(r.HealthCheckMethod, defaultHealthCheckMethod))
-				hcModel := chooseNonEmpty(r.HealthCheckModel, defaultHealthCheckModel)
-				if healthMethodRequiresAPIKey(hcMethod) && r.APIKey == "" {
-					p.logger.Printf("health check mode %s requires api key, fallback to head for node %s", hcMethod, r.Name)
-					hcMethod = HealthCheckMethodHEAD
-				}
-				n := &Node{
-					ID:                r.ID,
-					Name:              r.Name,
-					URL:               u,
-					APIKey:            r.APIKey,
-					HealthCheckMethod: hcMethod,
-					HealthCheckModel:  hcModel,
-					AccountID:         r.AccountID,
-					CreatedAt:         r.CreatedAt,
-					Weight:            r.Weight,
-					Failed:            r.Failed,
-					Disabled:          r.Disabled,
-					LastError:         r.LastError,
-					Metrics: metrics{
-						Requests:          r.Requests,
-						FailCount:         r.FailCount,
-						FailStreak:        r.FailStreak,
-						TotalBytes:        r.TotalBytes,
-						TotalInputTokens:  r.TotalInput,
-						TotalOutputTokens: r.TotalOutput,
-						StreamDur:         time.Duration(r.StreamDurMs) * time.Millisecond,
-						FirstByteDur:      time.Duration(r.FirstByteMs) * time.Millisecond,
-						LastPingMS:        r.LastPingMs,
-						LastPingErr:       r.LastPingErr,
-						LastHealthCheckAt: r.LastHealthCheckAt,
-					},
-				}
-				// 如果 API Key 包含逗号，启用多密钥轮换
-				if strings.Contains(r.APIKey, ",") {
-					n.APIKeys = NewKeyRotator(r.APIKey, loadKeyRotatorConfig())
-					n.APIKey = n.APIKeys.GetPrimaryKey()
-				}
+				n := p.nodeFromRecord(r)
 				acc.Nodes[n.ID] = n
 				// 重启后恢复失败节点到 FailedSet，确保健康检查能够探活这些节点
 				if n.Failed {
@@ -589,6 +551,48 @@ func (p *Server) registerAccount(acc *Account) {
 		// 确保节点属于账号
 		n.AccountID = acc.ID
 	}
+}
+
+func (p *Server) nodeFromRecord(r store.NodeRecord) *Node {
+	u, _ := url.Parse(r.BaseURL)
+	hcMethod := normalizeHealthCheckMethod(chooseNonEmpty(r.HealthCheckMethod, defaultHealthCheckMethod))
+	hcModel := chooseNonEmpty(r.HealthCheckModel, defaultHealthCheckModel)
+	if healthMethodRequiresAPIKey(hcMethod) && r.APIKey == "" {
+		hcMethod = HealthCheckMethodHEAD
+	}
+	n := &Node{
+		ID:                r.ID,
+		Name:              r.Name,
+		URL:               u,
+		APIKey:            r.APIKey,
+		SourceProtocol:    chooseNonEmpty(r.SourceProtocol, SourceProtocolClaude),
+		HealthCheckMethod: hcMethod,
+		HealthCheckModel:  hcModel,
+		AccountID:         r.AccountID,
+		CreatedAt:         r.CreatedAt,
+		Weight:            r.Weight,
+		Failed:            r.Failed,
+		Disabled:          r.Disabled,
+		LastError:         r.LastError,
+		Metrics: metrics{
+			Requests:          r.Requests,
+			FailCount:         r.FailCount,
+			FailStreak:        r.FailStreak,
+			TotalBytes:        r.TotalBytes,
+			TotalInputTokens:  r.TotalInput,
+			TotalOutputTokens: r.TotalOutput,
+			StreamDur:         time.Duration(r.StreamDurMs) * time.Millisecond,
+			FirstByteDur:      time.Duration(r.FirstByteMs) * time.Millisecond,
+			LastPingMS:        r.LastPingMs,
+			LastPingErr:       r.LastPingErr,
+			LastHealthCheckAt: r.LastHealthCheckAt,
+		},
+	}
+	if strings.Contains(r.APIKey, ",") {
+		n.APIKeys = NewKeyRotator(r.APIKey, loadKeyRotatorConfig())
+		n.APIKey = n.APIKeys.GetPrimaryKey()
+	}
+	return n
 }
 
 func (p *Server) getAccountByProxyKey(key string) *Account {

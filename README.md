@@ -1,154 +1,89 @@
-# qcc_plus - Claude Code CLI 多租户代理服务器
-
-[![Run in Smithery](https://smithery.ai/badge/skills/yxhpy)](https://smithery.ai/skills?ns=yxhpy&utm_source=github&utm_medium=badge)
-
+# qcc_plus
 
 [![Version](https://img.shields.io/badge/version-1.9.4-blue.svg)](https://github.com/yxhpy/qcc_plus/releases/tag/v1.9.4)
 [![npm](https://img.shields.io/npm/v/@qccplus/cli.svg?logo=npm)](https://www.npmjs.com/package/@qccplus/cli)
 [![Go](https://img.shields.io/badge/Go-1.21+-00ADD8?logo=go)](https://go.dev/)
 [![Docker](https://img.shields.io/badge/docker-yxhpy520%2Fqcc__plus-blue?logo=docker)](https://hub.docker.com/r/yxhpy520/qcc_plus)
 
-## 概述
+qcc_plus 是一个面向 Claude Code CLI 的多租户代理服务，提供账号隔离、节点管理、自动故障切换、React 管理后台、监控大屏、通知、Cloudflare Tunnel 和 npm/Docker 分发能力。
 
-qcc_plus 是一个功能完整的 Claude Code CLI 代理服务器，支持多租户账号隔离、多节点管理、自动故障切换和 Web 管理界面。
+## 核心能力
 
-### 核心特性
+- 多租户账号隔离，按 `proxy_api_key` 路由到账号独立节点池
+- 多节点管理，支持权重优先、禁用、激活、自动故障切换
+- 健康检查支持 `cli`、`api`、`head` 三种模式
+- React 19 + TypeScript + Vite 管理界面
+- 监控大屏、分享监控页、WebSocket 实时推送
+- 模型定价、使用量汇总、请求日志、模型恢复跟踪
+- 通知渠道和订阅管理
+- Cloudflare Tunnel 集成
+- npm CLI、Docker 镜像、源码三种使用方式
 
-- **多租户账号隔离**：每个账号拥有独立的节点池和配置
-- **智能路由**：根据 API Key 自动路由到对应账号的节点
-- **多节点管理**：支持配置多个上游节点，权重优先级控制
-- **智能故障切换**：事件驱动的节点切换，仅在状态变化时触发
-- **自动探活恢复**：失败节点定期探活，自动恢复可用节点
-- **React Web 管理界面**：现代化 SPA 界面，可视化管理账号和节点
-- **MySQL 持久化**：配置和统计数据持久化存储
-- **实时监控大屏**：实时展示节点状态、流量指标，并提供健康检查历史时间线
-- **监控数据持久化**：多维度监控数据持久化，分离代理流量与健康检查指标
-- **分享监控页面**：一键生成分享链接，分享页通过 WebSocket 实时推送完整指标
-- **Docker 部署**：一键部署，支持 Docker Compose
-- **Cloudflare Tunnel 集成**：内置隧道支持，无需公网 IP
+## 运行模式
+
+- 默认存储不是内存模式，而是本地 SQLite。
+- 未设置 `PROXY_MYSQL_DSN` 时，服务会默认使用 `~/.qccplus/qccplus.db`。
+- 可通过 `PROXY_SQLITE_PATH` 指定 SQLite 文件路径。
+- 设置 `PROXY_MYSQL_DSN` 后切换到 MySQL。
+- 启动时会自动创建管理员账号 `admin/admin123`。
+- 默认普通账号不会自动创建；首次启动后需要登录管理后台手动创建账号和节点。
 
 ## 快速开始
 
-### npm 全局安装（推荐）⭐
-
-最简单的安装方式，自动下载对应平台的二进制文件：
+### npm 安装
 
 ```bash
-# 安装
 npm install -g @qccplus/cli
 
-# 启动代理服务（前台模式）
-qccplus proxy
+# 初始化本地配置（会写入 ~/.qccplus/config.yaml）
+qccplus config init
 
-# 或者作为后台服务运行
+# 配置上游 API Key
+qccplus config set upstream.api_key sk-ant-your-key
+
+# 启动服务
 qccplus start
-
-# 查看服务状态
-qccplus status
-
-# 查看日志
-qccplus logs
-
-# 停止服务
-qccplus stop
 ```
 
-**支持的平台**：
-- macOS (Intel/Apple Silicon)
-- Linux (x64/arm64)
-- Windows (x64)
+访问管理界面：`http://localhost:8000/admin`
 
-**常用命令**：
-```bash
-qccplus start          # 启动后台服务
-qccplus stop           # 停止服务
-qccplus restart        # 重启服务
-qccplus status         # 查看状态
-qccplus logs           # 查看日志
-qccplus logs -f        # 实时日志
-qccplus proxy          # 前台运行
-qccplus config         # 配置管理
-qccplus upgrade        # 升级到最新版
-qccplus version        # 查看版本
-```
+首次登录：
+
+- 管理员账号：`admin`
+- 管理员密码：`admin123`
 
 ### Docker 部署
 
 ```bash
-# 使用 Docker Compose
 git clone https://github.com/yxhpy/qcc_plus.git
 cd qcc_plus
-cp .env.example .env
-# 编辑 .env 文件配置
 docker compose up -d
 ```
 
-<details>
-<summary>其他安装方式</summary>
-
-### 从源码运行
+### 源码运行
 
 ```bash
-UPSTREAM_BASE_URL=https://api.anthropic.com \
 UPSTREAM_API_KEY=sk-ant-your-key \
 go run ./cmd/cccli proxy
 ```
 
-### 从 GitHub Releases 下载
+## 最小可用流程
 
-前往 [Releases](https://github.com/yxhpy/qcc_plus/releases) 下载对应平台的二进制文件。
+1. 登录 `http://localhost:8000/admin`
+2. 使用 `admin/admin123` 登录
+3. 创建一个普通账号，例如 `team-alpha`
+4. 为该账号添加至少一个节点
+5. 使用该账号的 `proxy_api_key` 调用 `/v1/messages`
 
-</details>
-
-启动后输出默认登录凭证（内存模式）：
-- 管理员：username=`admin` password=`admin123`
-- 默认账号：username=`default` password=`default123`
-- 提示：配置了 `PROXY_MYSQL_DSN`（持久化模式）时不会自动创建默认账号，请登录后自行创建账号与节点。
-
-### 访问管理界面
-
-http://localhost:8000/admin
-
-### 使用代理
+示例：
 
 ```bash
-curl http://localhost:8000/v1/messages \
-  -H "x-api-key: default-proxy-key" \
-  -H "Content-Type: application/json" \
-  -d '{"model":"claude-sonnet-4-5-20250929","messages":[{"role":"user","content":"hi"}],"max_tokens":100}'
-```
-> 仅当存在默认账号且其 proxy_api_key 为 `default-proxy-key` 时可直接使用；持久化模式需先创建账号和节点。
-
-## ⚠️ 默认凭证
-
-**安全警告**：以下默认凭证仅供本地测试，生产环境必须修改！
-
-| 类型 | 默认值 |
-|------|--------|
-| 管理员登录 | username `admin` / password `admin123` |
-| 默认账号登录 | （仅内存模式自动创建）username `default` / password `default123` |
-
-修改服务端配置密钥：
-```bash
-# 影响后台默认密钥注入，不改变已存在用户密码
-export ADMIN_API_KEY=your-secure-key
-export DEFAULT_PROXY_API_KEY=your-proxy-key
-```
-
-## 多租户使用
-
-系统默认启用多租户模式，支持完全的账号隔离。管理界面与管理 API 需先通过 `/login` 表单登录（`username`/`password`，获取 `session_token` Cookie），再携带 Cookie 访问。
-
-### 创建新账号（需先登录获取 Cookie）
-
-```bash
-# 先登录并保存 Cookie（表单提交）
 auth_cookie=cookies.txt
+
 curl -c "$auth_cookie" -X POST \
   -d "username=admin&password=admin123" \
   http://localhost:8000/login
 
-# 使用 Cookie 调用管理 API
 curl -b "$auth_cookie" -X POST http://localhost:8000/admin/api/accounts \
   -H "Content-Type: application/json" \
   -d '{
@@ -156,177 +91,180 @@ curl -b "$auth_cookie" -X POST http://localhost:8000/admin/api/accounts \
     "proxy_api_key":"alpha-key",
     "is_admin":false
   }'
-```
 
-### 为账号添加节点
-
-```bash
 curl -b "$auth_cookie" -X POST http://localhost:8000/admin/api/nodes \
   -H "Content-Type: application/json" \
   -d '{
-    "name":"node-1",
+    "name":"alpha-node-1",
     "base_url":"https://api.anthropic.com",
-    "api_key":"sk-ant-xxx",
+    "api_key":"sk-ant-your-key",
     "weight":1
   }'
-```
 
-### 使用账号代理
-
-```bash
 curl http://localhost:8000/v1/messages \
   -H "x-api-key: alpha-key" \
   -H "Content-Type: application/json" \
   -d '{
     "model":"claude-sonnet-4-5-20250929",
     "messages":[{"role":"user","content":"Hello"}],
-    "max_tokens":1024
+    "max_tokens":128
   }'
 ```
 
-## 环境变量配置
-
-### 基础配置
-
-| 变量名 | 说明 | 默认值 |
-|--------|------|--------|
-| LISTEN_ADDR | 监听地址 | `:8000` |
-| UPSTREAM_BASE_URL | 上游 API 地址 | `https://api.anthropic.com` |
-| UPSTREAM_API_KEY | 默认上游 API Key | - |
-| UPSTREAM_NAME | 默认节点名称 | `default` |
-
-### 代理配置
-
-| 变量名 | 说明 | 默认值 |
-|--------|------|--------|
-| PROXY_RETRY_MAX | 重试次数 | `3` |
-| PROXY_FAIL_THRESHOLD | 失败阈值（连续失败多少次标记失败） | `3` |
-| PROXY_HEALTH_INTERVAL_SEC | 探活间隔（秒） | `30` |
-| **HEALTH_CHECK_CONCURRENCY** ⭐ | 全量健康检查并发数（同时检查的节点数） | `2` |
-| **HEALTH_ALL_INTERVAL_MIN** ⭐ | 全量健康检查间隔（分钟） | `10` |
-| PROXY_MYSQL_DSN | MySQL 连接字符串 | - |
-
-### 多租户配置
-
-| 变量名 | 说明 | 默认值 |
-|--------|------|--------|
-| ADMIN_API_KEY | 管理员访问密钥（服务内部校验，非前端登录口令） | `admin` ⚠️ |
-| DEFAULT_ACCOUNT_NAME | 默认账号名称（仅内存模式自动创建） | `default` |
-| DEFAULT_PROXY_API_KEY | 默认代理 API Key（仅内存模式自动创建） | `default-proxy-key` ⚠️ |
-
-### Cloudflare Tunnel 配置
-
-| 变量名 | 说明 | 默认值 |
-|--------|------|--------|
-| CF_API_TOKEN | Cloudflare API Token | - |
-| TUNNEL_SUBDOMAIN | 隧道子域名（如 `my-proxy`） | - |
-| TUNNEL_ZONE | Cloudflare Zone（域名，如 `example.com`） | - |
-| TUNNEL_ENABLED | 启用隧道功能 | `false` |
-
-⚠️ **安全警告**：生产环境必须修改默认的 `ADMIN_API_KEY` 和 `DEFAULT_PROXY_API_KEY`！
-
-## 🌐 官方网站
-
-我们正在打造一个**前无古人后无来者**的3D交互式官网！
-
-### 设计理念："Quantum Gateway" - 量子之门
-
-- 🌌 **3D量子隧道首屏** - 100k粒子实时渲染
-- 🔮 **全息架构图** - 可交互的3D架构可视化
-- 🌊 **数据流瀑布** - 实时展示API请求流动
-- 💎 **功能矩阵立方体** - 6面体展示核心功能
-- 🎮 **沉浸式代码演示** - 3D空间中的可运行终端
-
-### 技术栈
-
-- Next.js 14 + React 18 + TypeScript
-- Three.js + React Three Fiber (3D渲染)
-- GSAP + Framer Motion (动画)
-- Tailwind CSS (样式)
-- Monaco Editor (代码编辑器)
-
-### 快速开始
+## 常用命令
 
 ```bash
-# 初始化官网项目
-./scripts/init-website.sh
-
-# 进入网站目录
-cd website
-
-# 启动开发服务器
-pnpm dev
+qccplus start
+qccplus stop
+qccplus restart
+qccplus status
+qccplus logs -f
+qccplus proxy
+qccplus config list
+qccplus version
 ```
 
-### 文档
+## 关键环境变量
 
-- [设计概念文档](docs/website-design-concept.md) - 完整的视觉设计和创新点
-- [技术实现规格](docs/website-technical-spec.md) - 详细的技术方案和代码示例
-- [实现路线图](docs/website-implementation-roadmap.md) - 6周开发计划
-- [文档总览](docs/website-README.md) - 官网文档导航
+### 基础
 
----
+| 变量名 | 说明 | 默认值 |
+|--------|------|--------|
+| `LISTEN_ADDR` | 服务监听地址 | `:8000` |
+| `UPSTREAM_BASE_URL` | 默认上游地址 | `https://api.anthropic.com` |
+| `UPSTREAM_API_KEY` | 默认上游 API Key | - |
+| `UPSTREAM_NAME` | 默认节点名称 | `default` |
+| `PROXY_SQLITE_PATH` | SQLite 文件路径 | `~/.qccplus/qccplus.db` |
+| `PROXY_MYSQL_DSN` | MySQL DSN，设置后切换为 MySQL | - |
 
-## 文档
+### 账号与安全
 
-- [多租户架构设计](docs/multi-tenant-architecture.md) - 完整的多租户系统架构
-- [快速开始指南](docs/quick-start-multi-tenant.md) - 多租户模式使用指南
-- [Cloudflare Tunnel 集成](docs/cloudflare-tunnel.md) - 内网穿透和隧道配置
-- [前端技术栈](docs/frontend-tech-stack.md) - React Web 界面开发文档
-- [健康检查机制](docs/health_check_mechanism.md) - 节点故障检测与恢复
-- [监控数据持久化](docs/monitoring-data-persistence.md) - 多维度监控数据聚合与持久化
-- [GoReleaser 自动化发布](docs/goreleaser-guide.md) - 一键发布流程（开发者必读）⭐
-- [Docker Hub 发布](docs/docker-hub-publish.md) - 镜像发布流程（手动模式，已弃用）
-- [飞牛 NAS 部署指南](https://p.kdocs.cn/s/PNCAUCBEABAES) ⭐ - 飞牛 NAS Docker 部署教程（感谢 [@circircir-circle](https://github.com/circircir-circle) 贡献）
-- [文档索引](docs/README.md) - 所有文档导航
-- [项目记忆](CLAUDE.md) - 开发规范和工作流程
+| 变量名 | 说明 | 默认值 |
+|--------|------|--------|
+| `ADMIN_API_KEY` | 管理员代理 Key | `admin` |
+| `DEFAULT_ACCOUNT_NAME` | 默认账号名称口径 | `default` |
+| `DEFAULT_PROXY_API_KEY` | 默认账号代理 Key 口径 | `default-proxy-key` |
+
+### 健康检查
+
+| 变量名 | 说明 | 默认值 |
+|--------|------|--------|
+| `PROXY_HEALTH_CHECK_MODE` | 全局健康检查方式：`cli/api/head` | `cli` |
+| `PROXY_FAIL_THRESHOLD` | 连续失败阈值 | `3` |
+| `PROXY_HEALTH_INTERVAL_SEC` | 失败节点探活间隔 | `30` |
+| `PROXY_HEALTH_CHECK_ALL_INTERVAL` | 全量健康检查间隔 | `10m` |
+| `HEALTH_ALL_INTERVAL_MIN` | 全量健康检查旧格式备选值 | `10` |
+| `HEALTH_CHECK_CONCURRENCY` | 全量健康检查并发数 | `2` |
+| `HEALTH_CHECK_CONCURRENCY_CLI` | CLI 健康检查并发数 | `1` |
+
+### Cloudflare Tunnel
+
+| 变量名 | 说明 | 默认值 |
+|--------|------|--------|
+| `TUNNEL_ENABLED` | 是否启用 Tunnel | `false` |
+| `CF_API_TOKEN` | Cloudflare API Token | - |
+| `TUNNEL_SUBDOMAIN` | 子域名 | - |
+| `TUNNEL_ZONE` | Zone 名称 | - |
+
+## 主要路由
+
+### 前端
+
+- `/login`
+- `/admin/dashboard`
+- `/admin/accounts`
+- `/admin/nodes`
+- `/admin/monitor`
+- `/admin/monitor-shares`
+- `/admin/settings`
+- `/settings`
+- `/admin/notifications`
+- `/admin/claude-config`
+- `/admin/pricing`
+- `/admin/usage`
+- `/admin/request-logs`
+- `/admin/model-recovery`
+- `/admin/tunnel`
+- `/changelog`
+- `/monitor/share/:token`
+
+### 后端
+
+- `POST /login`
+- `POST /logout`
+- `GET /version`
+- `POST /v1/messages`
+- `GET|POST|PUT|DELETE /admin/api/accounts`
+- `GET|POST|PUT|DELETE /admin/api/nodes`
+- `GET|PUT /admin/api/config`
+- `POST /admin/api/nodes/activate`
+- `POST /admin/api/nodes/disable`
+- `POST /admin/api/nodes/enable`
+- `GET|PUT /admin/api/tunnel`
+- `POST /admin/api/tunnel/start`
+- `POST /admin/api/tunnel/stop`
+- `GET /admin/api/tunnel/zones`
+- `GET /api/monitor/dashboard`
+- `GET /api/monitor/ws`
+- `GET|POST|DELETE /api/monitor/shares`
+- `GET /api/monitor/share/:token`
+- `GET /api/nodes/:id/metrics`
+- `GET /api/nodes/:id/health-history`
+- `GET /api/accounts/:id/metrics`
+- `POST /api/metrics/aggregate`
+- `POST /api/metrics/cleanup`
+- `GET|POST|DELETE /api/pricing`
+- `POST /api/pricing/sync`
+- `GET /api/usage/logs`
+- `GET /api/usage/summary`
+- `POST /api/usage/cleanup`
+- `GET /api/claude-config/template`
+- `GET /api/claude-config/download/:id`
+- `GET|POST|PUT|DELETE /api/notification/*`
+- `GET|PUT|DELETE /api/settings*`
+- `GET /api/envvars`
+- `GET /api/envvars/categories`
+- `GET|POST /api/model-recovery*`
 
 ## 项目结构
 
-```
+```text
 qcc_plus/
-├── cmd/cccli/              # 程序入口
-│   └── main.go             # 支持消息模式和代理模式
-├── internal/               # Go 核心业务逻辑
-│   ├── client/             # Claude API 客户端（请求构造、预热、SSE）
-│   ├── proxy/              # 反向代理服务器（多租户、节点管理、API）
-│   ├── store/              # 数据持久化层（MySQL / SQLite）
-│   ├── notify/             # 通知系统（微信等多渠道）
-│   ├── tunnel/             # Cloudflare Tunnel 管理
-│   ├── timeutil/           # 时间工具（北京时间格式化）
-│   └── version/            # 版本信息
-├── frontend/               # React 18 前端源码
-│   ├── src/                # TypeScript/React 组件
-│   ├── dist/               # 构建输出（Git 忽略）
-│   └── package.json
-├── web/                    # Go embed 前端资源
-│   ├── embed.go            # 资源嵌入声明
-│   └── dist/               # 前端构建产物（从 frontend/dist 复制）
-├── cccli/                  # 系统 prompt 和工具定义（embed）
-├── npm-packages/           # @qccplus/cli npm 多平台分发包
-├── website/                # 官网（Next.js + Three.js）
-├── scripts/                # 部署和构建脚本
-├── tests/                  # 集成测试 / 手动测试
-├── verify/                 # 功能验证脚本
-├── debugs/                 # 调试辅助工具
+├── cmd/cccli/              # Go 入口
+├── internal/client/        # Claude API 客户端
+├── internal/proxy/         # 代理服务与 HTTP API
+├── internal/store/         # MySQL / SQLite 存储
+├── internal/notify/        # 通知系统
+├── internal/tunnel/        # Cloudflare Tunnel
+├── internal/timeutil/      # 时间工具
+├── internal/version/       # 版本信息
+├── frontend/               # React 19 前端源码
+├── web/                    # Go embed 前端产物
+├── npm-packages/           # npm 多平台分发包
+├── website/                # 官网项目
+├── scripts/                # 构建与部署脚本
 ├── docs/                   # 项目文档
-│   ├── api/                # API 索引
-│   ├── claude/             # Claude 专用文档
-│   └── modules/            # 模块注册表
-├── .claude/                # Claude Code 配置（Skills / Agents / Scripts）
-├── .github/                # GitHub Actions 工作流 & Issue 模板
-├── docker-compose.yml      # Docker Compose 配置
-├── docker-compose.prod.yml # 生产环境 Compose
-├── docker-compose.test.yml # 测试环境 Compose
-├── Dockerfile              # Docker 镜像构建
-└── .goreleaser.yml         # GoReleaser 自动化发布配置
+└── .claude/                # 项目内 Claude Skills / Agents / Scripts
 ```
 
 ## 技术栈
 
-- **后端**：Go 1.21, MySQL 8.0, Docker
-- **前端**：React 18, TypeScript, Vite, Chart.js
-- **部署**：Docker Compose, Cloudflare Tunnel
+- 后端：Go 1.21+
+- 存储：SQLite / MySQL
+- 前端：React 19、TypeScript、Vite、Chart.js
+- 传输：HTTP、SSE、WebSocket
+- 部署：Docker Compose、npm CLI、Cloudflare Tunnel
+
+## 文档
+
+- [文档索引](docs/README.md)
+- [多租户快速开始](docs/quick-start-multi-tenant.md)
+- [多租户架构](docs/multi-tenant-architecture.md)
+- [健康检查机制](docs/health_check_mechanism.md)
+- [前端技术栈](docs/frontend-tech-stack.md)
+- [API 索引](docs/api/INDEX.md)
+- [模块注册表](docs/modules/REGISTRY.md)
+- [项目记忆](CLAUDE.md)
 
 ## 开源协议
 

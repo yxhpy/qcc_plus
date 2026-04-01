@@ -54,7 +54,7 @@ web/dist/
 └── qcc-icon-180.png
 ```
 
-## Website (Next.js 14 App Router)
+## Website (Next.js 16 App Router)
 
 ### 生成的文件
 
@@ -93,7 +93,7 @@ export const metadata: Metadata = {
 
 ### Next.js 自动优化
 
-Next.js 14 App Router 会：
+Next.js 16 App Router 会：
 1. 自动识别 `app/favicon.ico`
 2. 根据 metadata 配置生成 `<link>` 标签
 3. 优化图标加载顺序和缓存策略
@@ -299,7 +299,7 @@ python3 scripts/generate-favicon.py \
 ## 参考资源
 
 - [Vite 静态资源处理](https://vitejs.dev/guide/assets.html)
-- [Next.js 14 Metadata API](https://nextjs.org/docs/app/api-reference/functions/generate-metadata)
+- [Next.js Metadata API](https://nextjs.org/docs/app/api-reference/functions/generate-metadata)
 - [Web App Manifest Icons](https://developer.mozilla.org/en-US/docs/Web/Manifest/icons)
 - [Apple Touch Icon](https://developer.apple.com/library/archive/documentation/AppleApplications/Reference/SafariWebContent/ConfiguringWebApplications/ConfiguringWebApplications.html)
 
@@ -307,6 +307,6 @@ python3 scripts/generate-favicon.py \
 
 - **v1.0.1** (2025-11-23): 初始 favicon 集成
   - 添加 frontend favicon (React + Vite)
-  - 添加 website favicon (Next.js 14)
+  - 添加 website favicon (Next.js 16)
   - 创建 `generate-favicon.py` 工具
   - 更新构建流程

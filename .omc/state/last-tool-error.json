@@ -1,0 +1,7 @@
+{
+  "tool_name": "Read",
+  "tool_input_preview": "{\"file_path\":\"/Users/yxhpy/Desktop/project/qcc_plus/package.json\",\"offset\":0,\"limit\":4000,\"pages\":\"1\"}",
+  "error": "File does not exist. Note: your current working directory is /Users/yxhpy/Desktop/project/qcc_plus.",
+  "timestamp": "2026-02-28T10:46:44.528Z",
+  "retry_count": 1
+}

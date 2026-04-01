@@ -449,7 +449,7 @@ func (b *Builder) Build() (*Server, error) {
 		store:            st,
 		adminKey:         adminKey,
 		defaultAccName:   defaultAccountName,
-		sessionMgr:       NewSessionManager(defaultSessionTTL),
+		sessionMgr:       NewSessionManager(defaultSessionTTL, st),
 		metricsScheduler: metricsScheduler,
 		wsHub:            hub,
 		retryConfig:      loadRetryConfig(),

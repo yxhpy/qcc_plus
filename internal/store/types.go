@@ -19,6 +19,7 @@ type NodeRecord struct {
 	Name              string
 	BaseURL           string
 	APIKey            string
+	SourceProtocol    string
 	HealthCheckMethod string
 	HealthCheckModel  string
 	AccountID         string
@@ -174,6 +175,15 @@ type AccountRecord struct {
 	IsAdmin     bool
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+}
+
+// SessionRecord 描述持久化登录会话。
+type SessionRecord struct {
+	Token     string
+	AccountID string
+	IsAdmin   bool
+	CreatedAt time.Time
+	ExpiresAt time.Time
 }
 
 // Config holds runtime tunables persisted in DB.

@@ -157,7 +157,7 @@ Docker Hub 支持从 GitHub 自动同步 README：
 
 3. **Tags 标签页**
    - https://hub.docker.com/r/yxhpy520/qcc_plus/tags
-   - 确认 `latest` 和 `v1.8.5` 标签存在
+   - 确认 `latest` 和当前发布标签存在
    - 检查镜像大小和更新时间
 
 ## 维护建议
@@ -192,7 +192,7 @@ Claude Code CLI 代理 | 多租户隔离 | 智能故障切换 | 三种健康检�
 
 Twitter/X:
 ```
-🚀 QCC Plus v1.8.5 发布！
+🚀 QCC Plus 新版本发布！
 
 功能完整的 Claude Code CLI 代理服务器：
 ✅ 多租户账号隔离
@@ -208,9 +208,9 @@ GitHub: https://github.com/yxhpy/qcc_plus
 
 Reddit:
 ```
-[Release] QCC Plus v1.8.5 - Claude Code CLI Multi-tenant Proxy Server
+[Release] QCC Plus - Claude Code CLI Multi-tenant Proxy Server
 
-I've just released v1.8.5 of QCC Plus, a full-featured Claude Code CLI proxy server.
+I've just released a new version of QCC Plus, a full-featured Claude Code CLI proxy server.
 
 Key Features:
 - Multi-tenant account isolation

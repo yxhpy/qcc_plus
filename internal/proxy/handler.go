@@ -94,6 +94,7 @@ func (p *Server) handler() http.Handler {
 	apiMux.HandleFunc("/api/monitor/shares", p.requireSession(p.handleMonitorShares))
 	apiMux.HandleFunc("/api/monitor/shares/", p.requireSession(p.handleRevokeMonitorShare))
 	apiMux.HandleFunc("/api/monitor/share/", p.handleAccessMonitorShare)
+	apiMux.HandleFunc("/api/session", p.requireSession(p.handleSession))
 	settingsHandler := &SettingsHandler{store: p.store, cache: p.settingsCache}
 	apiMux.HandleFunc("/api/settings/version", p.requireSession(settingsHandler.GetVersion))
 	apiMux.HandleFunc("/api/settings", p.requireSession(settingsHandler.ListSettings))
@@ -165,6 +166,11 @@ func (p *Server) handler() http.Handler {
 		}
 
 		if strings.HasPrefix(path, "/api/settings") {
+			apiMux.ServeHTTP(w, r)
+			return
+		}
+
+		if path == "/api/session" {
 			apiMux.ServeHTTP(w, r)
 			return
 		}
@@ -623,6 +629,7 @@ func (p *Server) requireSession(next http.HandlerFunc) http.HandlerFunc {
 			strings.HasPrefix(r.URL.Path, "/api/accounts/") ||
 			strings.HasPrefix(r.URL.Path, "/api/metrics/") ||
 			strings.HasPrefix(r.URL.Path, "/api/monitor/") ||
+			r.URL.Path == "/api/session" ||
 			strings.HasPrefix(r.URL.Path, "/api/settings") ||
 			strings.HasPrefix(r.URL.Path, "/api/claude-config/") ||
 			strings.HasPrefix(r.URL.Path, "/api/pricing") ||
@@ -639,25 +646,11 @@ func (p *Server) requireSession(next http.HandlerFunc) http.HandlerFunc {
 			}
 			return
 		}
-		sess := p.sessionMgr.Get(cookie.Value)
-		if sess == nil {
+
+		sess, acc, reason := p.resolveSessionAccount(r)
+		if sess == nil || acc == nil {
 			if isAPIRequest {
-				writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "session invalid"})
-			} else {
-				http.Redirect(w, r, "/login", http.StatusFound)
-			}
-			return
-		}
-		acc := p.getAccountByID(sess.AccountID)
-		if acc == nil {
-			if p.defaultAccount != nil {
-				acc = p.defaultAccount
-			}
-		}
-		if acc == nil {
-			p.sessionMgr.Delete(cookie.Value)
-			if isAPIRequest {
-				writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "account not found"})
+				writeJSON(w, http.StatusUnauthorized, map[string]string{"error": reason})
 			} else {
 				http.Redirect(w, r, "/login", http.StatusFound)
 			}
@@ -669,6 +662,21 @@ func (p *Server) requireSession(next http.HandlerFunc) http.HandlerFunc {
 		}
 		next(w, r.WithContext(ctx))
 	}
+}
+
+func (p *Server) handleSession(w http.ResponseWriter, r *http.Request) {
+	acc := accountFromCtx(r)
+	if acc == nil {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "account not found"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"account": map[string]any{
+			"id":       acc.ID,
+			"name":     acc.Name,
+			"is_admin": acc.IsAdmin,
+		},
+	})
 }
 
 func extractUpstreamStatus(mw *metricsWriter) int {
@@ -707,9 +715,18 @@ func extractAPIKey(r *http.Request) string {
 	if key := r.Header.Get("x-api-key"); key != "" {
 		return key
 	}
+	if key := r.Header.Get("x-goog-api-key"); key != "" {
+		return key
+	}
 	auth := r.Header.Get("Authorization")
 	if strings.HasPrefix(auth, "Bearer ") {
 		return strings.TrimPrefix(auth, "Bearer ")
+	}
+	if key := r.URL.Query().Get("key"); key != "" {
+		return key
+	}
+	if key := r.URL.Query().Get("api_key"); key != "" {
+		return key
 	}
 	return ""
 }

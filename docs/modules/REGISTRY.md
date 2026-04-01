@@ -1,183 +1,207 @@
 # 模块注册表
 
-> 基于现有代码生成 | 最后更新: 2026-02-02
-> 运行 `./.claude/scripts/update-registry.sh` 更新
+最后校准：2026-04-02
 
-## 说明
+本文档记录 qcc_plus 当前主要模块、职责边界和关键文件，方便开发前快速定位现有实现，避免重复造轮子。
 
-本注册表记录项目中所有模块的信息，防止重复造轮子。
+## 使用建议
 
-**使用方法**:
-1. 开发前先搜索: `./.claude/scripts/search-feature.sh "功能关键词"`
-2. 查看本注册表了解现有模块
-3. 复用现有功能而非重新实现
+1. 先运行 `./.claude/scripts/search-feature.sh "关键词"` 搜索现有实现。
+2. 再查看本文档确认模块边界和落点。
+3. 涉及公开接口或行为变化时，同步更新 [API 索引](../api/INDEX.md) 和相关专题文档。
 
-## 核心模块
+## Go 后端模块
 
-### client
-- **路径**: `internal/client/`
-- **功能**: Claude API 客户端，处理请求构造、预热、SSE 流式响应
-- **主要文件**:
-  - `client.go` - 核心客户端实现
-  - `config.go` - 配置管理
-  - `http.go` - HTTP 请求处理
-  - `sse.go` - SSE 流式响应处理
-- **主要 API**:
-  - `NewClient()` - 创建客户端
-  - `SendMessage()` - 发送消息
-  - `StreamMessage()` - 流式发送消息
-- **测试**: ✅ 有测试（client_test.go, integration_test.go）
-- **覆盖率**: 18.5%
-- **文档**: [Claude API 客户端](../frontend-tech-stack.md)
+### `internal/client/`
 
-### proxy
-- **路径**: `internal/proxy/`
-- **功能**: 反向代理服务器，多租户管理、节点管理、健康检查、熔断器
-- **主要文件**:
-  - `handler.go` - 请求处理
-  - `node_manager.go` - 节点管理
-  - `health.go` - 健康检查
-  - `circuit_breaker.go` - 熔断器
-  - `account_manager.go` - 账号管理
-  - `api_*.go` - 管理 API
-- **主要 API**:
-  - `NewProxy()` - 创建代理
-  - `HandleRequest()` - 处理请求
-  - `SelectNode()` - 选择节点
-  - `CheckHealth()` - 健康检查
-- **测试**: ✅ 有测试
-- **文档**:
+- 职责：Claude 客户端兼容逻辑、请求构造、流式响应处理、CLI 运行入口辅助。
+- 关键文件：
+  - `client.go`
+  - `config.go`
+  - `http.go`
+  - `stream.go`
+  - `system.go`
+- 测试：覆盖较完整，包含单测和集成测试。
+- 相关文档：
+  - [API 索引](../api/INDEX.md)
+
+### `internal/proxy/`
+
+- 职责：HTTP 入口、`/v1/messages` 代理、多租户账号路由、节点管理、重试、健康检查、监控、WebSocket、Tunnel API、通知 API、定价与使用量 API。
+- 关键文件：
+  - `handler.go`
+  - `builder.go`
+  - `server.go`
+  - `health.go`
+  - `health_scheduler.go`
+  - `handler.go`
+  - `api_*.go`
+- 子域能力：
+  - 认证与会话
+  - 账号与节点管理
+  - 负载均衡与慢节点降级
+  - 指标聚合、请求日志、模型恢复
+  - 监控分享与 WebSocket
+- 相关文档：
   - [多租户架构](../multi-tenant-architecture.md)
   - [健康检查机制](../health_check_mechanism.md)
   - [监控数据持久化](../monitoring-data-persistence.md)
+  - [API 索引](../api/INDEX.md)
 
-### store
-- **路径**: `internal/store/`
-- **功能**: 数据持久化层，MySQL/SQLite 存储，账号、节点、配置、指标
-- **主要文件**:
-  - `account.go` - 账号存储
-  - `node.go` - 节点存储
-  - `config.go` - 配置存储
-  - `metrics.go` - 指标存储
-  - `health_check.go` - 健康检查记录
-  - `migration.go` - 数据库迁移
-  - `monitor_share.go` - 监控分享
-  - `notification.go` - 通知存储
-  - `session.go` - 会话存储
-  - `settings.go` - 设置存储
-  - `usage.go` - 使用量统计
-- **主要 API**:
-  - `NewStore()` - 创建存储
-  - `GetAccount()` - 获取账号
-  - `UpsertNode()` - 更新节点
-  - `RecordMetrics()` - 记录指标
-- **测试**: ❌ 无测试（需要补充）
-- **文档**: [数据持久化](../multi-tenant-architecture.md#数据模型)
+### `internal/store/`
 
-### notify
-- **路径**: `internal/notify/`
-- **功能**: 通知系统，节点故障和恢复通知
-- **主要文件**:
-  - `manager.go` - 通知管理器
-  - `channel.go` - 通知渠道
-  - `types.go` - 类型定义
-  - `store.go` - 通知存储
-  - `wechat.go` - 微信通知
-  - `migration.go` - 数据库迁移
-- **主要 API**:
-  - `NewManager()` - 创建管理器
-  - `SendNotification()` - 发送通知
-  - `GetNotifications()` - 获取通知列表
-- **测试**: ❌ 无测试（需要补充）
-- **文档**: [通知系统](../notification-system.md)
+- 职责：MySQL / SQLite 持久化层。
+- 涵盖数据：
+  - 账号、节点、配置
+  - 健康检查历史、指标、监控分享
+  - 通知渠道与订阅
+  - Tunnel 配置
+  - 模型定价、使用量、请求尝试日志
+  - Session 与系统设置
+- 关键文件：
+  - `mysql.go`
+  - `sqlite.go`
+  - `account.go`
+  - `node.go`
+  - `metrics.go`
+  - `notification.go`
+  - `pricing.go`
+  - `session.go`
+  - `settings.go`
+- 说明：
+  - 默认使用 SQLite。
+  - 设置 `PROXY_MYSQL_DSN` 后切换到 MySQL。
 
-### tunnel
-- **路径**: `internal/tunnel/`
-- **功能**: Cloudflare Tunnel 集成，内网穿透
-- **主要文件**:
-  - `manager.go` - 隧道管理器
-  - `cloudflare.go` - Cloudflare API
-  - `types.go` - 类型定义
-- **主要 API**:
-  - `NewManager()` - 创建管理器
-  - `CreateTunnel()` - 创建隧道
-  - `DeleteTunnel()` - 删除隧道
-- **测试**: ❌ 无测试（需要补充）
-- **文档**: [Cloudflare Tunnel 集成](../cloudflare-tunnel.md)
+### `internal/notify/`
 
-### timeutil
-- **路径**: `internal/timeutil/`
-- **功能**: 时间工具，统一北京时间格式化
-- **主要文件**:
-  - `format.go` - 时间格式化
-- **主要 API**:
-  - `FormatBeijingTime()` - 格式化为北京时间
-  - `ParseBeijingTime()` - 解析北京时间
-- **测试**: ✅ 有测试
-- **文档**: [时间统一](../time-unification-summary.md)
+- 职责：通知渠道、订阅规则、事件投递、测试发送。
+- 关键文件：
+  - `manager.go`
+  - `channel.go`
+  - `wechat.go`
+  - `store.go`
+  - `migration.go`
+- 相关文档：
+  - [通知系统](../notification-system.md)
 
-### version
-- **路径**: `internal/version/`
-- **功能**: 版本信息管理
-- **主要文件**:
-  - `version.go` - 版本信息
-- **主要 API**:
-  - `GetVersion()` - 获取版本信息
-  - `GetBuildInfo()` - 获取构建信息
-- **测试**: ✅ 有测试
-- **文档**: [版本管理](../notification-system.md#版本系统)
+### `internal/tunnel/`
+
+- 职责：Cloudflare Tunnel 配置、启动、停止、域名映射。
+- 关键文件：
+  - `manager.go`
+  - `cloudflare.go`
+  - `types.go`
+- 相关文档：
+  - [Cloudflare Tunnel](../cloudflare-tunnel.md)
+
+### `internal/timeutil/`
+
+- 职责：统一北京时间格式化与解析。
+- 关键文件：
+  - `format.go`
+- 约束：
+  - 文档与界面涉及时间展示时，优先使用统一工具函数。
+
+### `internal/version/`
+
+- 职责：构建信息、版本号、提交号、构建时间输出。
+- 关键文件：
+  - `version.go`
 
 ## 前端模块
 
-### frontend
-- **路径**: `frontend/`
-- **功能**: React Web 管理界面
-- **技术栈**: React 18 + TypeScript + Vite + Chart.js
-- **主要页面**:
-  - `Dashboard.tsx` - 仪表盘
-  - `Accounts.tsx` - 账号管理
-  - `Nodes.tsx` - 节点管理
-  - `Monitor.tsx` - 监控大屏
-  - `Usage.tsx` - 使用量统计
-  - `Notifications.tsx` - 通知管理
-  - `SystemSettings.tsx` - 系统设置
-  - `ClaudeConfig.tsx` - Claude 配置
-- **文档**: [前端技术栈](../frontend-tech-stack.md)
+### `frontend/`
 
-## CLI 工具
+- 技术栈：React 19、TypeScript、Vite、Chart.js、React Router。
+- 关键目录：
+  - `src/pages/`
+  - `src/components/`
+  - `src/contexts/`
+  - `src/hooks/`
+  - `src/services/`
+  - `src/themes/`
+- 当前页面：
+  - `Login`
+  - `Dashboard`
+  - `Accounts`
+  - `Nodes`
+  - `Monitor`
+  - `MonitorShares`
+  - `SharedMonitor`
+  - `Settings`
+  - `SystemSettings`
+  - `TunnelSettings`
+  - `Notifications`
+  - `ClaudeConfig`
+  - `Pricing`
+  - `Usage`
+  - `RequestLogs`
+  - `ModelRecovery`
+  - `ChangelogPage`
+- 相关文档：
+  - [前端技术栈](../frontend-tech-stack.md)
+  - [前端 README](../../frontend/README.md)
 
-### cccli
-- **路径**: `cccli/`, `cmd/cccli/`
-- **功能**: Claude Code CLI 工具，系统 prompt 和工具定义
-- **主要文件**:
-  - `main.go` - 程序入口
-  - `system0_cli.txt` - 系统 prompt
-  - `system1_cli.txt` - 工具定义
-  - `assets.go` - 资源嵌入
-- **文档**: [CLI 健康检查](../cli_health_check_implementation.md)
+### `web/`
 
-## 测试覆盖率
+- 职责：Go embed 前端产物目录。
+- 关键文件：
+  - `embed.go`
+  - `dist/`
+- 说明：
+  - 必须通过 `scripts/build-frontend.sh` 将 `frontend/dist` 复制到 `web/dist`。
 
-| 模块 | 当前覆盖率 | 目标覆盖率 | 优先级 |
-|------|-----------|-----------|--------|
-| client | 18.5% | 100% | 高 |
-| proxy | 未知 | 100% | 高 |
-| store | 0% | 100% | 高 |
-| notify | 0% | 80% | 中 |
-| tunnel | 0% | 80% | 中 |
-| timeutil | 未知 | 100% | 低 |
-| version | 未知 | 100% | 低 |
+## CLI 与分发
+
+### `cmd/cccli/`
+
+- 职责：
+  - `proxy` 子命令启动服务端
+  - 其他参数走客户端模式
+- 关键文件：
+  - `main.go`
+
+### `cccli/`
+
+- 职责：CLI 相关嵌入资源。
+- 关键文件：
+  - `assets.go`
+  - `system0_cli.txt`
+  - `system1_cli.txt`
+  - `tools_cli.json`
+
+### `npm-packages/`
+
+- 职责：`@qccplus/cli` 及多平台二进制 npm 包分发。
+- 关键目录：
+  - `@qccplus/cli/`
+  - `@qccplus/darwin-arm64/`
+  - `@qccplus/darwin-x64/`
+  - `@qccplus/linux-arm64/`
+  - `@qccplus/linux-x64/`
+  - `@qccplus/win32-x64/`
+
+## 脚本与自动化
+
+### `scripts/`
+
+- `build-frontend.sh`：构建前端并同步到 `web/dist`
+- `build-npm-packages.sh`：构建 npm 分发包
+- `deploy-test-local.sh`：本地测试部署
+- `publish-docker.sh`：发布 Docker 镜像
+- `update-dockerhub-info*.sh`：更新 Docker Hub 描述
+
+### `.claude/`
+
+- `agents/`：项目内专用代理定义
+- `skills/`：项目内技能
+- `scripts/search-feature.sh`：搜索现有功能
+- `scripts/update-registry.sh`：更新模块注册表骨架
+- `scripts/maintain.sh`：项目维护脚本
 
 ## 相关文档
 
-- [文档索引](../README.md) - 所有文档导航
-- [API 索引](../api/INDEX.md) - API 参考
-- [多租户架构](../multi-tenant-architecture.md) - 系统架构
-- [健康检查机制](../health_check_mechanism.md) - 健康检查
-- [前端技术栈](../frontend-tech-stack.md) - 前端开发
-
-## 维护
-
-- **更新频率**: 代码变更后及时更新
-- **更新方法**: 运行 `./.claude/scripts/update-registry.sh`
-- **手动维护**: 补充功能描述和 API 信息
+- [API 索引](../api/INDEX.md)
+- [文档索引](../README.md)
+- [多租户架构](../multi-tenant-architecture.md)
+- [前端技术栈](../frontend-tech-stack.md)

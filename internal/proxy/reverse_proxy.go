@@ -303,6 +303,8 @@ func (p *Server) newReverseProxy(node *Node, u *usage, idleCfg *streamIdleConfig
 	}
 
 	proxy.ModifyResponse = func(resp *http.Response) error {
+		bridge := protocolBridgeFromRequest(resp.Request)
+
 		// 将 handler 中的 usage 指针放入响应上下文，便于 body 包装更新。
 		if u != nil {
 			resp.Request = resp.Request.WithContext(context.WithValue(resp.Request.Context(), usageContextKey{}, u))
@@ -333,12 +335,47 @@ func (p *Server) newReverseProxy(node *Node, u *usage, idleCfg *streamIdleConfig
 
 		// 对 SSE 流响应，插入修复层确保事件分隔正确
 		ct := resp.Header.Get("Content-Type")
-		if strings.Contains(ct, "text/event-stream") {
+		if bridge != nil && bridge.enabled() && resp.StatusCode >= http.StatusBadRequest {
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return err
+			}
+			_ = resp.Body.Close()
+			resp.Body = io.NopCloser(bytes.NewReader(translateGeminiErrorToClaude(body, resp.StatusCode)))
+			resp.Header.Set("Content-Type", "application/json")
+		}
+		if bridge != nil && bridge.enabled() && resp.StatusCode < http.StatusBadRequest {
+			if strings.Contains(ct, "text/event-stream") {
+				resp.Body = newGeminiToClaudeStreamReader(resp.Body, bridge.model)
+				resp.ContentLength = -1
+				resp.Header.Del("Content-Length")
+				resp.Header.Set("Content-Type", "text/event-stream")
+				ct = resp.Header.Get("Content-Type")
+			} else {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return err
+				}
+				_ = resp.Body.Close()
+				translated, err := translateGeminiResponseToClaude(body, bridge.model)
+				if err != nil {
+					return err
+				}
+				resp.Body = io.NopCloser(bytes.NewReader(translated))
+				resp.ContentLength = int64(len(translated))
+				resp.Header.Set("Content-Length", strconv.Itoa(len(translated)))
+				resp.Header.Set("Content-Type", "application/json")
+				ct = resp.Header.Get("Content-Type")
+			}
+		}
+		if strings.Contains(ct, "text/event-stream") && (bridge == nil || !bridge.enabled()) {
 			resp.Body = newSSEFixReader(resp.Body)
 			// 对 SSE 流启用空闲超时：连续 idleTimeout 没收到数据则取消 context
 			if idleCfg != nil && idleCfg.idleTimeout > 0 && idleCfg.cancel != nil {
 				resp.Body = newIdleTimeoutReader(resp.Body, idleCfg.idleTimeout, idleCfg.cancel)
 			}
+		} else if strings.Contains(ct, "text/event-stream") && idleCfg != nil && idleCfg.idleTimeout > 0 && idleCfg.cancel != nil {
+			resp.Body = newIdleTimeoutReader(resp.Body, idleCfg.idleTimeout, idleCfg.cancel)
 		}
 
 		// 包装 body，捕获 SSE/JSON 中的 usage。
@@ -383,8 +420,27 @@ func (p *Server) newReverseProxy(node *Node, u *usage, idleCfg *streamIdleConfig
 					}
 				}
 
+				bridgeModel := ""
+				if node.SourceProtocol == SourceProtocolGemini {
+					if modelID, ok := payload["model"].(string); ok {
+						bridgeModel = extractGeminiTargetModel(modelID)
+					}
+				}
+
 				if cleaned, ok := cleanTools(bodyBytes); ok {
 					bodyBytes = cleaned
+				}
+				if bridge := newProtocolBridge(req.URL.Path, SourceProtocolClaude, node.SourceProtocol, bridgeModel, streaming); bridge != nil && bridge.enabled() {
+					translated, err := buildGeminiRequestFromClaude(bodyBytes, bridge.model)
+					if err != nil {
+						p.logger.Printf("proxy: translate Claude request to Gemini failed: %v", err)
+					} else {
+						bodyBytes = translated
+						req.URL.Path = bridge.upstreamPath()
+						req.URL.RawQuery = bridge.upstreamRawQuery()
+						newReq := req.WithContext(context.WithValue(req.Context(), protocolBridgeContextKey{}, bridge))
+						*req = *newReq
+					}
 				}
 
 				req.Body = io.NopCloser(bytes.NewReader(bodyBytes))

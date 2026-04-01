@@ -1,363 +1,181 @@
 # API 索引
 
-> 自动生成的 API 参考文档 | 最后更新: 2026-02-02
+最后校准：2026-04-02
+
+本文档提供 qcc_plus 当前 HTTP 接口和核心 Go 包入口的快速索引，详细行为以 `internal/proxy/`、`internal/store/`、`internal/notify/`、`internal/tunnel/` 实现为准。
+
+## HTTP 路由
+
+### 认证
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `POST` | `/login` | 表单登录，成功后写入 `session_token` Cookie |
+| `POST` | `/logout` | 注销登录 |
+| `GET` | `/version` | 返回版本信息 |
+
+### 代理入口
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `POST` | `/v1/messages` | Claude 兼容消息代理入口，按 `x-api-key` 路由账号 |
+
+### 管理接口
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` `POST` `PUT` `DELETE` | `/admin/api/accounts` | 账号管理 |
+| `GET` `POST` `PUT` `DELETE` | `/admin/api/nodes` | 节点管理 |
+| `POST` | `/admin/api/nodes/activate` | 激活节点 |
+| `POST` | `/admin/api/nodes/disable` | 禁用节点 |
+| `POST` | `/admin/api/nodes/enable` | 启用节点 |
+| `GET` `PUT` | `/admin/api/config` | 账号配置 |
+| `GET` `PUT` | `/admin/api/tunnel` | Tunnel 配置 |
+| `POST` | `/admin/api/tunnel/start` | 启动 Tunnel |
+| `POST` | `/admin/api/tunnel/stop` | 停止 Tunnel |
+| `GET` | `/admin/api/tunnel/zones` | 获取 Cloudflare Zones |
+
+### 监控与实时数据
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/api/monitor/dashboard` | 监控大屏数据 |
+| `GET` | `/api/monitor/ws` | 监控 WebSocket |
+| `POST` `GET` | `/api/monitor/shares` | 创建/查询分享链接 |
+| `DELETE` | `/api/monitor/shares/:id` | 撤销分享链接 |
+| `GET` | `/api/monitor/share/:token` | 通过 token 访问分享数据 |
 
-## 说明
+### 指标与健康历史
 
-本文档提供项目中主要 API 的快速参考。详细信息请查看源代码和相关文档。
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/api/nodes/:id/metrics` | 节点指标 |
+| `GET` | `/api/nodes/:id/health-history` | 节点健康历史 |
+| `GET` | `/api/accounts/:id/metrics` | 账号指标 |
+| `POST` | `/api/metrics/aggregate` | 手动触发指标聚合 |
+| `POST` | `/api/metrics/cleanup` | 手动触发指标清理 |
 
-## 目录
+### 设置、环境变量与 Claude 配置
 
-- [Client API](#client-api) - Claude API 客户端
-- [Proxy API](#proxy-api) - 代理服务器
-- [Store API](#store-api) - 数据存储
-- [Notify API](#notify-api) - 通知系统
-- [Tunnel API](#tunnel-api) - 隧道管理
-- [管理 API](#管理-api) - Web 管理接口
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/api/settings/version` | 设置版本号 |
+| `GET` | `/api/settings` | 查询设置 |
+| `POST` | `/api/settings/batch` | 批量更新设置 |
+| `GET` `PUT` `DELETE` | `/api/settings/:key` | 单项设置操作 |
+| `GET` | `/api/envvars` | 环境变量定义与当前值 |
+| `GET` | `/api/envvars/categories` | 环境变量分类 |
+| `GET` | `/api/claude-config/template` | 生成 Claude Code 配置模板 |
+| `GET` | `/api/claude-config/download/:id` | 下载配置文件 |
 
----
+### 定价、使用量与请求日志
 
-## Client API
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` `POST` `DELETE` | `/api/pricing` | 模型定价管理 |
+| `POST` | `/api/pricing/sync` | 同步官方定价 |
+| `GET` | `/api/usage/logs` | 请求日志与尝试详情 |
+| `GET` | `/api/usage/summary` | 使用量汇总 |
+| `POST` | `/api/usage/cleanup` | 清理历史使用日志 |
 
-### `NewClient(config *Config) *Client`
+### 通知系统
 
-创建新的 Claude API 客户端。
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` `POST` | `/api/notification/channels` | 通知渠道列表与创建 |
+| `PUT` `DELETE` | `/api/notification/channels/:id` | 更新/删除渠道 |
+| `GET` `POST` | `/api/notification/subscriptions` | 订阅列表与创建 |
+| `PUT` `DELETE` | `/api/notification/subscriptions/:id` | 更新/删除订阅 |
+| `GET` | `/api/notification/event-types` | 事件类型枚举 |
+| `POST` | `/api/notification/test` | 测试通知 |
 
-**参数**:
-- `config` (*Config): 客户端配置
+### 模型恢复
 
-**返回**: *Client - 客户端实例
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` `POST` | `/api/model-recovery` | 查询/更新模型恢复状态 |
+| `POST` | `/api/model-recovery/dismiss` | 忽略恢复提醒 |
 
-**示例**:
-```go
-client := client.NewClient(&client.Config{
-    BaseURL: "https://api.anthropic.com",
-    APIKey:  "sk-ant-xxx",
-})
-```
+## 认证规则
 
-**位置**: internal/client/client.go
+- 管理接口和大多数 `/api/*` 端点要求登录态。
+- 登录通过 `POST /login` 写入 `session_token` Cookie。
+- 分享监控相关接口支持通过分享 token 访问公开数据。
+- `/v1/messages` 使用 `x-api-key` 做账号路由，不依赖后台登录态。
 
-### `SendMessage(ctx context.Context, req *MessageRequest) (*MessageResponse, error)`
+## 主要实现文件
 
-发送消息到 Claude API。
+### HTTP 路由注册
 
-**参数**:
-- `ctx` (context.Context): 上下文
-- `req` (*MessageRequest): 消息请求
+- `internal/proxy/handler.go`
+- `internal/proxy/api_*.go`
+- `internal/proxy/settings_handler.go`
 
-**返回**:
-- *MessageResponse - 响应
-- error - 错误
+### 指标与监控
 
-**位置**: internal/client/client.go
+- `internal/proxy/api_monitor.go`
+- `internal/proxy/api_monitor_share.go`
+- `internal/proxy/api_metrics.go`
+- `internal/proxy/api_health_history.go`
+- `internal/proxy/api_ws.go`
 
-### `StreamMessage(ctx context.Context, req *MessageRequest) (<-chan Event, error)`
+### 账号、节点、认证
 
-流式发送消息到 Claude API。
+- `internal/proxy/api_accounts.go`
+- `internal/proxy/api_nodes.go`
+- `internal/proxy/api_actions.go`
+- `internal/proxy/session.go`
+- `internal/proxy/session_auth.go`
 
-**参数**:
-- `ctx` (context.Context): 上下文
-- `req` (*MessageRequest): 消息请求
+## Go 包入口索引
 
-**返回**:
-- <-chan Event - 事件流
-- error - 错误
+### `internal/client`
 
-**位置**: internal/client/client.go
+- `LoadConfig(args []string) (*Config, error)`
+- `Run(cfg *Config) error`
+- `NewClient(cfg *Config) *Client`
 
----
+职责：Claude CLI 客户端兼容能力、请求构造、SSE 流处理。
 
-## Proxy API
+### `internal/proxy`
 
-### `NewProxy(store *store.Store) *Proxy`
+- `NewBuilder() *Builder`
+- `(*Builder).Build() (*Server, error)`
+- `(*Server).Start() error`
 
-创建新的代理服务器。
+职责：代理服务、管理 API、健康检查、重试、负载均衡、监控。
 
-**参数**:
-- `store` (*store.Store): 数据存储
+### `internal/store`
 
-**返回**: *Proxy - 代理实例
+- `Open(dsn string) (*Store, error)`
+- `OpenSQLite(dsn string) (*Store, error)`
 
-**位置**: internal/proxy/handler.go
+职责：MySQL / SQLite 存储，涵盖账号、节点、设置、监控、通知、Tunnel、定价、使用量。
 
-### `HandleRequest(w http.ResponseWriter, r *http.Request)`
+### `internal/notify`
 
-处理代理请求。
+- `NewManager(...)`
+- `BuildChannel(...)`
 
-**参数**:
-- `w` (http.ResponseWriter): 响应写入器
-- `r` (*http.Request): HTTP 请求
+职责：通知渠道构建、订阅过滤、事件投递。
 
-**位置**: internal/proxy/handler.go
+### `internal/tunnel`
 
-### `SelectNode(accountID string, excludeIDs []string) (*Node, error)`
+- `NewManager(...)`
 
-选择可用节点。
+职责：Cloudflare Tunnel 生命周期管理。
 
-**参数**:
-- `accountID` (string): 账号 ID
-- `excludeIDs` ([]string): 排除的节点 ID
+### `internal/version`
 
-**返回**:
-- *Node - 选中的节点
-- error - 错误
+- `GetVersionInfo() Info`
+- `GetFormattedBuildDate() string`
 
-**位置**: internal/proxy/node_manager.go
-
-### `CheckHealth(node *Node) error`
-
-检查节点健康状态。
-
-**参数**:
-- `node` (*Node): 节点信息
-
-**返回**: error - 错误（nil 表示健康）
-
-**位置**: internal/proxy/health.go
-
----
-
-## Store API
-
-### `NewStore(dsn string) (*Store, error)`
-
-创建新的数据存储。
-
-**参数**:
-- `dsn` (string): 数据库连接字符串
-
-**返回**:
-- *Store - 存储实例
-- error - 错误
-
-**位置**: internal/store/store.go
-
-### `GetAccount(id string) (*Account, error)`
-
-获取账号信息。
-
-**参数**:
-- `id` (string): 账号 ID
-
-**返回**:
-- *Account - 账号信息
-- error - 错误
-
-**位置**: internal/store/account.go
-
-### `UpsertNode(node *Node) error`
-
-更新或插入节点。
-
-**参数**:
-- `node` (*Node): 节点信息
-
-**返回**: error - 错误
-
-**位置**: internal/store/node.go
-
-### `RecordMetrics(metrics *Metrics) error`
-
-记录指标数据。
-
-**参数**:
-- `metrics` (*Metrics): 指标数据
-
-**返回**: error - 错误
-
-**位置**: internal/store/metrics.go
-
----
-
-## Notify API
-
-### `NewManager(store *store.Store) *Manager`
-
-创建通知管理器。
-
-**参数**:
-- `store` (*store.Store): 数据存储
-
-**返回**: *Manager - 管理器实例
-
-**位置**: internal/notify/manager.go
-
-### `SendNotification(notification *Notification) error`
-
-发送通知。
-
-**参数**:
-- `notification` (*Notification): 通知内容
-
-**返回**: error - 错误
-
-**位置**: internal/notify/manager.go
-
-### `GetNotifications(accountID string, limit int) ([]*Notification, error)`
-
-获取通知列表。
-
-**参数**:
-- `accountID` (string): 账号 ID
-- `limit` (int): 数量限制
-
-**返回**:
-- []*Notification - 通知列表
-- error - 错误
-
-**位置**: internal/notify/store.go
-
----
-
-## Tunnel API
-
-### `NewManager(config *Config) *Manager`
-
-创建隧道管理器。
-
-**参数**:
-- `config` (*Config): 隧道配置
-
-**返回**: *Manager - 管理器实例
-
-**位置**: internal/tunnel/manager.go
-
-### `CreateTunnel(subdomain string) (*Tunnel, error)`
-
-创建 Cloudflare Tunnel。
-
-**参数**:
-- `subdomain` (string): 子域名
-
-**返回**:
-- *Tunnel - 隧道信息
-- error - 错误
-
-**位置**: internal/tunnel/manager.go
-
-### `DeleteTunnel(tunnelID string) error`
-
-删除隧道。
-
-**参数**:
-- `tunnelID` (string): 隧道 ID
-
-**返回**: error - 错误
-
-**位置**: internal/tunnel/manager.go
-
----
-
-## 管理 API
-
-### POST /login
-
-用户登录。
-
-**请求体**:
-```json
-{
-  "username": "admin",
-  "password": "admin123"
-}
-```
-
-**响应**:
-```json
-{
-  "session_token": "xxx",
-  "expires_at": "2026-02-03T23:25:00+08:00"
-}
-```
-
-### GET /admin/api/accounts
-
-获取账号列表（需要登录）。
-
-**响应**:
-```json
-{
-  "accounts": [
-    {
-      "id": "xxx",
-      "name": "default",
-      "proxy_api_key": "xxx",
-      "is_admin": false
-    }
-  ]
-}
-```
-
-### POST /admin/api/accounts
-
-创建账号（需要管理员权限）。
-
-**请求体**:
-```json
-{
-  "name": "team-alpha",
-  "proxy_api_key": "alpha-key",
-  "is_admin": false
-}
-```
-
-### GET /admin/api/nodes
-
-获取节点列表（需要登录）。
-
-**响应**:
-```json
-{
-  "nodes": [
-    {
-      "id": "xxx",
-      "name": "node-1",
-      "base_url": "https://api.anthropic.com",
-      "weight": 1,
-      "active": true,
-      "failed": false
-    }
-  ]
-}
-```
-
-### POST /admin/api/nodes
-
-创建节点（需要登录）。
-
-**请求体**:
-```json
-{
-  "name": "node-1",
-  "base_url": "https://api.anthropic.com",
-  "api_key": "sk-ant-xxx",
-  "weight": 1
-}
-```
-
-### POST /v1/messages
-
-代理 Claude API 请求。
-
-**请求头**:
-- `x-api-key`: 账号的 proxy_api_key
-
-**请求体**: 标准 Claude API 格式
-
-**响应**: 标准 Claude API 响应
-
----
+职责：构建版本信息输出。
 
 ## 相关文档
 
-- [模块注册表](../modules/REGISTRY.md) - 模块索引
-- [多租户架构](../multi-tenant-architecture.md) - 系统架构
-- [前端技术栈](../frontend-tech-stack.md) - 前端 API
-- [文档索引](../README.md) - 所有文档
-
-## 维护
-
-- **更新频率**: API 变更后及时更新
-- **更新方法**: 手动维护或使用脚本生成
-- **代码示例**: 确保示例代码可运行
+- [模块注册表](../modules/REGISTRY.md)
+- [多租户架构](../multi-tenant-architecture.md)
+- [健康检查机制](../health_check_mechanism.md)
+- [前端技术栈](../frontend-tech-stack.md)
+- [文档索引](../README.md)

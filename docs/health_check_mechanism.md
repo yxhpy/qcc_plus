@@ -1,392 +1,138 @@
-# 节点健康检查机制
+# 健康检查机制
 
-## 概述
+最后校准：2026-04-02
 
-qcc_plus 实现了自动故障检测和恢复机制，通过监控节点的请求状态和定期探活来确保服务可用性。健康检查支持三种方式：
+## 概览
 
-- **CLI**（默认 ⭐ 新）：直接调用 Claude Code CLI（`claude -p "hi"`），模拟真实 CLI 使用场景，最贴近实际使用。
-- **API**：调用 `/v1/messages` 做真实 API 写入检查。
-- **HEAD**：对 Base URL 发送 HEAD 请求，适合无密钥或只需连通性验证的场景。
+qcc_plus 通过“请求失败检测 + 失败节点探活 + 定时全量检查”三层机制维护节点可用性。
 
-> **重要变更**（v1.2.1+）：默认健康检查方式已从 API 改为 CLI，以便更准确地验证节点的完整功能链路。
+支持三种健康检查方式：
 
-## 健康检查流程
+- `cli`：调用 Claude Code CLI，最贴近真实使用链路
+- `api`：向上游发送 `/v1/messages` 请求
+- `head`：仅检查基础连通性
 
-### 0. 全量健康检查（定期）⭐ 新增
+当前默认全局模式：`cli`
 
-系统会定期对所有节点（包括健康节点）执行全量健康检查，避免状态盲区：
+## 机制分层
 
-```
-定时器触发（默认每 10 分钟） → 收集所有节点 → 并发检查（默认并发 2，上限 4） → 更新状态
-```
+### 1. 请求失败检测
 
-#### 并发控制机制
-- **并发数限制**：使用 semaphore（channel）限制同时执行的健康检查数量，默认 2，且经过 `normalizeHealthCheckWorkers` 限制上限 `min(4, CPU*2)`，在 2C 主机上最多 4，并适配 1C 小机型。
-- **资源保护**：CLI 健康检查需要启动外部进程，默认 2 并发可以避免瞬间拉起过多 CLI 进程导致 OOM/CPU 飙升。
-- **Panic 恢复**：每个 goroutine 都有 panic recover，确保单个检查失败不影响其他检查。
+- 在真实代理请求完成后统计失败
+- 连续失败次数达到阈值后，将节点标记为失败
+- 失败节点会退出正常选择流程
 
-#### 配置参数
-- **并发数**：`HEALTH_CHECK_CONCURRENCY`（默认 2，受上限 4 保护）
-- **间隔**：`HEALTH_ALL_INTERVAL_MIN`（默认 10 分钟）
+关键配置：
 
-#### 执行逻辑
-```go
-// 1. 收集所有节点
-tasks := []checkTask{}
-for each account {
-    for each node {
-        tasks.append({account, nodeID})
-    }
-}
+- `PROXY_FAIL_THRESHOLD`
+- `PROXY_RETRY_MAX`
 
-// 2. 使用 worker pool 并发执行
-sem := make(chan struct{}, 2)  // 默认 2，并会被 normalizeHealthCheckWorkers 调整到 1~4
-var wg sync.WaitGroup
+### 2. 失败节点探活
 
-for each task {
-    wg.Add(1)
-    go func(task) {
-        defer wg.Done()
-        defer recover()  // Panic 保护
+- 定时遍历失败节点
+- 按节点配置或全局配置选择 `cli/api/head`
+- 探活成功后恢复节点
+- 若恢复节点优先级更高，可重新成为活跃节点
 
-        sem <- struct{}{}        // 获取信号量
-        defer func() { <-sem }() // 释放信号量
+关键配置：
 
-        checkNodeHealth(task)
-    }(task)
-}
+- `PROXY_HEALTH_INTERVAL_SEC`
+- `PROXY_HEALTH_CHECK_MODE`
 
-wg.Wait()  // 等待所有检查完成
-```
+### 3. 全量健康检查
 
-**代码位置**：`internal/proxy/health_scheduler.go`
+- 周期性检查全部节点，不只检查失败节点
+- 避免健康状态长期停留在旧值
+- 支持并发 worker，CLI 和非 CLI 并发数分别控制
 
-### 1. 失败检测（被动）
+关键配置：
 
-系统在每次代理请求后都会检查响应状态：
+- `PROXY_HEALTH_CHECK_ALL_INTERVAL`
+- `HEALTH_ALL_INTERVAL_MIN`：旧格式备选值
+- `HEALTH_CHECK_CONCURRENCY`
+- `HEALTH_CHECK_CONCURRENCY_CLI`
 
-```
-请求代理 → 响应状态检查 → 非 200 状态计数 → 达到阈值标记失败
-```
+## 三种检查方式
 
-#### 触发条件
-- **检测点**：每次代理请求完成后（见 `internal/proxy/handler.go` 记录 metrics 后的失败处理）
-- **失败判定**：HTTP 状态码 ≠ 200
-- **阈值**：连续失败次数 ≥ `PROXY_FAIL_THRESHOLD`（默认 3 次）
+### `cli`
 
-#### 执行逻辑
-```go
-// 1. 记录失败统计
-node.Metrics.FailCount++      // 总失败次数 +1
-node.Metrics.FailStreak++     // 连续失败次数 +1
+- 最贴近真实调用链路
+- 需要本地 CLI 运行环境
+- 默认模型为轻量模型，可按节点覆盖
+- 适合生产环境验证“代理 + CLI”完整路径
 
-// 2. 检查是否达到阈值
-if node.Metrics.FailStreak >= failLimit {
-    node.Failed = true        // 标记为失败
-    p.failedSet[nodeID] = {}  // 加入失败集合
-    p.selectBestAndActivate() // 切换到其他节点
-}
-```
+### `api`
 
-**代码位置**：`internal/proxy/health.go` 中 `handleFailure` 方法
+- 直接调用 `/v1/messages`
+- 适合确认 API 写入能力
+- 成本高于 `head`
 
-### 2. 探活恢复（主动）
+### `head`
 
-系统会定期探活失败的节点，检测是否已恢复：
+- 只验证连通性
+- 成本最低
+- 不验证真正的消息调用能力
 
-```
-定时器触发 → 遍历失败节点 → 根据 health_check_method 选择探活方式 → 成功则恢复
-```
-
-#### 探活配置
-- **间隔**：`PROXY_HEALTH_INTERVAL_SEC`（默认 30 秒）
-- **超时**：5 秒（HEAD/API），15 秒（CLI）
-- **方法**（由 `health_check_method` 决定）：
-  - **api**：POST `/v1/messages`（需要 API Key），固定使用 `claude-3-5-haiku-20241022` 模型
-  - **head**：HTTP HEAD 到 Base URL
-  - **cli**：执行 `claude -p "hi" --model <model>`，默认使用 `claude-haiku-4-5-20251001`（最便宜），可通过 `health_check_model` 自定义
-  - ⚠️ **注意**：CLI 方式失败时不会自动降级，保留真实错误信息便于调试
-
-#### 执行逻辑
-```go
-// 1. 定时循环 (每 30 秒)
-ticker := time.NewTicker(p.healthEvery)
-for range ticker.C {
-    p.checkFailedNodes()  // 检查所有失败节点
-}
-
-// 2. 对每个失败节点发送健康检查请求
-if node.APIKey != "" {
-    // 使用真实 API 端点 (推荐)
-    payload := {
-        "model": "claude-3-5-haiku-20241022",  // 最便宜的模型
-        "max_tokens": 1,                        // 只生成 1 个 token
-        "messages": [{"role": "user", "content": "hi"}]
-    }
-    req := POST("/v1/messages", payload)
-    req.Header.Set("x-api-key", node.APIKey)
-    req.Header.Set("anthropic-version", "2023-06-01")
-} else {
-    // 回退到 HEAD 请求
-    req := HEAD(node.URL.String())
-}
-
-// 3. 如果响应成功 (200-299)
-if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-    node.Failed = false           // 清除失败标记
-    node.LastError = ""           // 清除错误信息
-    node.Metrics.FailStreak = 0   // 重置连续失败计数
-    node.Metrics.LastPingErr = "" // 清除 ping 错误
-    delete(p.failedSet, id)       // 从失败集合移除
-
-    // 4. 如果该节点权重更低（数值更小），自动切换回来
-    if node.Weight < currentActiveNode.Weight {
-        p.activeID = node.ID
-        log.Printf("auto-switch to recovered node %s", node.Name)
-    }
-}
-```
-
-**代码位置**：
-- 定时循环：`internal/proxy/health.go` (`healthLoop` 方法)
-- 探活逻辑：`internal/proxy/health.go` (`checkNodeHealth` 方法)
-- 自动切换：`internal/proxy/health.go` (`maybePromoteRecovered` 方法)
-
-### 3. 手动 Ping（已下线）
-
-2025-11-22 起移除管理页按钮与 `/admin/api/ping` 端点，健康率展示依赖自动探活与请求统计，无需手动触发。
-
-## 节点状态转换
-
-```
-┌─────────┐  连续失败 >= 阈值   ┌─────────┐
-│ 健康状态 │ ─────────────────> │ 失败状态 │
-│ (Failed=│                     │ (Failed=│
-│  false) │ <───────────────── │  true)  │
-└─────────┘   探活成功 (200 OK) └─────────┘
-```
-
-### 状态说明
-
-| 状态 | Failed | 行为 |
-|------|--------|------|
-| **健康** | false | 可以被选择为活跃节点 |
-| **失败** | true | 跳过选择，定期探活 |
-| **禁用** | disabled=true | 跳过选择，不探活 |
-
-**注意**：
-- `Failed` 是自动管理的（系统检测）
-- `Disabled` 是手动管理的（用户操作）
-- 两者都会阻止节点被选择使用
-
-## 健康率计算
-
-健康率显示在管理页面的"健康率"列：
-
-```go
-healthRate = (总请求数 - 失败次数) / 总请求数 * 100%
-```
-
-**示例**：
-- 总请求：100 次
-- 失败次数：5 次
-- 健康率：(100 - 5) / 100 = 95%
-
-**颜色标识**：
-- 绿色：≥ 90%
-- 黄色：≥ 70% 且 < 90%
-- 红色：< 70%
-
-## 自动故障切换
-
-**权重语义**：权重值越小，优先级越高。例如：weight=1 的节点优先于 weight=2 的节点。
-
-当活跃节点失败时，系统自动切换到最佳节点：
-
-### 切换逻辑
-```go
-// 1. 选择权重值最小（优先级最高）的健康节点
-for id, node := range nodes {
-    if node.Failed || node.Disabled {
-        continue  // 跳过失败或禁用的节点
-    }
-    if node.Weight < bestNode.Weight {
-        bestNode = node
-    }
-}
-
-// 2. 激活最佳节点
-p.activeID = bestNode.ID
-```
-
-### 自动恢复切换
-
-当失败节点探活成功后，如果其权重（数值）低于当前活跃节点，会自动切换回来：
-
-```go
-if recoveredNode.Weight < currentActiveNode.Weight {
-    p.activeID = recoveredNode.ID
-    log.Printf("auto-switch to recovered node %s", recoveredNode.Name)
-}
-```
-
-**代码位置**：`internal/proxy/health.go` (`maybePromoteRecovered` 方法)
-
-## 配置参数
-
-### 环境变量
+## 配置表
 
 | 变量名 | 说明 | 默认值 |
 |--------|------|--------|
-| `PROXY_FAIL_THRESHOLD` | 连续失败多少次标记为失败 | 3 |
-| `PROXY_HEALTH_INTERVAL_SEC` | 探活间隔（秒） | 30 |
-| `PROXY_RETRY_MAX` | 非 200 状态重试次数 | 3 |
-| `PROXY_HEALTH_CHECK_MODE` ⭐ | 全局默认健康检查方式：`cli` / `api` / `head` | `cli` |
-| `health_check_method` (节点字段) | 节点级别健康检查方式（优先级高于全局） | 继承全局 |
-| `health_check_model` (节点字段) | CLI 健康检查使用的模型（仅 CLI 方式有效） | `claude-haiku-4-5-20251001` |
-| `HEALTH_CHECK_CONCURRENCY` ⭐ | 全量健康检查并发数（同时检查的节点数，自动限制 1~4） | `2` |
-| `HEALTH_ALL_INTERVAL_MIN` ⭐ | 全量健康检查间隔（分钟） | `10` |
+| `PROXY_HEALTH_CHECK_MODE` | 全局健康检查方式：`cli/api/head` | `cli` |
+| `PROXY_FAIL_THRESHOLD` | 连续失败阈值 | `3` |
+| `PROXY_HEALTH_INTERVAL_SEC` | 失败节点探活间隔（秒） | `30` |
+| `PROXY_HEALTH_CHECK_ALL_INTERVAL` | 全量健康检查主配置，使用 `time.ParseDuration` 格式 | `10m` |
+| `HEALTH_ALL_INTERVAL_MIN` | 全量健康检查旧配置，分钟制备选值 | `10` |
+| `HEALTH_CHECK_CONCURRENCY` | 全量健康检查并发数 | `2` |
+| `HEALTH_CHECK_CONCURRENCY_CLI` | CLI 健康检查并发数 | `1` |
+| `HEALTH_MODEL_AWARE` | 是否按节点模型做健康检查 | `0` |
+| `HEALTH_VALIDATE_USAGE` | 是否校验 usage 字段 | `1` |
+| `HEALTH_VALIDATE_CONTENT` | 是否校验 content 字段 | `0` |
 
-### 健康检查方式对比
+## 行为说明
 
-| 方式 | 依赖 | 优点 | 适用场景 | 成本控制 |
-|------|------|------|-----------|---------|
-| CLI ⭐ | API Key、本地 `claude` CLI 命令 | **默认方式**；覆盖 Claude Code CLI 完整流程，最贴近实际使用 | 生产推荐；验证 CLI 路径与 API 代理链路 | 可通过 `health_check_model` 自定义模型（默认 `claude-haiku-4-5-20251001`） |
-| API | API Key，服务需开放 `/v1/messages` | 与 API 请求一致，直接验证 HTTP 端点 | 需要验证纯 API 写入能力（非 CLI 场景） | 固定使用 `claude-3-5-haiku-20241022`，`max_tokens=1` |
-| HEAD | 无需密钥 | 开销最低，适合仅验证连通性 | 暂无密钥或只需要轻量心跳 | 零成本（不消耗 API 调用） |
+### 节点状态
 
-**注意**：
-- CLI 方式需要 API Key，如果节点缺少 API Key，会**自动降级为 HEAD** 方式并记录日志
-- 配置优先级：**节点级别配置 > 全局环境变量 > 默认值（CLI）**
+- `healthy`：参与调度
+- `failed`：暂不参与调度，等待探活恢复
+- `disabled`：人工禁用，不参与调度
 
-### 示例配置
+### 切换逻辑
 
-**快速故障切换**（敏感模式）：
+- 优先选择权重更小的健康节点
+- 恢复后的高优先级节点可自动重新接管
+- 熔断器、失败状态、禁用状态会共同参与决策
+
+## 常见建议
+
+### 需要最真实验证
+
 ```bash
-PROXY_FAIL_THRESHOLD=1           # 1 次失败即切换
-PROXY_HEALTH_INTERVAL_SEC=10     # 每 10 秒探活
+PROXY_HEALTH_CHECK_MODE=cli
 ```
 
-**稳定优先**（容错模式）：
+### 需要更低探活成本
+
 ```bash
-PROXY_FAIL_THRESHOLD=5           # 5 次失败才切换
-PROXY_HEALTH_INTERVAL_SEC=60     # 每分钟探活
+PROXY_HEALTH_CHECK_MODE=head
 ```
 
-## 监控指标
+### 需要更快发现故障
 
-管理页面显示以下健康相关指标：
-
-### 节点级别
-- **状态**：Active / Failed / Disabled
-- **健康率**：成功率百分比
-- **Ping 延时**：最后一次 Ping 测试的延时（ms）
-- **失败次数**：总失败次数
-- **最后错误**：最后一次失败的错误信息
-
-### 全局统计
-- **总节点数**：所有节点数量
-- **活跃节点数**：当前健康且活跃的节点数
-- **平均健康率**：所有节点的平均健康率
-- **总请求数**：所有节点的请求总和
-
-## 常见问题
-
-### Q: 为什么节点标记为失败？
-A: 连续 3 次（默认）请求返回非 200 状态，系统会自动标记为失败。检查：
-- 节点的 Base URL 是否正确
-- API Key 是否有效
-- 网络连接是否正常
-- 查看"最后错误"列的具体错误信息
-
-### Q: 失败节点何时恢复？
-A: 系统每 30 秒（默认）探活一次失败节点，根据节点配置的 `health_check_method` 使用对应的探活方式，探活成功立即恢复。
-
-### Q: CLI 健康检查方式需要什么前置条件？
-A: CLI 方式需要：
-1. **CLI 可执行文件**：运行镜像需预装 Node.js 20 与 `@anthropic-ai/claude-code`（官方镜像已内置）。
-2. **API Key**：节点必须配置有效的 API Key。
-3. **Base URL**：节点 Base URL 需有效；系统会注入 `ANTHROPIC_BASE_URL`。
-4. **环境变量**：系统自动注入 `ANTHROPIC_API_KEY`、`ANTHROPIC_AUTH_TOKEN`、`ANTHROPIC_BASE_URL`。
-
-⚠️ **重要**：CLI 方式失败时不会自动降级到 API 方式，会保留真实错误信息。这样可以准确诊断 CLI 调用问题（如 CLI 未安装、网络超时、环境变量错误等）。
-
-### Q: 如何选择健康检查方式？
-A: 选择建议：
-- **CLI（推荐，默认）**：验证 Claude Code CLI 完整调用链路，最贴近实际使用，适合生产环境
-- **API**：直接验证 HTTP API 端点，适合非 CLI 场景或纯 API 代理
-- **HEAD**：仅验证连通性，适合无 API Key 或需要轻量级心跳的场景
-
-**配置示例**：
 ```bash
-# 使用默认 CLI 方式（无需配置）
-go run ./cmd/cccli proxy
-
-# 使用 API 方式
-PROXY_HEALTH_CHECK_MODE=api go run ./cmd/cccli proxy
-
-# 使用 HEAD 方式
-PROXY_HEALTH_CHECK_MODE=head go run ./cmd/cccli proxy
-
-# 节点级别配置（优先级更高）
-# 在管理界面创建节点时指定 health_check_method
+PROXY_FAIL_THRESHOLD=1
+PROXY_HEALTH_INTERVAL_SEC=10
+PROXY_HEALTH_CHECK_ALL_INTERVAL=5m
 ```
 
-### Q: 如何降低 CLI 健康检查的成本？
-A: CLI 健康检查默认使用 `claude-haiku-4-5-20251001` 模型（最便宜的模型）。你可以通过以下方式进一步控制成本：
+## 相关实现
 
-**方式 1：在创建节点时指定模型**（推荐）
-```json
-{
-  "name": "节点名称",
-  "base_url": "https://api.anthropic.com",
-  "api_key": "sk-ant-xxx",
-  "health_check_method": "cli",
-  "health_check_model": "claude-haiku-4-5-20251001"  // 使用便宜的 Haiku 模型
-}
-```
+- `internal/proxy/health.go`
+- `internal/proxy/health_scheduler.go`
+- `internal/proxy/builder.go`
+- `internal/proxy/envvars.go`
 
-**方式 2：使用 HEAD 方式**（零成本）
-如果只需要验证连通性，可以使用 HEAD 方式，完全不消耗 API 调用：
-```json
-{
-  "health_check_method": "head"
-}
-```
+## 相关文档
 
-**成本对比**：
-- **Haiku** (`claude-haiku-4-5-20251001`)：最便宜，每次健康检查约 $0.00001
-- **Sonnet** (`claude-sonnet-4-5-20250929`)：中等价格，每次健康检查约 $0.0001
-- **HEAD**：零成本，但只验证连通性不验证 API 调用能力
-
-### Q: 可以手动恢复失败节点吗？
-A: 失败节点会自动探活恢复，无需手动操作。如果需要强制使用，可以：
-1. 点击"切换"按钮手动激活该节点
-2. 或等待自动探活恢复
-
-### Q: 禁用和失败有什么区别？
-A:
-- **Failed（失败）**：系统自动检测，自动恢复
-- **Disabled（禁用）**：用户手动操作，不会自动恢复，不参与探活
-
-### Q: 如何调整健康检查敏感度？
-A: 修改环境变量：
-- 调低 `PROXY_FAIL_THRESHOLD` → 更快切换
-- 调高 `PROXY_FAIL_THRESHOLD` → 更容错
-- 调低 `PROXY_HEALTH_INTERVAL_SEC` → 更快恢复
-- 调高 `PROXY_HEALTH_INTERVAL_SEC` → 降低探活开销
-
-## 最佳实践
-
-1. **合理设置失败阈值**：根据节点稳定性调整 `PROXY_FAIL_THRESHOLD`
-2. **监控健康率**：健康率低于 90% 的节点需要检查
-3. **配置多个节点**：至少配置 2 个节点以实现高可用
-4. **使用权重控制**：主节点设置低权重值（如 1），备份节点设置高权重值（如 10）
-5. **定期查看日志**：关注故障切换和恢复的日志消息
-
-## 相关代码
-
-- 失败检测：`internal/proxy/health.go` `handleFailure`
-- 探活循环：`internal/proxy/health.go` `healthLoop`
-- 健康检查：`internal/proxy/health.go` `checkNodeHealth`
-- 自动切换：`internal/proxy/health.go` `maybePromoteRecovered`
+- [多租户架构](./multi-tenant-architecture.md)
+- [监控数据持久化](./monitoring-data-persistence.md)
+- [API 索引](./api/INDEX.md)

@@ -12,6 +12,7 @@ type Node struct {
 	URL               *url.URL
 	APIKey            string
 	APIKeys           *KeyRotator // 多密钥轮换器（当 APIKey 包含逗号时自动启用）
+	SourceProtocol    string
 	HealthCheckMethod string
 	HealthCheckModel  string // CLI 健康检查使用的模型，默认为 claude-haiku-4-5-20251001
 	AccountID         string

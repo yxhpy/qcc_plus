@@ -89,6 +89,7 @@ func (s *Store) ensureNodesTable(ctx context.Context) error {
             name TEXT,
             base_url TEXT NOT NULL,
             api_key TEXT,
+			source_protocol TEXT DEFAULT 'claude',
 			health_check_method TEXT DEFAULT 'api',
 			health_check_model TEXT DEFAULT '` + defaultHealthCheckModel + `',
 			account_id TEXT NOT NULL DEFAULT '` + DefaultAccountID + `',
@@ -115,6 +116,7 @@ func (s *Store) ensureNodesTable(ctx context.Context) error {
             name VARCHAR(255),
             base_url TEXT NOT NULL,
             api_key TEXT,
+			source_protocol VARCHAR(32) DEFAULT 'claude',
 			health_check_method VARCHAR(10) DEFAULT 'api',
 			health_check_model VARCHAR(128) DEFAULT '` + defaultHealthCheckModel + `',
 			account_id VARCHAR(64) NOT NULL DEFAULT '` + DefaultAccountID + `',
@@ -233,6 +235,63 @@ func (s *Store) ensureNodesTable(ctx context.Context) error {
 			alterStmt = `ALTER TABLE nodes ADD COLUMN health_check_model VARCHAR(128) DEFAULT '` + defaultHealthCheckModel + `' AFTER health_check_method`
 		}
 		if _, err := s.db.ExecContext(alterCtx, alterStmt); err != nil {
+			return err
+		}
+	}
+
+	hasSourceProtocol, err := s.columnExists(context.Background(), "nodes", "source_protocol")
+	if err != nil {
+		return err
+	}
+	if !hasSourceProtocol {
+		alterCtx, cancel := withTimeout(context.Background())
+		defer cancel()
+		var alterStmt string
+		if s.IsSQLite() {
+			alterStmt = `ALTER TABLE nodes ADD COLUMN source_protocol TEXT DEFAULT 'claude'`
+		} else {
+			alterStmt = `ALTER TABLE nodes ADD COLUMN source_protocol VARCHAR(32) DEFAULT 'claude' AFTER api_key`
+		}
+		if _, err := s.db.ExecContext(alterCtx, alterStmt); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Store) ensureSessionsTable(ctx context.Context) error {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
+	var stmt string
+	if s.IsSQLite() {
+		stmt = `CREATE TABLE IF NOT EXISTS sessions (
+			token TEXT PRIMARY KEY,
+			account_id TEXT NOT NULL,
+			is_admin INTEGER DEFAULT 0,
+			created_at DATETIME NOT NULL,
+			expires_at DATETIME NOT NULL
+		)`
+	} else {
+		stmt = `CREATE TABLE IF NOT EXISTS sessions (
+			token VARCHAR(255) PRIMARY KEY,
+			account_id VARCHAR(64) NOT NULL,
+			is_admin BOOLEAN DEFAULT FALSE,
+			created_at DATETIME NOT NULL,
+			expires_at DATETIME NOT NULL,
+			KEY idx_sessions_account (account_id),
+			KEY idx_sessions_expires_at (expires_at)
+		)`
+	}
+	if _, err := s.db.ExecContext(ctx, stmt); err != nil {
+		return err
+	}
+
+	if s.IsSQLite() {
+		if _, err := s.db.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS idx_sessions_account ON sessions(account_id)`); err != nil {
+			return err
+		}
+		if _, err := s.db.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at)`); err != nil {
 			return err
 		}
 	}

@@ -1,0 +1,351 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1772275467316,
+  "projectRoot": "/Users/yxhpy/Desktop/project/qcc_plus",
+  "techStack": {
+    "languages": [
+      {
+        "name": "Go",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "go.mod"
+        ]
+      }
+    ],
+    "frameworks": [],
+    "packageManager": "go",
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": null,
+    "lintCommand": null,
+    "devCommand": null,
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "docs",
+      "scripts",
+      "tests"
+    ],
+    "gitBranches": null
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "cccli": {
+      "path": "cccli",
+      "purpose": null,
+      "fileCount": 4,
+      "lastAccessed": 1772275467297,
+      "keyFiles": [
+        "assets.go",
+        "system0_cli.txt",
+        "system1_cli.txt",
+        "tools_cli.json"
+      ]
+    },
+    "cmd": {
+      "path": "cmd",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1772275467298,
+      "keyFiles": []
+    },
+    "debugs": {
+      "path": "debugs",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1772275467298,
+      "keyFiles": []
+    },
+    "docs": {
+      "path": "docs",
+      "purpose": "Documentation",
+      "fileCount": 13,
+      "lastAccessed": 1772275467298,
+      "keyFiles": [
+        "README.md",
+        "ci-cd-troubleshooting.md",
+        "cloudflare-tunnel.md",
+        "cost-first-node-switching.md",
+        "frontend-tech-stack.md"
+      ]
+    },
+    "frontend": {
+      "path": "frontend",
+      "purpose": null,
+      "fileCount": 12,
+      "lastAccessed": 1772275467299,
+      "keyFiles": [
+        "README.md",
+        "eslint.config.js",
+        "index.html",
+        "package-lock.json",
+        "package.json"
+      ]
+    },
+    "internal": {
+      "path": "internal",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1772275467299,
+      "keyFiles": []
+    },
+    "npm-packages": {
+      "path": "npm-packages",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1772275467299,
+      "keyFiles": []
+    },
+    "scripts": {
+      "path": "scripts",
+      "purpose": "Build/utility scripts",
+      "fileCount": 14,
+      "lastAccessed": 1772275467299,
+      "keyFiles": [
+        "build-frontend.sh",
+        "build-npm-packages.sh",
+        "deploy-server.sh",
+        "diagnose-data.sh",
+        "docker-entrypoint.sh"
+      ]
+    },
+    "tests": {
+      "path": "tests",
+      "purpose": "Test files",
+      "fileCount": 0,
+      "lastAccessed": 1772275467300,
+      "keyFiles": []
+    },
+    "verify": {
+      "path": "verify",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1772275467300,
+      "keyFiles": []
+    },
+    "web": {
+      "path": "web",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1772275467300,
+      "keyFiles": [
+        "embed.go"
+      ]
+    },
+    "website": {
+      "path": "website",
+      "purpose": null,
+      "fileCount": 12,
+      "lastAccessed": 1772275467300,
+      "keyFiles": [
+        "README.md",
+        "eslint.config.mjs",
+        "next-env.d.ts",
+        "next.config.ts",
+        "package.json"
+      ]
+    },
+    "docs/api": {
+      "path": "docs/api",
+      "purpose": "API routes",
+      "fileCount": 1,
+      "lastAccessed": 1772275467301,
+      "keyFiles": [
+        "INDEX.md"
+      ]
+    },
+    "frontend/dist": {
+      "path": "frontend/dist",
+      "purpose": "Distribution/build output",
+      "fileCount": 7,
+      "lastAccessed": 1772275467302,
+      "keyFiles": [
+        "favicon.ico",
+        "index.html",
+        "index.html.br"
+      ]
+    },
+    "frontend/node_modules": {
+      "path": "frontend/node_modules",
+      "purpose": "Dependencies",
+      "fileCount": 1,
+      "lastAccessed": 1772275467303,
+      "keyFiles": []
+    },
+    "frontend/public": {
+      "path": "frontend/public",
+      "purpose": "Public files",
+      "fileCount": 4,
+      "lastAccessed": 1772275467303,
+      "keyFiles": [
+        "favicon.ico",
+        "qcc-icon-180.png",
+        "qcc-icon-192.png"
+      ]
+    },
+    "web/dist": {
+      "path": "web/dist",
+      "purpose": "Distribution/build output",
+      "fileCount": 7,
+      "lastAccessed": 1772275467304,
+      "keyFiles": [
+        "favicon.ico",
+        "index.html",
+        "index.html.br"
+      ]
+    },
+    "website/app": {
+      "path": "website/app",
+      "purpose": "Application code",
+      "fileCount": 4,
+      "lastAccessed": 1772275467304,
+      "keyFiles": [
+        "favicon.ico",
+        "globals.css",
+        "layout.tsx"
+      ]
+    },
+    "website/components": {
+      "path": "website/components",
+      "purpose": "UI components",
+      "fileCount": 0,
+      "lastAccessed": 1772275467305,
+      "keyFiles": []
+    }
+  },
+  "hotPaths": [
+    {
+      "path": ".",
+      "accessCount": 21,
+      "lastAccessed": 1772275745372,
+      "type": "directory"
+    },
+    {
+      "path": "internal/proxy/handler.go",
+      "accessCount": 3,
+      "lastAccessed": 1772275818734,
+      "type": "file"
+    },
+    {
+      "path": "frontend/src/components/Layout.tsx",
+      "accessCount": 3,
+      "lastAccessed": 1772275842996,
+      "type": "file"
+    },
+    {
+      "path": "internal/version/version.go",
+      "accessCount": 2,
+      "lastAccessed": 1772275762540,
+      "type": "file"
+    },
+    {
+      "path": "internal/proxy",
+      "accessCount": 2,
+      "lastAccessed": 1772275949424,
+      "type": "directory"
+    },
+    {
+      "path": "frontend/package.json",
+      "accessCount": 1,
+      "lastAccessed": 1772275620225,
+      "type": "file"
+    },
+    {
+      "path": "website/package.json",
+      "accessCount": 1,
+      "lastAccessed": 1772275626031,
+      "type": "file"
+    },
+    {
+      "path": "internal/version/version_test.go",
+      "accessCount": 1,
+      "lastAccessed": 1772275670394,
+      "type": "file"
+    },
+    {
+      "path": "cmd",
+      "accessCount": 1,
+      "lastAccessed": 1772275763049,
+      "type": "directory"
+    },
+    {
+      "path": "cmd/cccli/main.go",
+      "accessCount": 1,
+      "lastAccessed": 1772275773184,
+      "type": "file"
+    },
+    {
+      "path": "frontend",
+      "accessCount": 1,
+      "lastAccessed": 1772275773431,
+      "type": "directory"
+    },
+    {
+      "path": "frontend/src/services/api.ts",
+      "accessCount": 1,
+      "lastAccessed": 1772275785129,
+      "type": "file"
+    },
+    {
+      "path": "frontend/src/pages/Login.tsx",
+      "accessCount": 1,
+      "lastAccessed": 1772275785143,
+      "type": "file"
+    },
+    {
+      "path": "frontend/src/hooks/useVersion.ts",
+      "accessCount": 1,
+      "lastAccessed": 1772275785182,
+      "type": "file"
+    },
+    {
+      "path": ".goreleaser.yml",
+      "accessCount": 1,
+      "lastAccessed": 1772275818730,
+      "type": "file"
+    },
+    {
+      "path": "Dockerfile",
+      "accessCount": 1,
+      "lastAccessed": 1772275834018,
+      "type": "file"
+    },
+    {
+      "path": "npm-packages/@qccplus/cli/lib/commands/version.js",
+      "accessCount": 1,
+      "lastAccessed": 1772275834021,
+      "type": "file"
+    },
+    {
+      "path": "frontend/src/components/Layout.css",
+      "accessCount": 1,
+      "lastAccessed": 1772275843004,
+      "type": "file"
+    },
+    {
+      "path": "web",
+      "accessCount": 1,
+      "lastAccessed": 1772275843287,
+      "type": "directory"
+    },
+    {
+      "path": "web/embed.go",
+      "accessCount": 1,
+      "lastAccessed": 1772275948884,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

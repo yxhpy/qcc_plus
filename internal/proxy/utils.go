@@ -47,6 +47,7 @@ func toRecord(n *Node) store.NodeRecord {
 		Name:              n.Name,
 		BaseURL:           n.URL.String(),
 		APIKey:            n.APIKey,
+		SourceProtocol:    n.SourceProtocol,
 		HealthCheckMethod: n.HealthCheckMethod,
 		HealthCheckModel:  n.HealthCheckModel,
 		AccountID:         chooseNonEmpty(n.AccountID, store.DefaultAccountID),

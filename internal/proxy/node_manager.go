@@ -24,7 +24,7 @@ func (p *Server) addNodeToAccount(acc *Account, name, rawURL, apiKey string, wei
 }
 
 // 添加指定账号的节点并自定义健康检查方式。
-func (p *Server) addNodeWithMethod(acc *Account, name, rawURL, apiKey string, weight int, healthMethod string, healthModel string) (*Node, error) {
+func (p *Server) addNodeWithMethod(acc *Account, name, rawURL, apiKey string, weight int, healthMethod string, healthModel string, extras ...any) (*Node, error) {
 	if acc == nil {
 		return nil, errors.New("account required")
 	}
@@ -53,7 +53,13 @@ func (p *Server) addNodeWithMethod(acc *Account, name, rawURL, apiKey string, we
 		healthMethod = HealthCheckMethodHEAD
 	}
 	id := fmt.Sprintf("n-%d", time.Now().UnixNano())
-	node := &Node{ID: id, Name: name, URL: u, APIKey: apiKey, HealthCheckMethod: healthMethod, HealthCheckModel: model, AccountID: acc.ID, CreatedAt: time.Now(), Weight: weight}
+	sourceProtocol := SourceProtocolClaude
+	if len(extras) >= 2 {
+		if v, ok := extras[1].(string); ok && strings.TrimSpace(v) != "" {
+			sourceProtocol = strings.TrimSpace(v)
+		}
+	}
+	node := &Node{ID: id, Name: name, URL: u, APIKey: apiKey, SourceProtocol: sourceProtocol, HealthCheckMethod: healthMethod, HealthCheckModel: model, AccountID: acc.ID, CreatedAt: time.Now(), Weight: weight}
 
 	// 如果 API Key 包含逗号，启用多密钥轮换
 	if strings.Contains(apiKey, ",") {

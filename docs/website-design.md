@@ -614,8 +614,8 @@ const microInteractions = {
 
 ```json
 {
-  "framework": "React 18 + TypeScript",
-  "build": "Vite 5",
+  "framework": "React 19 + TypeScript",
+  "build": "Vite 7",
   "styling": "TailwindCSS 3 + CSS Modules",
   "3d": "Three.js + React Three Fiber",
   "animation": "Framer Motion + GSAP",

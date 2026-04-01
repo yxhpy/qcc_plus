@@ -1,282 +1,100 @@
-# QCC Plus - Claude Code CLI 多租户代理服务器
+# QCC Plus
 
-[![Version](https://img.shields.io/badge/version-1.8.5-blue.svg)](https://github.com/yxhpy/qcc_plus/releases/tag/v1.8.5)
+[![Version](https://img.shields.io/badge/version-1.9.4-blue.svg)](https://github.com/yxhpy/qcc_plus/releases/tag/v1.9.4)
 [![GitHub](https://img.shields.io/badge/GitHub-yxhpy%2Fqcc__plus-181717?logo=github)](https://github.com/yxhpy/qcc_plus)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/yxhpy/qcc_plus/blob/main/LICENSE)
 
-> 功能完整的 Claude Code CLI 代理服务器，支持多租户账号隔离、多节点管理、自动故障切换和 React Web 管理界面。
+Multi-tenant Claude Code CLI proxy with admin UI, node failover, monitoring, usage analytics, notifications and Cloudflare Tunnel support.
 
-## ✨ 核心特性
+## Core Features
 
-- 🏢 **多租户账号隔离** - 每个账号拥有独立��节点池和配置
-- 🔀 **智能路由** - 根据 API Key 自动路由到对应账号的节点
-- 🌐 **多节点管理** - 支持配置多个上游节点，权重优先级控制
-- 🔄 **智能故障切换** - 事件驱动的节点切换，自动故障转移
-- 💚 **三种健康检查** - API/HEAD/CLI 三种健康检查方式，支持自动恢复
-- 🎨 **React Web 管理界面** - 现代化 SPA 界面，可视化管理账号和节点
-- 💾 **MySQL 持久化** - 配置和统计数据持久化存储
-- 🚀 **一键 Docker 部署** - 支持 Docker Compose，开箱即用
-- 🌩️ **Cloudflare Tunnel 集成** - 内置隧道支持，无需公网 IP
+- multi-tenant account isolation
+- per-account node pools and proxy keys
+- automatic failover and health checks
+- React admin UI
+- monitoring dashboard and shared monitor pages
+- pricing, usage summary and request logs
+- notification channels and subscriptions
+- Cloudflare Tunnel integration
 
-## 🚀 快速开始
+## Quick Start
 
-### 使用 Docker Compose（推荐）
+### Docker Compose
 
 ```bash
-# 1. 下载 docker-compose.yml
 curl -O https://raw.githubusercontent.com/yxhpy/qcc_plus/main/docker-compose.yml
-curl -O https://raw.githubusercontent.com/yxhpy/qcc_plus/main/.env.example
-mv .env.example .env
-
-# 2. 编辑 .env 文件，配置你的 API Key
-vim .env  # 修改 UPSTREAM_API_KEY 和其他配置
-
-# 3. 启动服务
 docker compose up -d
-
-# 4. 访问管理界面
-open http://localhost:8000/admin
 ```
 
-### 单容器运行
+Open: `http://localhost:8000/admin`
+
+Default admin login:
+
+- username: `admin`
+- password: `admin123`
+
+Notes:
+
+- the server now defaults to SQLite storage
+- regular default accounts are not auto-created
+- create an account and node after first login before calling `/v1/messages`
+
+### Single Container
 
 ```bash
 docker run -d \
   --name qcc_plus \
   -p 8000:8000 \
-  -e UPSTREAM_BASE_URL=https://api.anthropic.com \
   -e UPSTREAM_API_KEY=sk-ant-your-key \
   yxhpy520/qcc_plus:latest
 ```
 
-### 访问管理界面
+## Important Environment Variables
 
-启动后访问：http://localhost:8000/admin
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `LISTEN_ADDR` | Listen address | `:8000` |
+| `UPSTREAM_BASE_URL` | Upstream base URL | `https://api.anthropic.com` |
+| `UPSTREAM_API_KEY` | Upstream API key | - |
+| `PROXY_SQLITE_PATH` | SQLite file path | `~/.qccplus/qccplus.db` |
+| `PROXY_MYSQL_DSN` | MySQL DSN | - |
+| `ADMIN_API_KEY` | Admin proxy key | `admin` |
+| `PROXY_HEALTH_CHECK_MODE` | `cli/api/head` | `cli` |
+| `PROXY_HEALTH_CHECK_ALL_INTERVAL` | Full health scan interval | `10m` |
+| `TUNNEL_ENABLED` | Enable Tunnel | `false` |
 
-默认登录凭证（仅限内存模式）：
-- 管理员：`admin` / `admin123`
-- 默认账号：`default` / `default123`
+## First API Call
 
-⚠️ **生产环境请务必修改默认密码！**
+1. login to `/admin`
+2. create an account
+3. add a node
+4. call `/v1/messages` with that account's `x-api-key`
 
-## 📦 可用标签
-
-- `latest` - 最新稳定版本（当前 v1.8.5）
-- `v1.8.5` - 当前稳定版
-- `v1.8.0` - 上一稳定版
-- `v1.7.0` - 历史版本
-- `v1.5.0` - 历史版本
-- `v1.3.0` - 历史版本
-- `v1.0.0` - 首个正式版本
-
-## 🔧 环境变量配置
-
-### 基础配置
-
-| 变量名 | 说明 | 默认值 |
-|--------|------|--------|
-| `LISTEN_ADDR` | 监听地址 | `:8000` |
-| `UPSTREAM_BASE_URL` | 上游 API 地址 | `https://api.anthropic.com` |
-| `UPSTREAM_API_KEY` | 上游 API Key（必填） | - |
-| `UPSTREAM_NAME` | 默认节点名称 | `default` |
-
-### 代理配置
-
-| 变量名 | 说明 | 默认值 |
-|--------|------|--------|
-| `PROXY_RETRY_MAX` | 请求重试次数 | `3` |
-| `PROXY_FAIL_THRESHOLD` | 失败阈值（连续失败多少次标记失败） | `3` |
-| `PROXY_HEALTH_INTERVAL_SEC` | 健康检查间隔（秒） | `30` |
-| `PROXY_MYSQL_DSN` | MySQL 连接字符串（持久化） | - |
-
-### 安全配置
-
-| 变量名 | 说明 | 默认值 |
-|--------|------|--------|
-| `ADMIN_API_KEY` | 管理员密钥（服务端配置） | `admin` ⚠️ |
-| `DEFAULT_ACCOUNT_NAME` | 默认账号名称（仅内存模式） | `default` |
-| `DEFAULT_PROXY_API_KEY` | 默认代理 API Key（仅内存模式） | `default-proxy-key` ⚠️ |
-
-### Cloudflare Tunnel 配置
-
-| 变量名 | 说明 | 默认值 |
-|--------|------|--------|
-| `CF_API_TOKEN` | Cloudflare API Token | - |
-| `TUNNEL_SUBDOMAIN` | 隧道子域名 | - |
-| `TUNNEL_ZONE` | Cloudflare Zone（域名） | - |
-| `TUNNEL_ENABLED` | 启用隧道功能 | `false` |
-
-## 📖 使用示例
-
-### 基本使用
+Example:
 
 ```bash
-# 使用默认账号调用 API
-curl http://localhost:8000/v1/messages \
-  -H "x-api-key: default-proxy-key" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "claude-sonnet-4-5-20250929",
-    "messages": [{"role": "user", "content": "Hello"}],
-    "max_tokens": 1024
-  }'
-```
-
-### 创建新账号
-
-```bash
-# 1. 先登录获取 Cookie
 curl -c cookies.txt -X POST \
   -d "username=admin&password=admin123" \
   http://localhost:8000/login
 
-# 2. 创建新账号
 curl -b cookies.txt -X POST \
   http://localhost:8000/admin/api/accounts \
   -H "Content-Type: application/json" \
-  -d '{
-    "name": "team-alpha",
-    "proxy_api_key": "alpha-secure-key",
-    "is_admin": false
-  }'
+  -d '{"name":"team-alpha","proxy_api_key":"alpha-key","is_admin":false}'
 
-# 3. 为账号添加节点
 curl -b cookies.txt -X POST \
   http://localhost:8000/admin/api/nodes \
   -H "Content-Type: application/json" \
-  -d '{
-    "name": "node-1",
-    "base_url": "https://api.anthropic.com",
-    "api_key": "sk-ant-xxx",
-    "weight": 1
-  }'
+  -d '{"name":"node-1","base_url":"https://api.anthropic.com","api_key":"sk-ant-your-key","weight":1}'
+
+curl http://localhost:8000/v1/messages \
+  -H "x-api-key: alpha-key" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"claude-sonnet-4-5-20250929","messages":[{"role":"user","content":"Hello"}],"max_tokens":128}'
 ```
 
-### MySQL 持久化部署
+## More Docs
 
-```yaml
-# docker-compose.yml
-version: '3.7'
-
-services:
-  mysql:
-    image: mysql:8.0
-    environment:
-      MYSQL_ROOT_PASSWORD: rootpass
-      MYSQL_DATABASE: qcc_plus
-      MYSQL_USER: qcc_user
-      MYSQL_PASSWORD: qcc_pass
-    volumes:
-      - mysql_data:/var/lib/mysql
-    ports:
-      - "3306:3306"
-
-  proxy:
-    image: yxhpy520/qcc_plus:latest
-    ports:
-      - "8000:8000"
-    environment:
-      - UPSTREAM_BASE_URL=https://api.anthropic.com
-      - UPSTREAM_API_KEY=sk-ant-your-key
-      - PROXY_MYSQL_DSN=qcc_user:qcc_pass@tcp(mysql:3306)/qcc_plus?parseTime=true
-    depends_on:
-      - mysql
-
-volumes:
-  mysql_data:
-```
-
-## 🎯 新版本特性 (v1.8.5)
-
-### 监控大屏优化
-- ✅ 简化健康检查显示为单行紧凑模式
-- ✅ 恢复健康检查历史红绿状态点
-- ✅ 修复监控大屏节点显示 0 个在线的问题
-- ✅ 修复健康检查事件不能实时显示在大屏的问题
-
-### 故障切换增强
-- ✅ 区分 context canceled 和真正的上游错误
-- ✅ 透传上游状态码，避免 502 触发不必要重试
-- ✅ 优化节点重试策略，自动尝试所有可用节点
-
-## 🔒 安全最佳实践
-
-1. **修改默认凭证**
-   ```bash
-   # 在 .env 或环境变量中设置
-   export ADMIN_API_KEY=your-strong-admin-key
-   export DEFAULT_PROXY_API_KEY=your-strong-proxy-key
-   ```
-
-2. **使用强密码**
-   - 登录后立即修改管理员密码
-   - 为生产账号设置复杂的 API Key
-
-3. **启用 HTTPS**
-   ```bash
-   # 使用反向代理（推荐）
-   # Nginx/Caddy + Let's Encrypt
-   # 或使用 Cloudflare Tunnel
-   export TUNNEL_ENABLED=true
-   export CF_API_TOKEN=your-cf-token
-   ```
-
-4. **限制访问**
-   ```bash
-   # 绑定到本地接口
-   export LISTEN_ADDR=127.0.0.1:8000
-   # 或使用防火墙规则
-   ```
-
-## 🐛 故障排查
-
-### 容器无法启动
-```bash
-# 查看日志
-docker logs qcc_plus
-
-# 检查环境变量
-docker exec qcc_plus env | grep UPSTREAM
-```
-
-### 健康检查失败
-```bash
-# 检查节点状态
-curl http://localhost:8000/admin/api/nodes
-
-# 手动触发健康检查
-curl -b cookies.txt -X POST \
-  http://localhost:8000/admin/api/nodes/{node_id}/health-check
-```
-
-### 数据库连接失败
-```bash
-# 检查 MySQL 容器
-docker logs mysql_container
-
-# 测试连接
-docker exec qcc_plus mysql -h mysql -u qcc_user -p qcc_pass qcc_plus
-```
-
-## 📚 文档资源
-
-- **GitHub 仓库**: https://github.com/yxhpy/qcc_plus
-- **完整文档**: https://github.com/yxhpy/qcc_plus/tree/main/docs
-- **多租户架构**: [docs/multi-tenant-architecture.md](https://github.com/yxhpy/qcc_plus/blob/main/docs/multi-tenant-architecture.md)
-- **健康检查机制**: [docs/health_check_mechanism.md](https://github.com/yxhpy/qcc_plus/blob/main/docs/health_check_mechanism.md)
-- **Cloudflare Tunnel**: [docs/cloudflare-tunnel.md](https://github.com/yxhpy/qcc_plus/blob/main/docs/cloudflare-tunnel.md)
-- **更新日志**: [CHANGELOG.md](https://github.com/yxhpy/qcc_plus/blob/main/CHANGELOG.md)
-
-## 🤝 支持与反馈
-
-- **问题反馈**: https://github.com/yxhpy/qcc_plus/issues
-- **���能建议**: https://github.com/yxhpy/qcc_plus/discussions
-- **贡献指南**: https://github.com/yxhpy/qcc_plus/blob/main/CONTRIBUTING.md
-
-## 📄 开源协议
-
-MIT License - 详见 [LICENSE](https://github.com/yxhpy/qcc_plus/blob/main/LICENSE)
-
----
-
-**Made with ❤️ by the QCC Plus Team**
+- https://github.com/yxhpy/qcc_plus
+- https://github.com/yxhpy/qcc_plus/blob/main/README.md
+- https://github.com/yxhpy/qcc_plus/blob/main/docs/README.md

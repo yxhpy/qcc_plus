@@ -11,6 +11,9 @@ func (s *Store) UpsertNode(ctx context.Context, r NodeRecord) error {
 	if r.HealthCheckMethod == "" {
 		r.HealthCheckMethod = "api"
 	}
+	if r.SourceProtocol == "" {
+		r.SourceProtocol = "claude"
+	}
 	if r.HealthCheckModel == "" {
 		r.HealthCheckModel = defaultHealthCheckModel
 	}
@@ -27,12 +30,13 @@ func (s *Store) UpsertNode(ctx context.Context, r NodeRecord) error {
 
 	var err error
 	if s.IsSQLite() {
-		_, err = s.db.ExecContext(ctx, `INSERT INTO nodes (id,name,base_url,api_key,health_check_method,health_check_model,account_id,weight,failed,disabled,last_error,created_at,requests,fail_count,fail_streak,total_bytes,total_input,total_output,stream_dur_ms,first_byte_ms,last_ping_ms,last_ping_err,last_health_check_at)
-			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+		_, err = s.db.ExecContext(ctx, `INSERT INTO nodes (id,name,base_url,api_key,source_protocol,health_check_method,health_check_model,account_id,weight,failed,disabled,last_error,created_at,requests,fail_count,fail_streak,total_bytes,total_input,total_output,stream_dur_ms,first_byte_ms,last_ping_ms,last_ping_err,last_health_check_at)
+			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 			ON CONFLICT(id) DO UPDATE SET
 				name=excluded.name,
 				base_url=excluded.base_url,
 				api_key=excluded.api_key,
+				source_protocol=excluded.source_protocol,
 				health_check_method=excluded.health_check_method,
 				health_check_model=excluded.health_check_model,
 				account_id=excluded.account_id,
@@ -51,14 +55,15 @@ func (s *Store) UpsertNode(ctx context.Context, r NodeRecord) error {
 				last_ping_ms=excluded.last_ping_ms,
 				last_ping_err=excluded.last_ping_err,
 				last_health_check_at=excluded.last_health_check_at`,
-			r.ID, r.Name, r.BaseURL, r.APIKey, r.HealthCheckMethod, r.HealthCheckModel, r.AccountID, r.Weight, r.Failed, r.Disabled, r.LastError, r.CreatedAt, r.Requests, r.FailCount, r.FailStreak, r.TotalBytes, r.TotalInput, r.TotalOutput, r.StreamDurMs, r.FirstByteMs, r.LastPingMs, r.LastPingErr, healthAt)
+			r.ID, r.Name, r.BaseURL, r.APIKey, r.SourceProtocol, r.HealthCheckMethod, r.HealthCheckModel, r.AccountID, r.Weight, r.Failed, r.Disabled, r.LastError, r.CreatedAt, r.Requests, r.FailCount, r.FailStreak, r.TotalBytes, r.TotalInput, r.TotalOutput, r.StreamDurMs, r.FirstByteMs, r.LastPingMs, r.LastPingErr, healthAt)
 	} else {
-		_, err = s.db.ExecContext(ctx, `INSERT INTO nodes (id,name,base_url,api_key,health_check_method,health_check_model,account_id,weight,failed,disabled,last_error,created_at,requests,fail_count,fail_streak,total_bytes,total_input,total_output,stream_dur_ms,first_byte_ms,last_ping_ms,last_ping_err,last_health_check_at)
-			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+		_, err = s.db.ExecContext(ctx, `INSERT INTO nodes (id,name,base_url,api_key,source_protocol,health_check_method,health_check_model,account_id,weight,failed,disabled,last_error,created_at,requests,fail_count,fail_streak,total_bytes,total_input,total_output,stream_dur_ms,first_byte_ms,last_ping_ms,last_ping_err,last_health_check_at)
+			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 			ON DUPLICATE KEY UPDATE
 				name=VALUES(name),
 				base_url=VALUES(base_url),
 				api_key=VALUES(api_key),
+				source_protocol=VALUES(source_protocol),
 				health_check_method=VALUES(health_check_method),
 				health_check_model=VALUES(health_check_model),
 				account_id=VALUES(account_id),
@@ -77,7 +82,7 @@ func (s *Store) UpsertNode(ctx context.Context, r NodeRecord) error {
 				last_ping_ms=VALUES(last_ping_ms),
 				last_ping_err=VALUES(last_ping_err),
 				last_health_check_at=VALUES(last_health_check_at)`,
-			r.ID, r.Name, r.BaseURL, r.APIKey, r.HealthCheckMethod, r.HealthCheckModel, r.AccountID, r.Weight, r.Failed, r.Disabled, r.LastError, r.CreatedAt, r.Requests, r.FailCount, r.FailStreak, r.TotalBytes, r.TotalInput, r.TotalOutput, r.StreamDurMs, r.FirstByteMs, r.LastPingMs, r.LastPingErr, healthAt)
+			r.ID, r.Name, r.BaseURL, r.APIKey, r.SourceProtocol, r.HealthCheckMethod, r.HealthCheckModel, r.AccountID, r.Weight, r.Failed, r.Disabled, r.LastError, r.CreatedAt, r.Requests, r.FailCount, r.FailStreak, r.TotalBytes, r.TotalInput, r.TotalOutput, r.StreamDurMs, r.FirstByteMs, r.LastPingMs, r.LastPingErr, healthAt)
 	}
 	return err
 }
@@ -86,7 +91,7 @@ func (s *Store) GetNodesByAccount(ctx context.Context, accountID string) ([]Node
 	accountID = normalizeAccount(accountID)
 	ctx, cancel := withTimeout(ctx)
 	defer cancel()
-	rows, err := s.db.QueryContext(ctx, `SELECT id,name,base_url,api_key,health_check_method,health_check_model,account_id,weight,failed,disabled,last_error,created_at,requests,fail_count,fail_streak,total_bytes,total_input,total_output,stream_dur_ms,first_byte_ms,last_ping_ms,last_ping_err,last_health_check_at FROM nodes WHERE account_id=? ORDER BY weight ASC, created_at ASC`, accountID)
+	rows, err := s.db.QueryContext(ctx, `SELECT id,name,base_url,api_key,source_protocol,health_check_method,health_check_model,account_id,weight,failed,disabled,last_error,created_at,requests,fail_count,fail_streak,total_bytes,total_input,total_output,stream_dur_ms,first_byte_ms,last_ping_ms,last_ping_err,last_health_check_at FROM nodes WHERE account_id=? ORDER BY weight ASC, created_at ASC`, accountID)
 	if err != nil {
 		return nil, err
 	}
@@ -95,8 +100,11 @@ func (s *Store) GetNodesByAccount(ctx context.Context, accountID string) ([]Node
 	for rows.Next() {
 		var r NodeRecord
 		var lastHealthAt sql.NullTime
-		if err := rows.Scan(&r.ID, &r.Name, &r.BaseURL, &r.APIKey, &r.HealthCheckMethod, &r.HealthCheckModel, &r.AccountID, &r.Weight, &r.Failed, &r.Disabled, &r.LastError, &r.CreatedAt, &r.Requests, &r.FailCount, &r.FailStreak, &r.TotalBytes, &r.TotalInput, &r.TotalOutput, &r.StreamDurMs, &r.FirstByteMs, &r.LastPingMs, &r.LastPingErr, &lastHealthAt); err != nil {
+		if err := rows.Scan(&r.ID, &r.Name, &r.BaseURL, &r.APIKey, &r.SourceProtocol, &r.HealthCheckMethod, &r.HealthCheckModel, &r.AccountID, &r.Weight, &r.Failed, &r.Disabled, &r.LastError, &r.CreatedAt, &r.Requests, &r.FailCount, &r.FailStreak, &r.TotalBytes, &r.TotalInput, &r.TotalOutput, &r.StreamDurMs, &r.FirstByteMs, &r.LastPingMs, &r.LastPingErr, &lastHealthAt); err != nil {
 			return nil, err
+		}
+		if r.SourceProtocol == "" {
+			r.SourceProtocol = "claude"
 		}
 		if r.HealthCheckMethod == "" {
 			r.HealthCheckMethod = "api"

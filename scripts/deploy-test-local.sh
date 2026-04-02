@@ -17,6 +17,7 @@ LEGACY_PROXY_CONTAINER="qcc_plus-test-proxy-1"
 LEGACY_MYSQL_CONTAINER="qcc_plus-test-mysql-1"
 PROXY_PORT="${PROXY_PORT:-8001}"
 HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:${PROXY_PORT}/version}"
+REQUIRE_EXISTING_TEST_DB="${REQUIRE_EXISTING_TEST_DB:-1}"
 
 if [[ ! -f "$COMPOSE_FILE" ]]; then
   echo "[error] compose file $COMPOSE_FILE not found" >&2
@@ -33,10 +34,31 @@ if ! docker compose version >/dev/null 2>&1; then
   exit 1
 fi
 
+TEST_DB_VOLUME="$(docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" config --volumes | head -n 1 | tr -d '\r')"
+TEST_DB_DSN="$(docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" config | awk '$1 == "PROXY_MYSQL_DSN:" {sub(/^PROXY_MYSQL_DSN:[[:space:]]*/, ""); print; exit}')"
+TEST_DB_NAME="$(printf '%s' "$TEST_DB_DSN" | sed -E 's#.*\)/([^?]+)\?.*#\1#')"
+
+if [[ -z "$TEST_DB_VOLUME" ]]; then
+  echo "[error] unable to resolve test mysql volume from $COMPOSE_FILE" >&2
+  exit 1
+fi
+
+if [[ "$REQUIRE_EXISTING_TEST_DB" == "1" ]] && ! docker volume inspect "$TEST_DB_VOLUME" >/dev/null 2>&1; then
+  echo "[error] required test mysql volume '$TEST_DB_VOLUME' does not exist" >&2
+  echo "[error] refusing to initialize an empty test database" >&2
+  echo "[hint] if you intentionally want a new empty test database, rerun with REQUIRE_EXISTING_TEST_DB=0" >&2
+  exit 1
+fi
+
 VERSION="${VERSION:-$(git describe --tags --always --dirty 2>/dev/null || echo 'dev')}"
 GIT_COMMIT="${GIT_COMMIT:-$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')}"
 BUILD_DATE="${BUILD_DATE:-$(date -u +"%Y-%m-%dT%H:%M:%SZ")}"
 export VERSION GIT_COMMIT BUILD_DATE
+
+log "resolved test mysql volume: $TEST_DB_VOLUME"
+if [[ -n "$TEST_DB_NAME" ]]; then
+  log "resolved test database name: $TEST_DB_NAME"
+fi
 
 log "building frontend bundle into web/dist"
 bash scripts/build-frontend.sh

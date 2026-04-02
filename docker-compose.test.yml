@@ -1,11 +1,11 @@
-version: "3.7"
 services:
   mysql:
     image: mysql:8.0
     container_name: qcc_test_mysql
+    restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: example
-      MYSQL_DATABASE: qcc_proxy
+      MYSQL_DATABASE: qcc_proxy_test
       MYSQL_USER: qcc
       MYSQL_PASSWORD: example
     command: ["--default-authentication-plugin=mysql_native_password", "--max_connections=200"]
@@ -27,12 +27,13 @@ services:
         GIT_COMMIT: ${GIT_COMMIT:-unknown}
         BUILD_DATE: ${BUILD_DATE:-unknown}
     container_name: qcc_test_proxy
+    restart: unless-stopped
     environment:
       # ========== 基础配置 ==========
       UPSTREAM_BASE_URL: https://api.anthropic.com
       UPSTREAM_API_KEY: changeme
       UPSTREAM_NAME: default
-      LISTEN_ADDR: :8001
+      LISTEN_ADDR: :8000
       PROXY_HEALTH_CHECK_MODE: cli
 
       # ========== 多租户与安全 ==========
@@ -89,15 +90,19 @@ services:
       METRICS_CLEANUP_INTERVAL: 24h
 
       # ========== MySQL 持久化 ==========
-      PROXY_MYSQL_DSN: qcc:example@tcp(mysql:3306)/qcc_proxy?parseTime=true
+      PROXY_MYSQL_DSN: qcc:example@tcp(mysql:3306)/qcc_proxy_test?parseTime=true
       MYSQL_MAX_OPEN_CONNS: 25
       MYSQL_MAX_IDLE_CONNS: 10
       MYSQL_CONN_MAX_LIFETIME: 300
       MYSQL_CONN_MAX_IDLE_TIME: 180
     ports:
-      - "8001:8001"
+      - "8001:8000"
     depends_on:
-      - mysql
+      mysql:
+        condition: service_healthy
 
 volumes:
   mysql_data_test:
+    # 固定复用测试库外部卷，避免重建时切到新的空库。
+    external: true
+    name: qcc_test_qcc_plus_test_db

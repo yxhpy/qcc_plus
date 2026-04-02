@@ -117,7 +117,7 @@ export default function Login() {
             <div className="login-header">
               <div className="login-title">
                 <p className="login-panel-kicker">管理后台登录</p>
-                <h1>欢迎回来</h1>
+                <h1>欢迎主人回家</h1>
                 <p className="sub">使用账号名称和密码进入 QCC Plus 管理后台</p>
               </div>
             </div>

@@ -1,0 +1,48 @@
+#!/bin/sh
+# qcc_plus commit-msg hook v1.0
+set -eu
+
+msg_file="${1:-}"
+
+if [ -z "$msg_file" ] || [ ! -f "$msg_file" ]; then
+  echo "ERROR: commit message file is required." >&2
+  exit 1
+fi
+
+subject="$(sed -n '/^[[:space:]]*#/d;/./{s/\r$//;p;q;}' "$msg_file")"
+
+if [ -z "$subject" ]; then
+  echo "ERROR: commit message is empty." >&2
+  exit 1
+fi
+
+pattern='^[a-z]+(\([A-Za-z0-9_-]+\))?: .+'
+if ! printf '%s\n' "$subject" | grep -Eq "$pattern"; then
+  echo "ERROR: invalid commit message format." >&2
+  echo "Expected: type(scope): subject" >&2
+  echo "Scope is optional and may include upper-case letters." >&2
+  echo "Examples:" >&2
+  echo "  feat(auth): R123 harden admin login" >&2
+  echo "  fix(API-Gateway): R045 handle upstream timeout" >&2
+  echo "  chore: refresh local hook permissions" >&2
+  exit 1
+fi
+
+type="$(printf '%s\n' "$subject" | sed -E 's/^([a-z]+)(\([A-Za-z0-9_-]+\))?: .*/\1/')"
+
+case "$type" in
+  feat|fix)
+    req_id="$(printf '%s\n' "$subject" | grep -oE 'R[0-9]{3}' | head -n 1 || true)"
+    if [ -z "$req_id" ]; then
+      echo "ERROR: $type commits must include a requirement ID like R123." >&2
+      echo "Examples:" >&2
+      echo "  feat(auth): R123 harden admin login" >&2
+      echo "  fix(API-Gateway): R045 handle upstream timeout" >&2
+      exit 1
+    fi
+    echo "commit-msg: validated $type commit with requirement $req_id"
+    ;;
+  *)
+    echo "commit-msg: validated conventional commit ($type)"
+    ;;
+esac

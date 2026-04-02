@@ -20,9 +20,11 @@ cccli_bin
 .gocache/
 .gomodcache/
 
-# Environment files (keep .env.example and .env.test)
+# Environment files (keep only .env.example committed)
 .env
 .env.local
+.env.test
+.env.prod
 
 # Temporary files
 *.tmp

@@ -3,18 +3,20 @@ services:
   mysql:
     image: mysql:8.0
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
-      MYSQL_ROOT_PASSWORD: example
-      MYSQL_DATABASE: qcc_proxy
-      MYSQL_USER: qcc
-      MYSQL_PASSWORD: example
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-example}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-qcc_proxy}
+      MYSQL_USER: ${MYSQL_USER:-qcc}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-example}
     command: ["--default-authentication-plugin=mysql_native_password", "--max_connections=200"]
     ports:
       - "${MYSQL_PORT:-3307}:3306"
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "qcc", "-pexample"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "${MYSQL_USER:-qcc}", "-p${MYSQL_PASSWORD:-example}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -22,21 +24,27 @@ services:
   proxy:
     build: .
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
-      UPSTREAM_BASE_URL: https://api.anthropic.com
-      UPSTREAM_API_KEY: changeme
-      UPSTREAM_NAME: default
-      LISTEN_ADDR: :8000
-      PROXY_RETRY_MAX: 3
-      PROXY_FAIL_THRESHOLD: 3
-      PROXY_HEALTH_INTERVAL_SEC: 30
-      WARMUP_CONCURRENCY: 1
-      PROXY_MYSQL_DSN: qcc:example@tcp(mysql:3306)/qcc_proxy?parseTime=true
+      UPSTREAM_BASE_URL: ${UPSTREAM_BASE_URL:-https://api.anthropic.com}
+      UPSTREAM_API_KEY: ${UPSTREAM_API_KEY:-changeme}
+      UPSTREAM_NAME: ${UPSTREAM_NAME:-default}
+      LISTEN_ADDR: ${LISTEN_ADDR:-:8000}
+      PROXY_RETRY_MAX: ${PROXY_RETRY_MAX:-3}
+      PROXY_FAIL_THRESHOLD: ${PROXY_FAIL_THRESHOLD:-3}
+      PROXY_HEALTH_INTERVAL_SEC: ${PROXY_HEALTH_INTERVAL_SEC:-30}
+      WARMUP_CONCURRENCY: ${WARMUP_CONCURRENCY:-1}
+      PROXY_MYSQL_DSN: ${PROXY_MYSQL_DSN:-qcc:example@tcp(mysql:3306)/qcc_proxy?parseTime=true}
     ports:
-      - "8000:8000"
+      - "${PROXY_PORT:-8000}:8000"
+    volumes:
+      - ./data/proxy:/root/.qccplus
     depends_on:
       mysql:
         condition: service_healthy
 
 volumes:
   mysql_data:
+    external: true
+    name: qcc_plus_mysql_data

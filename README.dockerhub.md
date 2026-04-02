@@ -45,9 +45,12 @@ Notes:
 docker run -d \
   --name qcc_plus \
   -p 8000:8000 \
+  -v qcc_plus_data:/root/.qccplus \
   -e UPSTREAM_API_KEY=sk-ant-your-key \
   yxhpy520/qcc_plus:latest
 ```
+
+**Note**: The `-v qcc_plus_data:/root/.qccplus` volume mount ensures data persistence across container restarts.
 
 ## Important Environment Variables
 

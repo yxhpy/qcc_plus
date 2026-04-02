@@ -28,6 +28,8 @@ services:
         BUILD_DATE: ${BUILD_DATE:-unknown}
     container_name: qcc_prod_proxy
     restart: unless-stopped
+    volumes:
+      - ./data/proxy-prod:/root/.qccplus
     environment:
       # ========== 基础配置 ==========
       UPSTREAM_BASE_URL: https://api.anthropic.com

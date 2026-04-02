@@ -91,8 +91,29 @@ gh secret set APP_DIR --body "/opt/qcc_plus"
 
 ### 4.2 docker-compose 重点
 
-- **测试**：`proxy` 暴露 8001，MySQL 暴露 3308，容器名 `qcc_test_proxy/mysql`，数据卷 `mysql_data_test`。
-- **生产**：`proxy` 暴露 8000，MySQL 暴露 3307，容器名 `qcc_prod_proxy/mysql`，数据卷 `mysql_data_prod`。
+- **测试**：`proxy` 暴露 8001，MySQL 暴露 3308，容器名 `qcc_test_proxy/mysql`，数据卷 `mysql_data_test`（外部卷 `qcc_test_qcc_plus_test_db`），proxy 状态目录挂载到 `./data/proxy-test`。
+- **生产**：`proxy` 暴露 8000，MySQL 暴露 3307，容器名 `qcc_prod_proxy/mysql`，数据卷 `mysql_data_prod`（外部卷 `qcc_plus_mysql_data`），proxy 状态目录挂载到 `./data/proxy-prod`。
+
+### 4.2.1 数据持久化
+
+所有 compose 文件都配置了数据持久化：
+
+1. **MySQL 数据卷**：使用 `external: true` + 固定 `name`，确保重新部署时复用同一数据卷，避免数据丢失。
+2. **Proxy 状态目录**：挂载本地目录到容器 `/root/.qccplus`，SQLite 模式下数据也会持久化。
+3. **部署脚本保护**：`scripts/deploy-server.sh` 使用 `docker compose down --remove-orphans`（不带 `-v`），确保卷不被删除。
+
+**首次部署前需要创建外部卷**：
+
+```bash
+# 测试环境
+docker volume create qcc_test_qcc_plus_test_db
+
+# 生产环境
+docker volume create qcc_plus_mysql_data
+
+# 默认环境（docker-compose.yml）
+docker volume create qcc_plus_mysql_data
+```
 
 ### 4.3 环境变量 (.env)
 

@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "test": "npm run test:smoke",
+    "test:smoke": "bash ../scripts/e2e-frontend-smoke.sh",
     "lint": "eslint .",
     "preview": "vite preview"
   },

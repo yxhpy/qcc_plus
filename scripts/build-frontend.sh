@@ -1,14 +1,16 @@
 #!/bin/bash
 set -e
 
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
 echo "Building React frontend..."
-cd frontend
+cd "$ROOT_DIR/frontend"
 npm run build
-cd ..
+cd "$ROOT_DIR"
 
 echo "Copying build to web/dist..."
-rm -rf web/dist
-cp -R frontend/dist web/dist
+rm -rf "$ROOT_DIR/web/dist"
+cp -R "$ROOT_DIR/frontend/dist" "$ROOT_DIR/web/dist"
 
 echo "Frontend build complete!"
 echo "Next steps:"

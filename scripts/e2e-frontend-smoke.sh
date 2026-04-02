@@ -3,6 +3,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
 
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -250,8 +251,11 @@ await Promise.all([
 ]);
 await page.getByRole('button', { name: '新增节点' }).click();
 
-const nodeNameInput = page.locator('input[placeholder="如：联通-北京"]');
-const baseUrlInput = page.locator('input[placeholder="https://api.anthropic.com"]');
+const nodeDialog = page.getByRole('dialog', { name: '新增节点' });
+await nodeDialog.waitFor();
+
+const nodeNameInput = nodeDialog.locator('input[placeholder="如：联通-北京"]');
+const baseUrlInput = nodeDialog.locator('input[placeholder="https://api.anthropic.com"]');
 await nodeNameInput.waitFor();
 await baseUrlInput.waitFor();
 
@@ -275,9 +279,9 @@ if (nodeNameValue !== '') {
   throw new Error(`node name input was modified unexpectedly: "${nodeNameValue}"`);
 }
 
-await page.getByRole('button', { name: '添加映射' }).click();
-const mappingFromInput = page.locator('input[placeholder="源模型（选择或输入）"]').first();
-const mappingToInput = page.locator('input[placeholder="目标模型（选择或输入）"]').first();
+await nodeDialog.getByRole('button', { name: '添加映射' }).click();
+const mappingFromInput = nodeDialog.locator('input[placeholder="源模型（选择或输入）"]').first();
+const mappingToInput = nodeDialog.locator('input[placeholder="目标模型（选择或输入）"]').first();
 await mappingFromInput.waitFor();
 
 const typedMappingFrom = 'gpt-5';
@@ -318,10 +322,20 @@ PLAYWRIGHT_JS="${PLAYWRIGHT_JS/__EXPECTED_CHANGELOG_HEADING__/$EXPECTED_CHANGELO
 
 (
   cd "$ARTIFACT_DIR"
+  "$PWCLI" close >/dev/null 2>&1 || true
   "$PWCLI" open "${BASE_URL}/login"
   "$PWCLI" resize 1440 1100
   "$PWCLI" snapshot >/dev/null
-  "$PWCLI" run-code "$PLAYWRIGHT_JS" | tee -a "$PLAYWRIGHT_LOG"
+  PLAYWRIGHT_OUTPUT="$("$PWCLI" run-code "$PLAYWRIGHT_JS" 2>&1)"
+  printf '%s\n' "$PLAYWRIGHT_OUTPUT" | tee -a "$PLAYWRIGHT_LOG"
+  if grep -q '^### Error$' <<<"$PLAYWRIGHT_OUTPUT"; then
+    echo "Error: Playwright smoke assertions failed" >&2
+    exit 1
+  fi
+  if ! grep -q '"checkedUrl"' <<<"$PLAYWRIGHT_OUTPUT"; then
+    echo "Error: Playwright smoke did not emit success payload" >&2
+    exit 1
+  fi
   "$PWCLI" close >/dev/null
 )
 

@@ -34,9 +34,19 @@ if ! docker compose version >/dev/null 2>&1; then
   exit 1
 fi
 
-TEST_DB_VOLUME="$(docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" config --volumes | head -n 1 | tr -d '\r')"
-TEST_DB_DSN="$(docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" config | awk '$1 == "PROXY_MYSQL_DSN:" {sub(/^PROXY_MYSQL_DSN:[[:space:]]*/, ""); print; exit}')"
+COMPOSE_RENDERED="$(docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" config)"
+TEST_DB_VOLUME_KEY="$(docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" config --volumes | head -n 1 | tr -d '\r')"
+TEST_DB_VOLUME="$(printf '%s\n' "$COMPOSE_RENDERED" | awk '
+  /^volumes:$/ {in_volumes=1; next}
+  in_volumes && /^    name:/ {print $2; exit}
+  in_volumes && /^[^[:space:]]/ {exit}
+')"
+TEST_DB_DSN="$(printf '%s\n' "$COMPOSE_RENDERED" | awk '$1 == "PROXY_MYSQL_DSN:" {sub(/^PROXY_MYSQL_DSN:[[:space:]]*/, ""); print; exit}')"
 TEST_DB_NAME="$(printf '%s' "$TEST_DB_DSN" | sed -E 's#.*\)/([^?]+)\?.*#\1#')"
+
+if [[ -z "$TEST_DB_VOLUME" && -n "$TEST_DB_VOLUME_KEY" ]]; then
+  TEST_DB_VOLUME="${COMPOSE_PROJECT}_${TEST_DB_VOLUME_KEY}"
+fi
 
 if [[ -z "$TEST_DB_VOLUME" ]]; then
   echo "[error] unable to resolve test mysql volume from $COMPOSE_FILE" >&2

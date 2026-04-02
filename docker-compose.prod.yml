@@ -1,8 +1,8 @@
-version: "3.7"
 services:
   mysql:
     image: mysql:8.0
     container_name: qcc_prod_mysql
+    restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: example
       MYSQL_DATABASE: qcc_proxy
@@ -27,6 +27,7 @@ services:
         GIT_COMMIT: ${GIT_COMMIT:-unknown}
         BUILD_DATE: ${BUILD_DATE:-unknown}
     container_name: qcc_prod_proxy
+    restart: unless-stopped
     environment:
       # ========== 基础配置 ==========
       UPSTREAM_BASE_URL: https://api.anthropic.com
@@ -97,7 +98,11 @@ services:
     ports:
       - "8000:8000"
     depends_on:
-      - mysql
+      mysql:
+        condition: service_healthy
 
 volumes:
   mysql_data_prod:
+    # 固定复用正式库外部卷，避免重建时切到新的空库。
+    external: true
+    name: qcc_plus_mysql_data

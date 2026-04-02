@@ -1,0 +1,21 @@
+{
+  "allowed_paths": [
+    "internal/",
+    "cmd/",
+    "web/src/"
+  ],
+  "created_at": "2026-04-02T18:27:23+08:00",
+  "denied_commands": [
+    "git push --force",
+    "rm -rf",
+    "DROP TABLE"
+  ],
+  "denied_paths": [
+    "vendor/",
+    "node_modules/",
+    ".git/",
+    "docker-compose.prod.yml"
+  ],
+  "task_id": "R003",
+  "version": "v1.0"
+}

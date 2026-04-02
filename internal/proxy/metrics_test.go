@@ -126,7 +126,7 @@ func TestBuildMetricsRecord(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rec := buildMetricsRecord("account1", "node1", start, end, tt.mw, tt.u, 0, 0)
+			rec := buildMetricsRecord("account1", "node1", start, end, tt.mw, tt.u, 0, 0, "claude")
 
 			if rec == nil {
 				t.Fatal("buildMetricsRecord should return non-nil record")
@@ -249,7 +249,7 @@ func TestServer_recordMetrics_NoStore(t *testing.T) {
 	}
 
 	// Should not panic without store
-	srv.recordMetrics(context.Background(), "node1", time.Now(), mw, u, 0, 0, true)
+	srv.recordMetrics(context.Background(), "node1", time.Now(), mw, u, 0, 0, true, "claude")
 
 	// Verify metrics were updated in memory
 	if node.Metrics.Requests != 1 {
@@ -292,7 +292,7 @@ func TestServer_recordMetrics_FailedRequest(t *testing.T) {
 		lastAt:     time.Now(),
 	}
 
-	srv.recordMetrics(context.Background(), "node1", time.Now(), mw, nil, 0, 0, true)
+	srv.recordMetrics(context.Background(), "node1", time.Now(), mw, nil, 0, 0, true, "claude")
 
 	// Verify fail count was incremented
 	if node.Metrics.FailCount != 1 {
@@ -333,7 +333,7 @@ func TestServer_recordMetrics_RecoveredNode(t *testing.T) {
 		lastAt:     time.Now(),
 	}
 
-	srv.recordMetrics(context.Background(), "node1", time.Now(), mw, nil, 0, 0, true)
+	srv.recordMetrics(context.Background(), "node1", time.Now(), mw, nil, 0, 0, true, "claude")
 
 	// Verify node was recovered
 	if node.Failed {

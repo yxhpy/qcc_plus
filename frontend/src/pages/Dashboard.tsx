@@ -10,6 +10,7 @@ import {
   Tooltip,
 } from 'chart.js'
 import Card from '../components/Card'
+import ErrorDetailBlock from '../components/errors/ErrorDetailBlock'
 import RecoveryBadge from '../components/RecoveryBadge'
 import Toast from '../components/Toast'
 import api from '../services/api'
@@ -64,9 +65,9 @@ function formatBps(bps: number) {
 }
 
 function nodeHealthTone(node: Node) {
-  if (node.disabled) return 'off'
-  if (node.failed || Number(node.fail_streak || 0) > 3) return 'fail'
-  if (Number(node.fail_streak || 0) > 0) return 'warn'
+  if (node.status === 'disabled') return 'off'
+  if (node.status === 'offline' || Number(node.fail_streak || 0) > 3) return 'fail'
+  if (node.status === 'degraded' || Number(node.fail_streak || 0) > 0) return 'warn'
   return 'ok'
 }
 
@@ -151,7 +152,7 @@ export default function Dashboard() {
       const fail = Number(n.fail_count || 0)
       totalReq += req
       totalFail += fail
-      if (!n.disabled && !n.failed) active += 1
+      if (n.status === 'online' || n.status === 'degraded') active += 1
       const bps = bytesPerSecond(n)
       if (bps > 0) {
         throughputSum += bps
@@ -180,8 +181,8 @@ export default function Dashboard() {
     const list: AlertItem[] = []
     nodes.forEach((n) => {
       const bps = bytesPerSecond(n)
-      if (n.failed) {
-        list.push({ type: 'failed', node: n.name || '未命名', message: n.last_error || '未知原因', raw: n.last_error })
+      if (n.status === 'offline') {
+        list.push({ type: 'failed', node: n.name || '未命名', message: '节点错误', raw: n.last_error || '未知原因' })
       }
       if (Number(n.fail_streak || 0) > 3) {
         list.push({ type: 'streak', node: n.name || '未命名', message: `连续失败 ${n.fail_streak} 次` })
@@ -403,12 +404,9 @@ export default function Dashboard() {
                 <div className="alert-title">
                   <strong>{alert.node}</strong>: {alert.message}
                 </div>
-                {alert.type === 'failed' && alert.raw && String(alert.raw).length > 50 && (
-                  <details>
-                    <summary>查看完整错误</summary>
-                    <pre>{alert.raw}</pre>
-                  </details>
-                )}
+                {alert.type === 'failed' && alert.raw
+                  ? <ErrorDetailBlock detail={alert.raw} className="alert-error-detail" />
+                  : null}
               </div>
             ))}
           </div>
@@ -467,7 +465,7 @@ export default function Dashboard() {
                         <td>{formatNumber(tokens)}</td>
                         <td>
                           <div className="table-actions">
-                            <button className="btn ghost" type="button" onClick={() => handleActivate(n.id)} disabled={n.disabled}>
+                            <button className="btn ghost" type="button" onClick={() => handleActivate(n.id)} disabled={n.status === 'disabled'}>
                               设为活跃
                             </button>
                           </div>

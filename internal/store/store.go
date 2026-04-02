@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	_ "github.com/go-sql-driver/mysql"
+	mysql "github.com/go-sql-driver/mysql"
 )
 
 // Dialect represents the SQL database type.
@@ -38,21 +38,39 @@ func (s *Store) IsSQLite() bool {
 
 // Open initializes a MySQL-backed store (dsn example: user:pass@tcp(host:3306)/dbname?parseTime=true).
 func Open(dsn string) (*Store, error) {
-	db, err := sql.Open("mysql", dsn)
+	return openMySQLStore(dsn, true)
+}
+
+// OpenExisting opens an existing MySQL-backed store without running migrations.
+func OpenExisting(dsn string) (*Store, error) {
+	return openMySQLStore(dsn, false)
+}
+
+func openMySQLStore(dsn string, runMigrations bool) (*Store, error) {
+	cfg, err := mysql.ParseDSN(dsn)
 	if err != nil {
 		return nil, err
 	}
+	cfg.ParseTime = true
 
+	db, err := sql.Open("mysql", cfg.FormatDSN())
+	if err != nil {
+		return nil, err
+	}
 	configureConnPool(db)
 
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 	if err := db.PingContext(ctx); err != nil {
+		_ = db.Close()
 		return nil, err
 	}
 	s := &Store{db: db, dialect: dialectMySQL}
-	if err := s.migrate(ctx); err != nil {
-		return nil, err
+	if runMigrations {
+		if err := s.migrate(ctx); err != nil {
+			_ = db.Close()
+			return nil, err
+		}
 	}
 	return s, nil
 }
@@ -65,9 +83,6 @@ func (s *Store) migrate(ctx context.Context) error {
 		return err
 	}
 	if err := s.ensureNodesTable(ctx); err != nil {
-		return err
-	}
-	if err := s.ensureSessionsTable(ctx); err != nil {
 		return err
 	}
 	if err := s.ensureHealthHistoryTable(ctx); err != nil {
@@ -98,6 +113,9 @@ func (s *Store) migrate(ctx context.Context) error {
 		return err
 	}
 	if err := s.ensureMonitorSharesTable(ctx); err != nil {
+		return err
+	}
+	if err := s.ensureFailedModelsTable(ctx); err != nil {
 		return err
 	}
 	// 模型定价和使用日志表

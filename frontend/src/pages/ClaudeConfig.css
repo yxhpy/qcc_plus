@@ -264,6 +264,56 @@
   align-items: start;
 }
 
+.integration-doc-card {
+  border: 1px solid var(--color-border-default);
+}
+
+.integration-guide-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--spacing-3);
+}
+
+.integration-guide-card {
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-4);
+  background: var(--color-bg-elevated);
+}
+
+.integration-route {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-small);
+  color: var(--color-primary);
+  margin-bottom: var(--spacing-2);
+  word-break: break-all;
+}
+
+.integration-note {
+  margin: 0 0 var(--spacing-2);
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+}
+
+.integration-hint {
+  font-size: var(--font-size-small);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--spacing-2);
+}
+
+.integration-code {
+  margin: 0;
+  padding: var(--spacing-3);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border-default);
+  font-family: var(--font-family-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .config-card,
 .preview-card {
   background: var(--color-bg-card);

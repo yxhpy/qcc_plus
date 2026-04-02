@@ -15,6 +15,7 @@ import type {
   CreateMonitorShareRequest,
   HealthHistory,
   ClaudeConfigTemplate,
+  CCSwitchImportSummary,
   ModelPricing,
   UsageLog,
   UsageSummary,
@@ -39,23 +40,55 @@ async function parseJSON<T>(res: Response): Promise<T> {
   }
 }
 
+async function parseErrorMessage(res: Response): Promise<string> {
+  const fallback = res.clone()
+  let message = res.statusText || 'request failed'
+  try {
+    const data = await res.json()
+    message = (data as any).error || (data as any).message || message
+  } catch (err) {
+    try {
+      const text = await fallback.text()
+      if (text) {
+        message = text
+      }
+    } catch (_err) {
+      /* ignore */
+    }
+  }
+  return message || 'request failed'
+}
+
 async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(url, { credentials: 'include', ...options })
   if (!res.ok) {
-    let message = res.statusText
-    try {
-      const data = await res.json()
-      message = (data as any).error || (data as any).message || message
-    } catch (err) {
-      /* ignore */
-    }
-    throw new Error(message || 'request failed')
+    throw new Error(await parseErrorMessage(res))
   }
   // 204 No Content 不需要解析响应体
   if (res.status === 204) {
     return undefined as T
   }
   return parseJSON<T>(res)
+}
+
+async function requestBlob(url: string, options: RequestInit = {}): Promise<{ blob: Blob; filename: string }> {
+  const res = await fetch(url, { credentials: 'include', ...options })
+  if (!res.ok) {
+    throw new Error(await parseErrorMessage(res))
+  }
+  const blob = await res.blob()
+  const disposition = res.headers.get('content-disposition') || ''
+  const filename = parseContentDispositionFilename(disposition) || 'download.bin'
+  return { blob, filename }
+}
+
+function parseContentDispositionFilename(disposition: string): string {
+  const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i)
+  if (utf8Match?.[1]) {
+    return decodeURIComponent(utf8Match[1])
+  }
+  const match = disposition.match(/filename="?([^"]+)"?/i)
+  return match?.[1] || ''
 }
 
 export { request }
@@ -73,7 +106,10 @@ async function login(username: string, password: string): Promise<void> {
   }
   // validate session by requesting an authenticated endpoint
   try {
-    await getAccounts()
+    const account = await getSession()
+    if (!account) {
+      throw new Error('invalid session')
+    }
   } catch (err) {
     throw new Error('账号名称或密码错误')
   }
@@ -81,6 +117,11 @@ async function login(username: string, password: string): Promise<void> {
 
 async function logout(): Promise<void> {
   await fetch('/logout', { method: 'POST', credentials: 'include', redirect: 'follow' })
+}
+
+async function getSession(): Promise<Account | null> {
+  const data = await request<{ account: Account | null }>('/api/session')
+  return data.account || null
 }
 
 async function getAccounts(): Promise<Account[]> {
@@ -132,13 +173,22 @@ async function getNodes(accountId?: string): Promise<Node[]> {
   return data.nodes || []
 }
 
+async function getNode(id: string, accountId?: string): Promise<Node> {
+  return request<{ node: Node }>(withAccount(`/admin/api/nodes?id=${encodeURIComponent(id)}`, accountId)).then((data) => data.node)
+}
+
 async function createNode(payload: {
   name?: string
   base_url: string
   api_key?: string
+  api_keys?: Node['api_keys']
   weight?: number
   health_check_method?: Node['health_check_method']
   health_check_model?: string
+  model_mapping?: Record<string, string>
+  source_protocol?: Node['source_protocol']
+  auth_profile?: string
+  capabilities?: string
 }, accountId?: string): Promise<string> {
   const data = await request<{ id: string }>(withAccount('/admin/api/nodes', accountId), {
     method: 'POST',
@@ -148,7 +198,7 @@ async function createNode(payload: {
   return data.id
 }
 
-async function updateNode(id: string, payload: Partial<Pick<Node, 'name' | 'base_url' | 'weight' | 'health_check_method' | 'health_check_model'>> & { api_key?: string }): Promise<void> {
+async function updateNode(id: string, payload: Partial<Pick<Node, 'name' | 'base_url' | 'weight' | 'health_check_method' | 'health_check_model' | 'model_mapping' | 'source_protocol' | 'auth_profile' | 'capabilities'>> & { api_key?: string; api_keys?: Node['api_keys'] }): Promise<void> {
   await request(`/admin/api/nodes?id=${encodeURIComponent(id)}`, {
     method: 'PUT',
     headers: defaultHeaders,
@@ -156,10 +206,46 @@ async function updateNode(id: string, payload: Partial<Pick<Node, 'name' | 'base
   })
 }
 
+async function copyNode(id: string): Promise<string> {
+  const data = await request<{ id: string }>('/admin/api/nodes/copy', {
+    method: 'POST',
+    headers: defaultHeaders,
+    body: JSON.stringify({ id }),
+  })
+  return data.id
+}
+
 async function deleteNode(id: string): Promise<void> {
   await request(`/admin/api/nodes?id=${encodeURIComponent(id)}`, {
     method: 'DELETE',
   })
+}
+
+async function importCCSwitchDB(
+  file: File,
+  payload: {
+    account_id?: string
+    import_providers?: boolean
+    import_pricing?: boolean
+    import_logs?: boolean
+    weight_offset?: number
+  },
+): Promise<{ summary: CCSwitchImportSummary; file_name?: string }> {
+  const form = new FormData()
+  form.set('file', file)
+  if (payload.account_id) form.set('account_id', payload.account_id)
+  if (payload.import_providers !== undefined) form.set('import_providers', String(payload.import_providers))
+  if (payload.import_pricing !== undefined) form.set('import_pricing', String(payload.import_pricing))
+  if (payload.import_logs !== undefined) form.set('import_logs', String(payload.import_logs))
+  if (payload.weight_offset !== undefined) form.set('weight_offset', String(payload.weight_offset))
+  return request<{ summary: CCSwitchImportSummary; file_name?: string }>('/admin/api/cc-switch/import', {
+    method: 'POST',
+    body: form,
+  })
+}
+
+async function exportCCSwitchDB(accountId?: string): Promise<{ blob: Blob; filename: string }> {
+  return requestBlob(withAccount('/admin/api/cc-switch/export', accountId))
 }
 
 async function activateNode(id: string): Promise<void> {
@@ -544,17 +630,41 @@ async function dismissModelRecovery(nodeId: string, modelId: string): Promise<{ 
   })
 }
 
+async function setModelRecoveryNonRecoverable(nodeId: string, modelId: string, value: boolean): Promise<{ status: string }> {
+  return request<{ status: string }>(`/api/model-recovery/non-recoverable?node_id=${encodeURIComponent(nodeId)}&model_id=${encodeURIComponent(modelId)}&value=${value ? 1 : 0}`, {
+    method: 'POST',
+  })
+}
+
+// 动态异常策略 API
+async function getErrorPolicies(): Promise<{ data: import('../types').ErrorPolicySnapshot }> {
+  return request<{ data: import('../types').ErrorPolicySnapshot }>('/api/error-policies')
+}
+
+async function toggleErrorPolicy(type: 'builtin' | 'observed', id: string, enabled: boolean): Promise<{ success: boolean }> {
+  return request<{ success: boolean }>('/api/error-policies/toggle', {
+    method: 'POST',
+    headers: defaultHeaders,
+    body: JSON.stringify({ type, id, enabled }),
+  })
+}
+
 export default {
   login,
   logout,
+  getSession,
   getAccounts,
   createAccount,
   updateAccount,
   deleteAccount,
   getNodes,
+  getNode,
   createNode,
   updateNode,
+  copyNode,
   deleteNode,
+  importCCSwitchDB,
+  exportCCSwitchDB,
   activateNode,
   toggleNode,
   getMonitorDashboard,
@@ -598,4 +708,7 @@ export default {
   // 模型恢复
   getModelRecovery,
   dismissModelRecovery,
+  setModelRecoveryNonRecoverable,
+  getErrorPolicies,
+  toggleErrorPolicy,
 }

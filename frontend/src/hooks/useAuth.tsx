@@ -23,8 +23,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(async () => {
     setLoading(true)
     try {
-      const accounts = await api.getAccounts()
-      const self = accounts[0] || null
+      const self = await api.getSession()
       setUser(self)
       if (self) {
         localStorage.setItem(AUTH_KEY, 'true')

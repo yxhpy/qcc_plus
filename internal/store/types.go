@@ -19,9 +19,13 @@ type NodeRecord struct {
 	Name              string
 	BaseURL           string
 	APIKey            string
-	SourceProtocol    string
+	APIKeyConfig      string
 	HealthCheckMethod string
 	HealthCheckModel  string
+	ModelMapping      string // JSON 格式的模型映射，如 {"claude-sonnet-4-20250514":"claude-sonnet-4-5-20250929"}
+	SourceProtocol    string // 节点源协议：claude/openai/gemini
+	AuthProfile       string // JSON 格式的鉴权配置
+	Capabilities      string // JSON 格式的能力声明
 	AccountID         string
 	Weight            int
 	Failed            bool
@@ -177,15 +181,6 @@ type AccountRecord struct {
 	UpdatedAt   time.Time
 }
 
-// SessionRecord 描述持久化登录会话。
-type SessionRecord struct {
-	Token     string
-	AccountID string
-	IsAdmin   bool
-	CreatedAt time.Time
-	ExpiresAt time.Time
-}
-
 // Config holds runtime tunables persisted in DB.
 type Config struct {
 	Retries     int
@@ -316,6 +311,18 @@ type UsageSummary struct {
 	TotalInputTokens  int64   `json:"total_input_tokens"`
 	TotalOutputTokens int64   `json:"total_output_tokens"`
 	TotalCostUSD      float64 `json:"total_cost_usd"`
+}
+
+// FailedModelRecord 持久化的模型失败记录。
+type FailedModelRecord struct {
+	NodeID         string
+	ModelID        string
+	AccountID      string
+	Error          string
+	FailedAt       time.Time
+	LastCheck      time.Time
+	CheckCount     int
+	NonRecoverable bool
 }
 
 // QueryUsageParams 查询使用日志参数

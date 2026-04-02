@@ -167,9 +167,11 @@ func TestServer_startSettingsWatcher(t *testing.T) {
 
 func TestServer_applySettingsFromCache(t *testing.T) {
 	tests := []struct {
-		name     string
-		srv      *Server
-		settings map[string]interface{}
+		name            string
+		srv             *Server
+		wantRetryMax    int
+		wantFailLimit   int
+		wantHealthEvery time.Duration
 	}{
 		{
 			name: "nil server",
@@ -187,8 +189,9 @@ func TestServer_applySettingsFromCache(t *testing.T) {
 						"health.check_interval_sec": float64(60),
 					},
 				},
-				healthEvery: 30 * time.Second,
+				healthEvery: 9 * time.Second,
 			},
+			wantHealthEvery: 60 * time.Second,
 		},
 		{
 			name: "apply retry max",
@@ -199,6 +202,7 @@ func TestServer_applySettingsFromCache(t *testing.T) {
 					},
 				},
 			},
+			wantRetryMax: 5,
 		},
 		{
 			name: "apply fail limit",
@@ -209,13 +213,25 @@ func TestServer_applySettingsFromCache(t *testing.T) {
 					},
 				},
 			},
+			wantFailLimit: 5,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.srv.applySettingsFromCache()
-			// Just verify it doesn't panic
+			if tt.srv == nil {
+				return
+			}
+			if tt.wantRetryMax > 0 && tt.srv.retries != tt.wantRetryMax {
+				t.Fatalf("retries = %d, want %d", tt.srv.retries, tt.wantRetryMax)
+			}
+			if tt.wantFailLimit > 0 && tt.srv.failLimit != tt.wantFailLimit {
+				t.Fatalf("failLimit = %d, want %d", tt.srv.failLimit, tt.wantFailLimit)
+			}
+			if tt.wantHealthEvery > 0 && tt.srv.healthEvery != tt.wantHealthEvery {
+				t.Fatalf("healthEvery = %v, want %v", tt.srv.healthEvery, tt.wantHealthEvery)
+			}
 		})
 	}
 }

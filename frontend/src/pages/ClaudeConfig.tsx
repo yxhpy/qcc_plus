@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Card from '../components/Card'
+import IntegrationGuide from '../components/claude-config/IntegrationGuide'
 import Toast from '../components/Toast'
 import api from '../services/api'
 import type { ClaudeConfigTemplate } from '../types'
@@ -274,6 +275,19 @@ export default function ClaudeConfig() {
           </div>
         </Card>
       </div>
+
+      <Card className="integration-doc-card">
+        <div className="section-head">
+          <div>
+            <div className="eyebrow">接入文档</div>
+            <h3 className="section-title">三种协议入口</h3>
+          </div>
+          <div className="tiny-actions">
+            <span className="badge ghost">支持标准 /v1 与 /v1beta 路径</span>
+          </div>
+        </div>
+        <IntegrationGuide proxyUrl={proxyUrl} apiKey={apiKey} />
+      </Card>
 
       {(loading || syncing) && <div className="loading-line">{loading ? '加载中…' : '正在同步配置…'}</div>}
       <Toast message={toast?.message} type={toast?.type} />

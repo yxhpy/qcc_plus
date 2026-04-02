@@ -1,6 +1,6 @@
 # qcc_plus
 
-[![Version](https://img.shields.io/badge/version-1.9.4-blue.svg)](https://github.com/yxhpy/qcc_plus/releases/tag/v1.9.4)
+[![Version](https://img.shields.io/badge/version-1.12.1-blue.svg)](https://github.com/yxhpy/qcc_plus/releases/tag/v1.12.1)
 [![npm](https://img.shields.io/npm/v/@qccplus/cli.svg?logo=npm)](https://www.npmjs.com/package/@qccplus/cli)
 [![Go](https://img.shields.io/badge/Go-1.21+-00ADD8?logo=go)](https://go.dev/)
 [![Docker](https://img.shields.io/badge/docker-yxhpy520%2Fqcc__plus-blue?logo=docker)](https://hub.docker.com/r/yxhpy520/qcc_plus)

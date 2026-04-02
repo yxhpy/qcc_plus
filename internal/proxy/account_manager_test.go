@@ -3,6 +3,7 @@ package proxy
 import (
 	"context"
 	"testing"
+	"time"
 )
 
 // Helper function to add account to context
@@ -174,4 +175,27 @@ func TestCanManageAccount(t *testing.T) {
 			t.Error("admin should have permission to manage any account ID")
 		}
 	})
+}
+
+func TestCreateAccountInheritsRuntimeConfig(t *testing.T) {
+	srv := buildServerNoWarmup(t, NewBuilder().
+		WithUpstream("http://example.com").
+		WithRetry(5).
+		WithFailLimit(2).
+		WithHealthEvery(300*time.Millisecond))
+
+	acc, err := srv.createAccount("cfg-test", "cfg-key", "pass", false)
+	if err != nil {
+		t.Fatalf("create account failed: %v", err)
+	}
+
+	if acc.Config.Retries != 5 {
+		t.Fatalf("Retries = %d, want 5", acc.Config.Retries)
+	}
+	if acc.Config.FailLimit != 2 {
+		t.Fatalf("FailLimit = %d, want 2", acc.Config.FailLimit)
+	}
+	if acc.Config.HealthEvery != 300*time.Millisecond {
+		t.Fatalf("HealthEvery = %v, want 300ms", acc.Config.HealthEvery)
+	}
 }

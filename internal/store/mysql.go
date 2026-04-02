@@ -109,7 +109,7 @@ func (s *Store) SeedDefaultSettings() error {
 			stmt = "INSERT IGNORE INTO settings (`key`, scope, account_id, value, data_type, category, description, is_secret, version) VALUES (?,?,?,?,?,?,?,?,1)"
 		}
 		if _, err := s.db.ExecContext(ctx, stmt,
-			d.Key, d.Scope, nil, body, dataType, category, nullOrStringPtr(d.Description), d.IsSecret); err != nil {
+			d.Key, d.Scope, settingAccountInsertArg(d.Scope, d.AccountID), body, dataType, category, nullOrStringPtr(d.Description), d.IsSecret); err != nil {
 			return err
 		}
 	}
@@ -167,9 +167,10 @@ func (s *Store) GetSetting(key, scope, accountID string) (*Setting, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 
-	query := "SELECT id,`key`,scope,account_id,value,data_type,category,description,is_secret,version,updated_by,updated_at,created_at FROM settings WHERE `key`=? AND scope=? AND " + s.nullSafeEqualExpr("account_id") + " LIMIT 1"
+	accountExpr, accountArgs := s.settingAccountWhere(scope, accountID)
+	query := "SELECT id,`key`,scope,account_id,value,data_type,category,description,is_secret,version,updated_by,updated_at,created_at FROM settings WHERE `key`=? AND scope=? AND " + accountExpr + " LIMIT 1"
 	args := []interface{}{key, scope}
-	args = append(args, s.nullSafeEqualArgs(accountArg(accountID))...)
+	args = append(args, accountArgs...)
 	row := s.db.QueryRowContext(ctx, query, args...)
 	return scanSetting(row)
 }
@@ -193,16 +194,17 @@ func (s *Store) UpsertSetting(setting *Setting) error {
 	if s.IsSQLite() {
 		// SQLite treats NULL as distinct in UNIQUE constraints, so ON CONFLICT won't match
 		// when account_id is NULL. Use a manual check-then-update approach instead.
-		accArg := accountArgPtr(setting.AccountID)
+		accountExpr, accountArgs := s.settingAccountWherePtr(setting.Scope, setting.AccountID)
+		accArg := settingAccountInsertArg(setting.Scope, setting.AccountID)
 		var exists bool
-		checkQuery := "SELECT EXISTS(SELECT 1 FROM settings WHERE `key`=? AND scope=? AND " + s.nullSafeEqualExpr("account_id") + ")"
+		checkQuery := "SELECT EXISTS(SELECT 1 FROM settings WHERE `key`=? AND scope=? AND " + accountExpr + ")"
 		checkArgs := []interface{}{setting.Key, setting.Scope}
-		checkArgs = append(checkArgs, s.nullSafeEqualArgs(accArg)...)
+		checkArgs = append(checkArgs, accountArgs...)
 		_ = s.db.QueryRowContext(ctx, checkQuery, checkArgs...).Scan(&exists)
 		if exists {
-			updateQuery := "UPDATE settings SET value=?, data_type=?, category=?, description=?, is_secret=?, updated_by=?, version=version+1 WHERE `key`=? AND scope=? AND " + s.nullSafeEqualExpr("account_id")
+			updateQuery := "UPDATE settings SET value=?, data_type=?, category=?, description=?, is_secret=?, updated_by=?, version=version+1 WHERE `key`=? AND scope=? AND " + accountExpr
 			updateArgs := []interface{}{body, setting.DataType, setting.Category, nullOrStringPtr(setting.Description), setting.IsSecret, nullOrStringPtr(setting.UpdatedBy), setting.Key, setting.Scope}
-			updateArgs = append(updateArgs, s.nullSafeEqualArgs(accArg)...)
+			updateArgs = append(updateArgs, accountArgs...)
 			_, err = s.db.ExecContext(ctx, updateQuery, updateArgs...)
 		} else {
 			_, err = s.db.ExecContext(ctx, "INSERT INTO settings (`key`, scope, account_id, value, data_type, category, description, is_secret, version, updated_by) "+
@@ -210,10 +212,25 @@ func (s *Store) UpsertSetting(setting *Setting) error {
 				setting.Key, setting.Scope, accArg, body, setting.DataType, setting.Category, nullOrStringPtr(setting.Description), setting.IsSecret, nullOrStringPtr(setting.UpdatedBy))
 		}
 	} else {
-		_, err = s.db.ExecContext(ctx, "INSERT INTO settings (`key`, scope, account_id, value, data_type, category, description, is_secret, version, updated_by) "+
-			"VALUES (?,?,?,?,?,?,?,?,1,?) "+
-			"ON DUPLICATE KEY UPDATE value=VALUES(value), data_type=VALUES(data_type), category=VALUES(category), description=VALUES(description), is_secret=VALUES(is_secret), updated_by=VALUES(updated_by), version=version+1",
-			setting.Key, setting.Scope, accountArgPtr(setting.AccountID), body, setting.DataType, setting.Category, nullOrStringPtr(setting.Description), setting.IsSecret, nullOrStringPtr(setting.UpdatedBy))
+		accountExpr, accountArgs := s.settingAccountWherePtr(setting.Scope, setting.AccountID)
+		accArg := settingAccountInsertArg(setting.Scope, setting.AccountID)
+		var exists bool
+		checkQuery := "SELECT EXISTS(SELECT 1 FROM settings WHERE `key`=? AND scope=? AND " + accountExpr + ")"
+		checkArgs := []interface{}{setting.Key, setting.Scope}
+		checkArgs = append(checkArgs, accountArgs...)
+		if err = s.db.QueryRowContext(ctx, checkQuery, checkArgs...).Scan(&exists); err != nil {
+			return err
+		}
+		if exists {
+			updateQuery := "UPDATE settings SET value=?, data_type=?, category=?, description=?, is_secret=?, updated_by=?, version=version+1 WHERE `key`=? AND scope=? AND " + accountExpr
+			updateArgs := []interface{}{body, setting.DataType, setting.Category, nullOrStringPtr(setting.Description), setting.IsSecret, nullOrStringPtr(setting.UpdatedBy), setting.Key, setting.Scope}
+			updateArgs = append(updateArgs, accountArgs...)
+			_, err = s.db.ExecContext(ctx, updateQuery, updateArgs...)
+		} else {
+			_, err = s.db.ExecContext(ctx, "INSERT INTO settings (`key`, scope, account_id, value, data_type, category, description, is_secret, version, updated_by) "+
+				"VALUES (?,?,?,?,?,?,?,?,1,?)",
+				setting.Key, setting.Scope, accArg, body, setting.DataType, setting.Category, nullOrStringPtr(setting.Description), setting.IsSecret, nullOrStringPtr(setting.UpdatedBy))
+		}
 	}
 	if err != nil {
 		return err
@@ -246,10 +263,11 @@ func (s *Store) UpdateSetting(setting *Setting) error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
+	accountExpr, accountArgs := s.settingAccountWherePtr(setting.Scope, setting.AccountID)
 	query := "UPDATE settings SET value=?, data_type=?, category=?, description=?, is_secret=?, updated_by=?, version=version+1 " +
-		"WHERE `key`=? AND scope=? AND " + s.nullSafeEqualExpr("account_id") + " AND version=?"
+		"WHERE `key`=? AND scope=? AND " + accountExpr + " AND version=?"
 	args := []interface{}{body, setting.DataType, setting.Category, nullOrStringPtr(setting.Description), setting.IsSecret, nullOrStringPtr(setting.UpdatedBy), setting.Key, setting.Scope}
-	args = append(args, s.nullSafeEqualArgs(accountArgPtr(setting.AccountID))...)
+	args = append(args, accountArgs...)
 	args = append(args, setting.Version)
 	res, err := s.db.ExecContext(ctx, query, args...)
 	if err != nil {
@@ -257,7 +275,7 @@ func (s *Store) UpdateSetting(setting *Setting) error {
 	}
 	rows, _ := res.RowsAffected()
 	if rows == 0 {
-		exists, err := s.settingExists(ctx, setting.Key, setting.Scope, accountArgPtr(setting.AccountID))
+		exists, err := s.settingExists(ctx, setting.Key, setting.Scope, deref(setting.AccountID))
 		if err != nil {
 			return err
 		}
@@ -283,9 +301,10 @@ func (s *Store) DeleteSetting(key, scope, accountID string) error {
 	scope = normalizeScope(scope)
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
-	query := "DELETE FROM settings WHERE `key`=? AND scope=? AND " + s.nullSafeEqualExpr("account_id")
+	accountExpr, accountArgs := s.settingAccountWhere(scope, accountID)
+	query := "DELETE FROM settings WHERE `key`=? AND scope=? AND " + accountExpr
 	args := []interface{}{key, scope}
-	args = append(args, s.nullSafeEqualArgs(accountArg(accountID))...)
+	args = append(args, accountArgs...)
 	res, err := s.db.ExecContext(ctx, query, args...)
 	if err != nil {
 		return err
@@ -315,10 +334,11 @@ func (s *Store) BatchUpdateSettings(settings []Setting) error {
 			return fmt.Errorf("marshal setting %s: %w", settings[i].Key, err)
 		}
 		if settings[i].Version > 0 {
+			accountExpr, accountArgs := s.settingAccountWherePtr(settings[i].Scope, settings[i].AccountID)
 			query := "UPDATE settings SET value=?, data_type=?, category=?, description=?, is_secret=?, updated_by=?, version=version+1 " +
-				"WHERE `key`=? AND scope=? AND " + s.nullSafeEqualExpr("account_id") + " AND version=?"
+				"WHERE `key`=? AND scope=? AND " + accountExpr + " AND version=?"
 			args := []interface{}{body, settings[i].DataType, settings[i].Category, nullOrStringPtr(settings[i].Description), settings[i].IsSecret, nullOrStringPtr(settings[i].UpdatedBy), settings[i].Key, settings[i].Scope}
-			args = append(args, s.nullSafeEqualArgs(accountArgPtr(settings[i].AccountID))...)
+			args = append(args, accountArgs...)
 			args = append(args, settings[i].Version)
 			res, err := tx.ExecContext(ctx, query, args...)
 			if err != nil {
@@ -326,7 +346,7 @@ func (s *Store) BatchUpdateSettings(settings []Setting) error {
 				return err
 			}
 			if rows, _ := res.RowsAffected(); rows == 0 {
-				exists, err := s.settingExistsTx(ctx, tx, settings[i].Key, settings[i].Scope, accountArgPtr(settings[i].AccountID))
+				exists, err := s.settingExistsTx(ctx, tx, settings[i].Key, settings[i].Scope, deref(settings[i].AccountID))
 				if err != nil {
 					tx.Rollback()
 					return err
@@ -339,18 +359,27 @@ func (s *Store) BatchUpdateSettings(settings []Setting) error {
 				return ErrVersionConflict
 			}
 		} else {
-			var stmt string
-			if s.IsSQLite() {
-				stmt = "INSERT INTO settings (`key`, scope, account_id, value, data_type, category, description, is_secret, version, updated_by) " +
-					"VALUES (?,?,?,?,?,?,?,?,1,?) " +
-					"ON CONFLICT(`key`, scope, account_id) DO UPDATE SET value=excluded.value, data_type=excluded.data_type, category=excluded.category, description=excluded.description, is_secret=excluded.is_secret, updated_by=excluded.updated_by, version=version+1"
-			} else {
-				stmt = "INSERT INTO settings (`key`, scope, account_id, value, data_type, category, description, is_secret, version, updated_by) " +
-					"VALUES (?,?,?,?,?,?,?,?,1,?) " +
-					"ON DUPLICATE KEY UPDATE value=VALUES(value), data_type=VALUES(data_type), category=VALUES(category), description=VALUES(description), is_secret=VALUES(is_secret), updated_by=VALUES(updated_by), version=version+1"
+			accountExpr, accountArgs := s.settingAccountWherePtr(settings[i].Scope, settings[i].AccountID)
+			accArg := settingAccountInsertArg(settings[i].Scope, settings[i].AccountID)
+			checkQuery := "SELECT EXISTS(SELECT 1 FROM settings WHERE `key`=? AND scope=? AND " + accountExpr + ")"
+			checkArgs := []interface{}{settings[i].Key, settings[i].Scope}
+			checkArgs = append(checkArgs, accountArgs...)
+			var exists bool
+			if err := tx.QueryRowContext(ctx, checkQuery, checkArgs...).Scan(&exists); err != nil {
+				tx.Rollback()
+				return err
 			}
-			if _, err := tx.ExecContext(ctx, stmt,
-				settings[i].Key, settings[i].Scope, accountArgPtr(settings[i].AccountID), body, settings[i].DataType, settings[i].Category, nullOrStringPtr(settings[i].Description), settings[i].IsSecret, nullOrStringPtr(settings[i].UpdatedBy)); err != nil {
+			if exists {
+				updateQuery := "UPDATE settings SET value=?, data_type=?, category=?, description=?, is_secret=?, updated_by=?, version=version+1 WHERE `key`=? AND scope=? AND " + accountExpr
+				updateArgs := []interface{}{body, settings[i].DataType, settings[i].Category, nullOrStringPtr(settings[i].Description), settings[i].IsSecret, nullOrStringPtr(settings[i].UpdatedBy), settings[i].Key, settings[i].Scope}
+				updateArgs = append(updateArgs, accountArgs...)
+				if _, err := tx.ExecContext(ctx, updateQuery, updateArgs...); err != nil {
+					tx.Rollback()
+					return err
+				}
+			} else if _, err := tx.ExecContext(ctx,
+				"INSERT INTO settings (`key`, scope, account_id, value, data_type, category, description, is_secret, version, updated_by) VALUES (?,?,?,?,?,?,?,?,1,?)",
+				settings[i].Key, settings[i].Scope, accArg, body, settings[i].DataType, settings[i].Category, nullOrStringPtr(settings[i].Description), settings[i].IsSecret, nullOrStringPtr(settings[i].UpdatedBy)); err != nil {
 				tx.Rollback()
 				return err
 			}
@@ -428,6 +457,24 @@ func accountArg(accountID string) interface{} {
 	return accountID
 }
 
+func settingAccountInsertArg(scope string, accountID *string) interface{} {
+	if normalizeScope(scope) == "system" {
+		return ""
+	}
+	return accountArgPtr(accountID)
+}
+
+func (s *Store) settingAccountWhere(scope, accountID string) (string, []interface{}) {
+	if normalizeScope(scope) == "system" && accountID == "" {
+		return "(account_id IS NULL OR account_id = '')", nil
+	}
+	return s.nullSafeEqualExpr("account_id"), s.nullSafeEqualArgs(accountArg(accountID))
+}
+
+func (s *Store) settingAccountWherePtr(scope string, accountID *string) (string, []interface{}) {
+	return s.settingAccountWhere(scope, deref(accountID))
+}
+
 func accountArgPtr(accountID *string) interface{} {
 	if accountID == nil {
 		return nil
@@ -477,10 +524,11 @@ func normalizeSetting(s *Setting) {
 	}
 }
 
-func (s *Store) settingExists(ctx context.Context, key, scope string, account interface{}) (bool, error) {
-	query := "SELECT COUNT(1) > 0 FROM settings WHERE `key`=? AND scope=? AND " + s.nullSafeEqualExpr("account_id")
+func (s *Store) settingExists(ctx context.Context, key, scope, accountID string) (bool, error) {
+	accountExpr, accountArgs := s.settingAccountWhere(scope, accountID)
+	query := "SELECT COUNT(1) > 0 FROM settings WHERE `key`=? AND scope=? AND " + accountExpr
 	args := []interface{}{key, scope}
-	args = append(args, s.nullSafeEqualArgs(account)...)
+	args = append(args, accountArgs...)
 	row := s.db.QueryRowContext(ctx, query, args...)
 	var ok bool
 	if err := row.Scan(&ok); err != nil {
@@ -489,10 +537,11 @@ func (s *Store) settingExists(ctx context.Context, key, scope string, account in
 	return ok, nil
 }
 
-func (s *Store) settingExistsTx(ctx context.Context, tx *sql.Tx, key, scope string, account interface{}) (bool, error) {
-	query := "SELECT COUNT(1) > 0 FROM settings WHERE `key`=? AND scope=? AND " + s.nullSafeEqualExpr("account_id")
+func (s *Store) settingExistsTx(ctx context.Context, tx *sql.Tx, key, scope, accountID string) (bool, error) {
+	accountExpr, accountArgs := s.settingAccountWhere(scope, accountID)
+	query := "SELECT COUNT(1) > 0 FROM settings WHERE `key`=? AND scope=? AND " + accountExpr
 	args := []interface{}{key, scope}
-	args = append(args, s.nullSafeEqualArgs(account)...)
+	args = append(args, accountArgs...)
 	row := tx.QueryRowContext(ctx, query, args...)
 	var ok bool
 	if err := row.Scan(&ok); err != nil {

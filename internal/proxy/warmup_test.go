@@ -291,12 +291,12 @@ func TestSelectBestAndActivateWithWarmup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create account: %v", err)
 	}
-	node1, err := srv.addNodeWithMethod(acc, "node1", upstream1.URL, "key1", 1, HealthCheckMethodAPI, "")
+	node1, err := srv.addNodeWithMethod(acc, "node1", upstream1.URL, "key1", 1, HealthCheckMethodAPI, "", nil, "", "", "")
 	if err != nil {
 		t.Fatalf("failed to add node1: %v", err)
 	}
 
-	node2, err := srv.addNodeWithMethod(acc, "node2", upstream2.URL, "key2", 2, HealthCheckMethodAPI, "")
+	node2, err := srv.addNodeWithMethod(acc, "node2", upstream2.URL, "key2", 2, HealthCheckMethodAPI, "", nil, "", "", "")
 	if err != nil {
 		t.Fatalf("failed to add node2: %v", err)
 	}

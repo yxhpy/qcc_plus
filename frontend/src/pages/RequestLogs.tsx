@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Card from '../components/Card'
+import ErrorDetailBlock from '../components/errors/ErrorDetailBlock'
 import RecoveryBadge from '../components/RecoveryBadge'
 import Toast from '../components/Toast'
 import api from '../services/api'
 import type { Account, Node, UsageLog, UsageLogAttempt } from '../types'
+import { summarizeErrorDetail } from '../utils/errorDetail'
 import './RequestLogs.css'
 
 const PAGE_SIZE = 20
@@ -249,12 +251,13 @@ export default function RequestLogs() {
                 <tbody>
                   {logs.map(log => {
                     const hasAttempts = !!(log.attempts && log.attempts.length > 0)
+                    const hasDetails = hasAttempts || !!log.error_msg
                     const isExpanded = expandedRows.has(log.id)
                     return (
                       <ReqLogRow
                         key={log.id}
                         log={log}
-                        hasAttempts={hasAttempts}
+                        hasDetails={hasDetails}
                         isExpanded={isExpanded}
                         onToggle={() => {
                           setExpandedRows(prev => {
@@ -338,7 +341,7 @@ function actionLabel(action?: string): string {
 
 interface ReqLogRowProps {
   log: UsageLog
-  hasAttempts: boolean
+  hasDetails: boolean
   isExpanded: boolean
   onToggle: () => void
   formatDate: (s: string) => string
@@ -347,15 +350,17 @@ interface ReqLogRowProps {
   formatCost: (n: number) => string
 }
 
-function ReqLogRow({ log, hasAttempts, isExpanded, onToggle, formatDate, formatDuration, formatTokens, formatCost }: ReqLogRowProps) {
+function ReqLogRow({ log, hasDetails, isExpanded, onToggle, formatDate, formatDuration, formatTokens, formatCost }: ReqLogRowProps) {
+  const attempts = log.attempts || []
+
   return (
     <>
       <tr
-        className={`${!log.success ? 'failed' : ''} ${hasAttempts ? 'expandable' : ''}`}
-        onClick={hasAttempts ? onToggle : undefined}
+        className={`${!log.success ? 'failed' : ''} ${hasDetails ? 'expandable' : ''}`}
+        onClick={hasDetails ? onToggle : undefined}
       >
         <td className="expand-cell">
-          {hasAttempts && (
+          {hasDetails && (
             <span className={`expand-icon ${isExpanded ? 'expanded' : ''}`}>&#9654;</span>
           )}
         </td>
@@ -371,7 +376,7 @@ function ReqLogRow({ log, hasAttempts, isExpanded, onToggle, formatDate, formatD
             {log.success ? '成功' : '失败'}
           </span>
           {!log.success && log.error_msg && (
-            <span className="error-msg" title={log.error_msg}>{log.error_msg}</span>
+            <span className="error-msg" title={log.error_msg}>{summarizeErrorDetail(log.error_msg)}</span>
           )}
         </td>
         <td className="duration-cell">{formatDuration(log.duration_ms)}</td>
@@ -379,33 +384,47 @@ function ReqLogRow({ log, hasAttempts, isExpanded, onToggle, formatDate, formatD
         <td className="token-cell">{formatTokens(log.output_tokens)}</td>
         <td className="cost-cell">{formatCost(log.cost_usd)}</td>
       </tr>
-      {isExpanded && log.attempts && log.attempts.length > 0 && (
+      {isExpanded && hasDetails && (
         <tr className="attempts-row">
           <td colSpan={9}>
-            <div className="attempts-chain">
-              {log.attempts.map((attempt: UsageLogAttempt, idx: number) => (
-                <div key={attempt.id || idx} className={`attempt-item ${attempt.success ? 'success' : 'failed'}`}>
-                  <div className="attempt-header">
-                    <span className="attempt-seq">#{attempt.seq}</span>
-                    <span className="attempt-node">{attempt.node_name || attempt.node_id}</span>
-                    <span className={`attempt-status ${attempt.success ? 'success' : 'failed'}`}>
-                      {attempt.status_code > 0 ? attempt.status_code : '--'}
-                    </span>
-                    <span className="attempt-duration">{formatDuration(attempt.duration_ms)}</span>
-                    {attempt.action && (
-                      <span className={`attempt-action action-${attempt.action}`}>{actionLabel(attempt.action)}</span>
-                    )}
-                  </div>
-                  {attempt.error_msg && (
-                    <div className="attempt-error">
-                      {attempt.severity && <span className={`severity-tag severity-${attempt.severity}`}>{severityLabel(attempt.severity)}</span>}
-                      <span className="error-text">{attempt.error_msg}</span>
-                    </div>
-                  )}
-                  {idx < log.attempts!.length - 1 && <div className="attempt-connector" />}
+            {log.error_msg && (
+              <div className="reqlog-final-error">
+                <div className="attempt-header">
+                  <span className="attempt-seq">最终结果</span>
+                  <span className={`attempt-status ${log.success ? 'success' : 'failed'}`}>
+                    {log.success ? '成功' : '失败'}
+                  </span>
+                  <span className="attempt-duration">{formatDuration(log.duration_ms)}</span>
                 </div>
-              ))}
-            </div>
+                <ErrorDetailBlock detail={log.error_msg} className="attempt-error-detail" />
+              </div>
+            )}
+            {attempts.length > 0 && (
+              <div className="attempts-chain">
+                {attempts.map((attempt: UsageLogAttempt, idx: number) => (
+                  <div key={attempt.id || idx} className={`attempt-item ${attempt.success ? 'success' : 'failed'}`}>
+                    <div className="attempt-header">
+                      <span className="attempt-seq">#{attempt.seq}</span>
+                      <span className="attempt-node">{attempt.node_name || attempt.node_id}</span>
+                      <span className={`attempt-status ${attempt.success ? 'success' : 'failed'}`}>
+                        {attempt.status_code > 0 ? attempt.status_code : '--'}
+                      </span>
+                      <span className="attempt-duration">{formatDuration(attempt.duration_ms)}</span>
+                      {attempt.action && (
+                        <span className={`attempt-action action-${attempt.action}`}>{actionLabel(attempt.action)}</span>
+                      )}
+                    </div>
+                    {attempt.error_msg && (
+                      <div className="attempt-error">
+                        {attempt.severity && <span className={`severity-tag severity-${attempt.severity}`}>{severityLabel(attempt.severity)}</span>}
+                        <ErrorDetailBlock detail={attempt.error_msg} className="attempt-error-detail" />
+                      </div>
+                    )}
+                    {idx < attempts.length - 1 && <div className="attempt-connector" />}
+                  </div>
+                ))}
+              </div>
+            )}
           </td>
         </tr>
       )}

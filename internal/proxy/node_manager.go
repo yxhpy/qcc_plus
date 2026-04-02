@@ -9,22 +9,52 @@ import (
 	"time"
 
 	"qcc_plus/internal/notify"
-	"qcc_plus/internal/store"
 	"qcc_plus/internal/timeutil"
 )
 
 // 添加新节点（默认账号）。
 func (p *Server) addNode(name, rawURL, apiKey string, weight int) (*Node, error) {
-	return p.addNodeWithMethod(p.defaultAccount, name, rawURL, apiKey, weight, "", "")
+	return p.addNodeWithMethod(p.defaultAccount, name, rawURL, apiKey, weight, "", "", nil, "", "", "")
 }
 
 // 添加指定账号的节点。
 func (p *Server) addNodeToAccount(acc *Account, name, rawURL, apiKey string, weight int) (*Node, error) {
-	return p.addNodeWithMethod(acc, name, rawURL, apiKey, weight, "", "")
+	return p.addNodeWithMethod(acc, name, rawURL, apiKey, weight, "", "", nil, "", "", "")
+}
+
+func (p *Server) addNodeWithMethodAndKeys(acc *Account, name, rawURL, apiKey string, keyItems []NamedAPIKey, weight int, healthMethod string, healthModel string, modelMapping map[string]string, sourceProtocol string, authProfile string, capabilities string) (*Node, error) {
+	normalized := normalizeNamedAPIKeys(keyItems)
+	rawAPIKey := strings.TrimSpace(apiKey)
+	rawConfig := ""
+	if len(normalized) > 0 {
+		rawAPIKey = joinNamedAPIKeys(normalized)
+		rawConfig = encodeNamedAPIKeys(normalized)
+	}
+
+	node, err := p.addNodeWithMethod(acc, name, rawURL, rawAPIKey, weight, healthMethod, healthModel, modelMapping, sourceProtocol, authProfile, capabilities)
+	if err != nil {
+		return nil, err
+	}
+
+	if rawConfig == "" {
+		return node, nil
+	}
+
+	p.mu.Lock()
+	applyNodeKeyState(node, rawAPIKey, rawConfig)
+	p.mu.Unlock()
+
+	if p.store != nil {
+		if err := p.store.UpsertNode(context.Background(), toRecord(node)); err != nil {
+			return nil, err
+		}
+	}
+
+	return node, nil
 }
 
 // 添加指定账号的节点并自定义健康检查方式。
-func (p *Server) addNodeWithMethod(acc *Account, name, rawURL, apiKey string, weight int, healthMethod string, healthModel string, extras ...any) (*Node, error) {
+func (p *Server) addNodeWithMethod(acc *Account, name, rawURL, apiKey string, weight int, healthMethod string, healthModel string, modelMapping map[string]string, sourceProtocol string, authProfile string, capabilities string) (*Node, error) {
 	if acc == nil {
 		return nil, errors.New("account required")
 	}
@@ -45,27 +75,33 @@ func (p *Server) addNodeWithMethod(acc *Account, name, rawURL, apiKey string, we
 	if healthMethod == "" {
 		healthMethod = defaultHealthCheckMethod
 	}
+	protocol := chooseNonEmpty(sourceProtocol, SourceProtocolClaude)
 	healthMethod = normalizeHealthCheckMethod(healthMethod)
-	model := chooseNonEmpty(healthModel, defaultHealthCheckModel)
+	model := effectiveHealthCheckModelForProtocol(protocol, healthModel)
+	if fixedMethod, fixed := protocolFixedHealthCheckMethod(protocol); fixed {
+		healthMethod = fixedMethod
+	}
 	if healthMethodRequiresAPIKey(healthMethod) && apiKey == "" {
 		// CLI/API 探活都需要密钥，缺失时统一降级到 HEAD，保证可用性。
 		p.logger.Printf("health check mode %s requires api key, fallback to head for node %s", healthMethod, name)
 		healthMethod = HealthCheckMethodHEAD
 	}
 	id := fmt.Sprintf("n-%d", time.Now().UnixNano())
-	sourceProtocol := SourceProtocolClaude
-	if len(extras) >= 2 {
-		if v, ok := extras[1].(string); ok && strings.TrimSpace(v) != "" {
-			sourceProtocol = strings.TrimSpace(v)
-		}
+	node := &Node{
+		ID:                id,
+		Name:              name,
+		URL:               u,
+		HealthCheckMethod: healthMethod,
+		HealthCheckModel:  model,
+		ModelMapping:      modelMapping,
+		SourceProtocol:    protocol,
+		AuthProfile:       authProfile,
+		Capabilities:      capabilities,
+		AccountID:         acc.ID,
+		CreatedAt:         time.Now(),
+		Weight:            weight,
 	}
-	node := &Node{ID: id, Name: name, URL: u, APIKey: apiKey, SourceProtocol: sourceProtocol, HealthCheckMethod: healthMethod, HealthCheckModel: model, AccountID: acc.ID, CreatedAt: time.Now(), Weight: weight}
-
-	// 如果 API Key 包含逗号，启用多密钥轮换
-	if strings.Contains(apiKey, ",") {
-		node.APIKeys = NewKeyRotator(apiKey, loadKeyRotatorConfig())
-		node.APIKey = node.APIKeys.GetPrimaryKey()
-	}
+	applyNodeKeyState(node, apiKey, "")
 
 	p.mu.Lock()
 	acc.Nodes[id] = node
@@ -74,14 +110,10 @@ func (p *Server) addNodeWithMethod(acc *Account, name, rawURL, apiKey string, we
 	cur := acc.Nodes[acc.ActiveID]
 	curFailed := cur != nil && (cur.Failed || cur.Disabled)
 	needSwitch := cur == nil || curFailed || node.Weight < cur.Weight
-	var rec store.NodeRecord
-	if p.store != nil {
-		rec = store.NodeRecord{ID: id, Name: name, BaseURL: rawURL, APIKey: apiKey, HealthCheckMethod: healthMethod, HealthCheckModel: model, AccountID: acc.ID, Weight: weight, CreatedAt: node.CreatedAt}
-	}
 	p.mu.Unlock()
 
 	if p.store != nil {
-		_ = p.store.UpsertNode(context.Background(), rec)
+		_ = p.store.UpsertNode(context.Background(), toRecord(node))
 	}
 
 	if p.notifyMgr != nil {
@@ -103,7 +135,11 @@ func (p *Server) addNodeWithMethod(acc *Account, name, rawURL, apiKey string, we
 	return node, nil
 }
 
-func (p *Server) updateNode(id, name, rawURL string, apiKey *string, weight int, healthMethod *string, healthModel *string) error {
+func (p *Server) updateNode(id, name, rawURL string, apiKey *string, weight int, healthMethod *string, healthModel *string, modelMapping *map[string]string, sourceProtocol *string, authProfile *string, capabilities *string) error {
+	return p.updateNodeWithKeys(id, name, rawURL, apiKey, nil, weight, healthMethod, healthModel, modelMapping, sourceProtocol, authProfile, capabilities)
+}
+
+func (p *Server) updateNodeWithKeys(id, name, rawURL string, apiKey *string, apiKeys []NamedAPIKey, weight int, healthMethod *string, healthModel *string, modelMapping *map[string]string, sourceProtocol *string, authProfile *string, capabilities *string) error {
 	if rawURL == "" {
 		return errors.New("base_url required")
 	}
@@ -122,18 +158,41 @@ func (p *Server) updateNode(id, name, rawURL string, apiKey *string, weight int,
 	}
 	oldAPIKey := n.APIKey
 	newAPIKey := oldAPIKey
+	newConfig := n.APIKeyConfig
 	if apiKey != nil {
-		newAPIKey = *apiKey
+		newAPIKey = strings.TrimSpace(*apiKey)
+		newConfig = ""
+	}
+	if apiKeys != nil {
+		normalizedKeys := normalizeNamedAPIKeys(apiKeys)
+		newAPIKey = joinNamedAPIKeys(normalizedKeys)
+		newConfig = encodeNamedAPIKeys(normalizedKeys)
 	}
 	desiredMethod := n.HealthCheckMethod
-	desiredModel := chooseNonEmpty(n.HealthCheckModel, defaultHealthCheckModel)
+	desiredProtocol := chooseNonEmpty(n.SourceProtocol, SourceProtocolClaude)
+	desiredModel := effectiveHealthCheckModelForProtocol(desiredProtocol, n.HealthCheckModel)
+	desiredAuthProfile := n.AuthProfile
+	desiredCapabilities := n.Capabilities
 	if healthMethod != nil {
 		desiredMethod = *healthMethod
 	}
 	if healthModel != nil {
-		desiredModel = chooseNonEmpty(*healthModel, defaultHealthCheckModel)
+		desiredModel = effectiveHealthCheckModelForProtocol(desiredProtocol, *healthModel)
+	}
+	if sourceProtocol != nil {
+		desiredProtocol = chooseNonEmpty(*sourceProtocol, SourceProtocolClaude)
+		desiredModel = effectiveHealthCheckModelForProtocol(desiredProtocol, desiredModel)
+	}
+	if authProfile != nil {
+		desiredAuthProfile = *authProfile
+	}
+	if capabilities != nil {
+		desiredCapabilities = *capabilities
 	}
 	desiredMethod = normalizeHealthCheckMethod(desiredMethod)
+	if fixedMethod, fixed := protocolFixedHealthCheckMethod(desiredProtocol); fixed {
+		desiredMethod = fixedMethod
+	}
 	if healthMethodRequiresAPIKey(desiredMethod) && newAPIKey == "" {
 		// CLI/API 探活需要密钥，缺失时统一降级为 HEAD。
 		p.logger.Printf("health check mode %s requires api key, fallback to head for node %s", desiredMethod, n.Name)
@@ -144,19 +203,15 @@ func (p *Server) updateNode(id, name, rawURL string, apiKey *string, weight int,
 		n.Name = name
 	}
 	n.URL = u
-	n.APIKey = newAPIKey
+	applyNodeKeyState(n, newAPIKey, newConfig)
 	n.Weight = weight
 	n.HealthCheckMethod = desiredMethod
 	n.HealthCheckModel = desiredModel
-
-	// 更新多密钥轮换器
-	if apiKey != nil {
-		if strings.Contains(newAPIKey, ",") {
-			n.APIKeys = NewKeyRotator(newAPIKey, loadKeyRotatorConfig())
-			n.APIKey = n.APIKeys.GetPrimaryKey()
-		} else {
-			n.APIKeys = nil
-		}
+	n.SourceProtocol = desiredProtocol
+	n.AuthProfile = desiredAuthProfile
+	n.Capabilities = desiredCapabilities
+	if modelMapping != nil {
+		n.ModelMapping = *modelMapping
 	}
 
 	acc := p.nodeAccount[id]
@@ -186,6 +241,87 @@ func (p *Server) updateNode(id, name, rawURL string, apiKey *string, weight int,
 		_, _ = p.selectBestAndActivate(acc, "权重调整")
 	}
 	return nil
+}
+
+func (p *Server) copyNode(id string) (*Node, error) {
+	p.mu.RLock()
+	original, ok := p.nodeIndex[id]
+	if !ok {
+		p.mu.RUnlock()
+		return nil, fmt.Errorf("node %s not found", id)
+	}
+	acc := p.nodeAccount[id]
+	if acc == nil {
+		p.mu.RUnlock()
+		return nil, fmt.Errorf("account for node %s not found", id)
+	}
+
+	baseName := strings.TrimSpace(original.Name)
+	if baseName == "" && original.URL != nil {
+		baseName = original.URL.Host
+	}
+	if baseName == "" {
+		baseName = "node"
+	}
+	name := p.nextCopiedNodeNameLocked(acc, baseName+"-copy")
+	nextWeight := 1
+	for _, item := range acc.Nodes {
+		if item.Weight >= nextWeight {
+			nextWeight = item.Weight + 1
+		}
+	}
+	modelMapping := cloneStringMap(original.ModelMapping)
+	rawURL := ""
+	if original.URL != nil {
+		rawURL = original.URL.String()
+	}
+	apiKeys := cloneNamedAPIKeys(original.APIKeyItems)
+	healthMethod := original.HealthCheckMethod
+	healthModel := original.HealthCheckModel
+	sourceProtocol := original.SourceProtocol
+	authProfile := original.AuthProfile
+	capabilities := original.Capabilities
+	p.mu.RUnlock()
+
+	copied, err := p.addNodeWithMethodAndKeys(acc, name, rawURL, original.APIKey, apiKeys, nextWeight, healthMethod, healthModel, modelMapping, sourceProtocol, authProfile, capabilities)
+	if err != nil {
+		return nil, err
+	}
+	if err := p.disableNode(copied.ID); err != nil {
+		return nil, err
+	}
+	return copied, nil
+}
+
+func (p *Server) nextCopiedNodeNameLocked(acc *Account, base string) string {
+	name := strings.TrimSpace(base)
+	if name == "" {
+		name = "node-copy"
+	}
+	exists := make(map[string]struct{}, len(acc.Nodes))
+	for _, node := range acc.Nodes {
+		exists[strings.ToLower(strings.TrimSpace(node.Name))] = struct{}{}
+	}
+	if _, ok := exists[strings.ToLower(name)]; !ok {
+		return name
+	}
+	for idx := 2; ; idx++ {
+		candidate := fmt.Sprintf("%s-%d", name, idx)
+		if _, ok := exists[strings.ToLower(candidate)]; !ok {
+			return candidate
+		}
+	}
+}
+
+func cloneStringMap(src map[string]string) map[string]string {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := make(map[string]string, len(src))
+	for key, value := range src {
+		dst[key] = value
+	}
+	return dst
 }
 
 func (p *Server) deleteNode(id string) error {
@@ -291,21 +427,24 @@ func (p *Server) getActiveNode(acc ...*Account) (*Node, error) {
 // selectHealthyNodeExcluding 选择健康节点，排除 skipNodes
 // 使用 NodeScorer 进行负载均衡选择（支持加权随机、轮询、最少连接等策略）
 // modelID 用于跳过该模型在该节点上失败的节点（模型级别故障感知）
-func (p *Server) selectHealthyNodeExcluding(acc *Account, skipNodes map[string]bool, modelID ...string) *Node {
+func (p *Server) selectHealthyNodeExcluding(acc *Account, skipNodes map[string]bool, modelID string, requiredNodeName string, requiredProtocol string, allowModelFallback bool) *Node {
 	if acc == nil {
 		return nil
 	}
 
-	reqModel := ""
-	if len(modelID) > 0 {
-		reqModel = modelID[0]
-	}
+	reqModel := modelID
 
 	p.mu.RLock()
 	var candidates []*Node
 	var modelFailedCandidates []*Node // 模型失败但节点本身健康的候选（fallback）
 	for id, n := range acc.Nodes {
 		if n.Failed || n.Disabled || p.isInFailedSet(acc, id) {
+			continue
+		}
+		if requiredProtocol != "" && NormalizedSourceProtocol(n.SourceProtocol) != requiredProtocol {
+			continue
+		}
+		if requiredNodeName != "" && n.Name != requiredNodeName {
 			continue
 		}
 		// 检查该模型是否在此节点上失败
@@ -334,8 +473,7 @@ func (p *Server) selectHealthyNodeExcluding(acc *Account, skipNodes map[string]b
 		return bestNode
 	}
 
-	// Fallback：所有节点的该模型都失败了，仍然尝试（总比不发请求好）
-	if len(modelFailedCandidates) > 0 {
+	if allowModelFallback && len(modelFailedCandidates) > 0 {
 		if p.nodeScorer != nil {
 			return p.nodeScorer.SelectNode(modelFailedCandidates, skipNodes)
 		}
@@ -703,6 +841,7 @@ func (p *Server) enableNode(id string) error {
 }
 
 // resolveNodeStatus 根据节点状态返回对应的状态字符串
+// 状态优先级: disabled > offline > degraded > online
 func (p *Server) resolveNodeStatus(n *Node) string {
 	if n == nil {
 		return "unknown"
@@ -712,6 +851,9 @@ func (p *Server) resolveNodeStatus(n *Node) string {
 	}
 	if n.Failed {
 		return "offline"
+	}
+	if p.nodeScorer != nil && p.nodeScorer.IsDegraded(n.ID) {
+		return "degraded"
 	}
 	return "online"
 }

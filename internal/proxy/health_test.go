@@ -7,6 +7,49 @@ import (
 	"time"
 )
 
+func TestBuildHealthProbeURL(t *testing.T) {
+	tests := []struct {
+		name    string
+		baseURL string
+		path    string
+		want    string
+	}{
+		{
+			name:    "base URL already has v1",
+			baseURL: "https://example.com/v1",
+			path:    "/v1/chat/completions",
+			want:    "https://example.com/v1/chat/completions",
+		},
+		{
+			name:    "base URL without v1",
+			baseURL: "https://example.com",
+			path:    "/v1/chat/completions",
+			want:    "https://example.com/v1/chat/completions",
+		},
+		{
+			name:    "base URL has trailing slash after v1",
+			baseURL: "https://example.com/v1/",
+			path:    "/v1/chat/completions",
+			want:    "https://example.com/v1/chat/completions",
+		},
+		{
+			name:    "base URL already has v1beta",
+			baseURL: "https://example.com/v1beta",
+			path:    "/v1beta/models/gemini-2.5-flash:generateContent",
+			want:    "https://example.com/v1beta/models/gemini-2.5-flash:generateContent",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := buildHealthProbeURL(tt.baseURL, tt.path)
+			if got != tt.want {
+				t.Fatalf("buildHealthProbeURL(%q, %q) = %q, want %q", tt.baseURL, tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
 // TestHealthCheck tests node health checking functionality
 func TestHealthCheck(t *testing.T) {
 	// Create a test server that can be controlled

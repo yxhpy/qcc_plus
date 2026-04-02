@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import type { ReactNode } from 'react'
 import { settingsApi, type Setting } from '../services/settingsApi'
+import { useAuth } from '../hooks/useAuth'
 
 interface SettingsContextType {
   settings: Record<string, Setting>
@@ -14,12 +15,22 @@ interface SettingsContextType {
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined)
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
+  const { isAuthenticated, loading: authLoading } = useAuth()
   const [settings, setSettings] = useState<Record<string, Setting>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [version, setVersion] = useState(0)
 
   const refresh = useCallback(async () => {
+    if (!isAuthenticated) {
+      setSettings({})
+      setVersion(0)
+      setError(null)
+      setLoading(false)
+      return
+    }
+
+    setLoading(true)
     try {
       const res = await settingsApi.list({ scope: 'system' })
       const map: Record<string, Setting> = {}
@@ -34,15 +45,17 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [isAuthenticated])
 
-  // 初始加载
   useEffect(() => {
+    // 登录页不预拉系统设置，避免把 unauthenticated 缓存在全局上下文中。
+    if (authLoading) return
     refresh()
-  }, [refresh])
+  }, [authLoading, refresh])
 
-  // 轮询检查版本（30秒）
   useEffect(() => {
+    if (!isAuthenticated) return
+
     const timer = setInterval(async () => {
       try {
         const newVersion = await settingsApi.getVersion()
@@ -54,7 +67,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       }
     }, 30000)
     return () => clearInterval(timer)
-  }, [version, refresh])
+  }, [isAuthenticated, version, refresh])
 
   const updateSetting = async (key: string, value: any): Promise<boolean> => {
     const setting = settings[key]

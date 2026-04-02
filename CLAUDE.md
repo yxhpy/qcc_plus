@@ -2,7 +2,7 @@
 
 ## 元信息
 
-- 当前版本：`v1.9.4`
+- 当前版本：`v1.12.1`
 - GitHub：https://github.com/yxhpy/qcc_plus
 - Docker Hub：https://hub.docker.com/r/yxhpy520/qcc_plus
 - npm：https://www.npmjs.com/package/@qccplus/cli

@@ -351,7 +351,7 @@
 .attempt-error {
   margin-top: 4px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
   font-size: var(--font-size-small);
 }
@@ -391,9 +391,13 @@
   color: var(--color-warning);
 }
 
-.error-text {
-  color: var(--color-text-secondary);
-  word-break: break-all;
+.attempt-error-detail {
+  flex: 1;
+  min-width: 0;
+}
+
+.reqlog-final-error {
+  margin-bottom: 12px;
 }
 
 .attempt-connector {

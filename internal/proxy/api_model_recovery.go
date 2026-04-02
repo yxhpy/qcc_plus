@@ -12,16 +12,17 @@ import (
 
 // ModelRecoveryItem 模型恢复状态的 API 响应项。
 type ModelRecoveryItem struct {
-	NodeID       string  `json:"node_id"`
-	NodeName     string  `json:"node_name"`
-	ModelID      string  `json:"model_id"`
-	AccountID    string  `json:"account_id"`
-	Error        string  `json:"error"`
-	FailedAt     string  `json:"failed_at"`
-	OfflineSec   float64 `json:"offline_sec"`
-	OfflineHuman string  `json:"offline_human"`
-	LastCheck    string  `json:"last_check,omitempty"`
-	CheckCount   int     `json:"check_count"`
+	NodeID         string  `json:"node_id"`
+	NodeName       string  `json:"node_name"`
+	ModelID        string  `json:"model_id"`
+	AccountID      string  `json:"account_id"`
+	Error          string  `json:"error"`
+	FailedAt       string  `json:"failed_at"`
+	OfflineSec     float64 `json:"offline_sec"`
+	OfflineHuman   string  `json:"offline_human"`
+	LastCheck      string  `json:"last_check,omitempty"`
+	CheckCount     int     `json:"check_count"`
+	NonRecoverable bool    `json:"non_recoverable"`
 }
 
 // ModelRecoveryResponse 模型恢复状态 API 响应。
@@ -63,23 +64,26 @@ func (p *Server) handleModelRecovery(w http.ResponseWriter, r *http.Request) {
 	for _, fm := range failedModels {
 		// 查找节点名称
 		nodeName := fm.NodeID
+		errorDetail := fm.Error
 		p.mu.RLock()
 		if node := p.nodeIndex[fm.NodeID]; node != nil {
 			nodeName = node.Name
+			errorDetail = preferDetailedError(errorDetail, node.LastError)
 		}
 		p.mu.RUnlock()
 
 		offlineDur := fm.OfflineDuration()
 		item := ModelRecoveryItem{
-			NodeID:       fm.NodeID,
-			NodeName:     nodeName,
-			ModelID:      fm.ModelID,
-			AccountID:    fm.AccountID,
-			Error:        fm.Error,
-			FailedAt:     timeutil.FormatBeijingTime(fm.FailedAt),
-			OfflineSec:   math.Round(offlineDur.Seconds()*10) / 10,
-			OfflineHuman: formatDuration(offlineDur),
-			CheckCount:   fm.CheckCount,
+			NodeID:         fm.NodeID,
+			NodeName:       nodeName,
+			ModelID:        fm.ModelID,
+			AccountID:      fm.AccountID,
+			Error:          errorDetail,
+			FailedAt:       timeutil.FormatBeijingTime(fm.FailedAt),
+			OfflineSec:     math.Round(offlineDur.Seconds()*10) / 10,
+			OfflineHuman:   formatDuration(offlineDur),
+			CheckCount:     fm.CheckCount,
+			NonRecoverable: fm.NonRecoverable,
 		}
 		if !fm.LastCheck.IsZero() {
 			item.LastCheck = timeutil.FormatBeijingTime(fm.LastCheck)
@@ -118,6 +122,30 @@ func (p *Server) handleModelRecoveryDismiss(w http.ResponseWriter, r *http.Reque
 		p.logger.Printf("[model-recovery] manually dismissed model %s on node %s", modelID, nodeID)
 	}
 
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// handleModelRecoverySetNonRecoverable 设置某个恢复项是否不可恢复。
+func (p *Server) handleModelRecoverySetNonRecoverable(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+		return
+	}
+
+	nodeID := r.URL.Query().Get("node_id")
+	modelID := r.URL.Query().Get("model_id")
+	value := r.URL.Query().Get("value")
+	if nodeID == "" || modelID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "node_id and model_id required"})
+		return
+	}
+	nonRecoverable := value == "1" || value == "true"
+	if p.modelRecovery != nil {
+		p.modelRecovery.SetNonRecoverable(nodeID, modelID, nonRecoverable)
+		if p.store != nil {
+			_ = p.store.SetFailedModelNonRecoverable(r.Context(), nodeID, modelID, nonRecoverable)
+		}
+	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 

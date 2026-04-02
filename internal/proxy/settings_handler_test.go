@@ -163,6 +163,56 @@ func TestSettingsHandler_ListSettings(t *testing.T) {
 	}
 }
 
+func TestSettingsHandler_GetRuntimeDefinitions(t *testing.T) {
+	handler := &SettingsHandler{}
+
+	tests := []struct {
+		name       string
+		isAdmin    bool
+		wantStatus int
+	}{
+		{
+			name:       "admin can list runtime definitions",
+			isAdmin:    true,
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "non-admin forbidden",
+			isAdmin:    false,
+			wantStatus: http.StatusForbidden,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/api/settings/runtime-definitions", nil)
+			if tt.isAdmin {
+				req = req.WithContext(context.WithValue(req.Context(), isAdminContextKey{}, true))
+			}
+			w := httptest.NewRecorder()
+
+			handler.GetRuntimeDefinitions(w, req)
+
+			if w.Code != tt.wantStatus {
+				t.Fatalf("status = %d, want %d", w.Code, tt.wantStatus)
+			}
+			if tt.wantStatus != http.StatusOK {
+				return
+			}
+
+			var payload struct {
+				Data []RuntimeSettingDefinition `json:"data"`
+			}
+			if err := json.NewDecoder(w.Body).Decode(&payload); err != nil {
+				t.Fatalf("decode response: %v", err)
+			}
+			if len(payload.Data) == 0 {
+				t.Fatal("expected runtime setting definitions")
+			}
+		})
+	}
+}
+
 func TestSettingsHandler_GetSetting(t *testing.T) {
 	mockStore := newMockSettingsStore()
 	mockStore.settings["test:system:"] = &store.Setting{

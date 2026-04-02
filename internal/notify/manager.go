@@ -114,6 +114,16 @@ func (m *Manager) Publish(evt Event) {
 		evt.OccurredAt = time.Now()
 	}
 	select {
+	case <-m.stopped:
+		return
+	default:
+	}
+	defer func() {
+		if recover() != nil {
+			m.logf("notify manager stopped, drop event %s for account %s", evt.EventType, evt.AccountID)
+		}
+	}()
+	select {
 	case m.queue <- evt:
 	default:
 		m.logf("notify queue full, drop event %s for account %s", evt.EventType, evt.AccountID)
@@ -126,9 +136,9 @@ func (m *Manager) Stop() {
 		return
 	}
 	m.stopOnce.Do(func() {
+		close(m.stopped)
 		close(m.queue)
 		m.wg.Wait()
-		close(m.stopped)
 	})
 }
 

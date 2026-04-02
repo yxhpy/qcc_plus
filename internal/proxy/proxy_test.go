@@ -25,12 +25,19 @@ func buildServerNoWarmup(t *testing.T, b *Builder) *Server {
 	tmpDB := tmpDir + "/test.db"
 	// Set PROXY_SQLITE_PATH to override default path
 	oldPath := os.Getenv("PROXY_SQLITE_PATH")
+	oldSkipTunnel := os.Getenv("QCC_SKIP_TUNNEL_AUTOSTART")
 	os.Setenv("PROXY_SQLITE_PATH", tmpDB)
+	os.Setenv("QCC_SKIP_TUNNEL_AUTOSTART", "1")
 	t.Cleanup(func() {
 		if oldPath != "" {
 			os.Setenv("PROXY_SQLITE_PATH", oldPath)
 		} else {
 			os.Unsetenv("PROXY_SQLITE_PATH")
+		}
+		if oldSkipTunnel != "" {
+			os.Setenv("QCC_SKIP_TUNNEL_AUTOSTART", oldSkipTunnel)
+		} else {
+			os.Unsetenv("QCC_SKIP_TUNNEL_AUTOSTART")
 		}
 	})
 
@@ -39,7 +46,11 @@ func buildServerNoWarmup(t *testing.T, b *Builder) *Server {
 		t.Fatalf("build proxy: %v", err)
 	}
 	srv.warmupConfig.Enabled = false
-	// Ensure store is closed before TempDir cleanup to release SQLite file locks
+	// Stop background watchers before closing SQLite so temp dirs can be removed cleanly.
+	t.Cleanup(func() {
+		srv.Stop()
+	})
+	// Ensure store is closed before TempDir cleanup to release SQLite file locks.
 	t.Cleanup(func() {
 		if srv.store != nil {
 			srv.store.Close()
@@ -323,6 +334,57 @@ func TestHandleConfigGetAndPut(t *testing.T) {
 	}
 }
 
+func TestSyncDefaultAccountConfigToSettings(t *testing.T) {
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer up.Close()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer listener.Close()
+
+	srv := buildServerNoWarmup(t, NewBuilder().
+		WithUpstream(up.URL).
+		WithRetry(2).
+		WithFailLimit(2).
+		WithHealthEvery(5*time.Second).
+		WithListenAddr(listener.Addr().String()))
+
+	if srv.settingsCache == nil {
+		t.Fatal("settings cache should be initialized")
+	}
+	if err := srv.syncDefaultAccountConfigToSettings(4, 5, 9*time.Second); err != nil {
+		t.Fatalf("sync settings: %v", err)
+	}
+
+	retrySetting, err := srv.store.GetSetting("proxy.retry_max", "system", "")
+	if err != nil {
+		t.Fatalf("get proxy.retry_max: %v", err)
+	}
+	if retrySetting == nil {
+		t.Fatal("proxy.retry_max setting should exist")
+	}
+	retryValue, ok := parseRuntimeSettingInt(retrySetting.Value)
+	if !ok || retryValue != 4 {
+		t.Fatalf("unexpected proxy.retry_max setting: %+v", retrySetting)
+	}
+
+	healthSetting, err := srv.store.GetSetting("health.check_interval_sec", "system", "")
+	if err != nil {
+		t.Fatalf("get health.check_interval_sec: %v", err)
+	}
+	if healthSetting == nil {
+		t.Fatal("health.check_interval_sec setting should exist")
+	}
+	healthValue, ok := parseRuntimeSettingInt(healthSetting.Value)
+	if !ok || healthValue != 9 {
+		t.Fatalf("unexpected health.check_interval_sec setting: %+v", healthSetting)
+	}
+}
+
 func TestAutoFailoverByWeight(t *testing.T) {
 	upA := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -389,6 +451,617 @@ func TestAutoFailoverByWeight(t *testing.T) {
 	}
 	_ = defaultNode // avoid unused variable error
 	_ = backupNode  // avoid unused variable error
+}
+
+func TestMessagesRoute_TraverseAllNodesByPriority(t *testing.T) {
+	triesA := 0
+	upA := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		triesA++
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer upA.Close()
+
+	triesB := 0
+	upB := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		triesB++
+		w.WriteHeader(http.StatusBadGateway)
+	}))
+	defer upB.Close()
+
+	triesC := 0
+	upC := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		triesC++
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"content":[{"text":"ok-from-c"}]}`))
+	}))
+	defer upC.Close()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer listener.Close()
+
+	srv := buildServerNoWarmup(t, NewBuilder().
+		WithUpstream(upA.URL).
+		WithRetry(1).
+		WithFailLimit(10).
+		WithListenAddr(listener.Addr().String()))
+
+	acc, err := srv.createAccount("test-account", "client-key", "test123", false)
+	if err != nil {
+		t.Fatalf("create account: %v", err)
+	}
+	if _, err := srv.addNodeToAccount(acc, "node-a", upA.URL, "", 1); err != nil {
+		t.Fatalf("add node-a: %v", err)
+	}
+	if _, err := srv.addNodeToAccount(acc, "node-b", upB.URL, "", 2); err != nil {
+		t.Fatalf("add node-b: %v", err)
+	}
+	if _, err := srv.addNodeToAccount(acc, "node-c", upC.URL, "", 3); err != nil {
+		t.Fatalf("add node-c: %v", err)
+	}
+
+	go http.Serve(listener, srv.Handler())
+
+	req, _ := http.NewRequest(http.MethodPost, "http://"+listener.Addr().String()+"/v1/messages", strings.NewReader(`{"model":"claude-sonnet-4-5","messages":[{"role":"user","content":"hi"}],"max_tokens":16}`))
+	req.Header.Set("x-api-key", "client-key")
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("request through proxy: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 after traversing nodes, got %d body=%s", resp.StatusCode, string(body))
+	}
+	if triesA < 1 || triesB < 1 || triesC < 1 {
+		t.Fatalf("expected all priority nodes to be traversed before success, got A=%d B=%d C=%d", triesA, triesB, triesC)
+	}
+}
+
+func TestStrictRouteOpenAINodeUsesChatCompletions(t *testing.T) {
+	gotPath := ""
+	gotModel := ""
+	targetModel := "gpt-test-codex-model"
+	strictModel := "rc-codex/" + targetModel
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		var payload map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&payload)
+		if model, ok := payload["model"].(string); ok {
+			gotModel = model
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"chatcmpl-1","object":"chat.completion","created":1,"model":"` + targetModel + `","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`))
+	}))
+	defer up.Close()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer listener.Close()
+
+	srv := buildServerNoWarmup(t, NewBuilder().
+		WithUpstream(up.URL).
+		WithRetry(1).
+		WithListenAddr(listener.Addr().String()))
+
+	acc, err := srv.createAccount("test-account", "client-key", "test123", false)
+	if err != nil {
+		t.Fatalf("create account: %v", err)
+	}
+	if _, err := srv.addNodeWithMethod(acc, "rc-codex", up.URL, "", 1, HealthCheckMethodAPI, "", nil, SourceProtocolOpenAI, "", ""); err != nil {
+		t.Fatalf("add rc-codex: %v", err)
+	}
+
+	go http.Serve(listener, srv.Handler())
+
+	body := `{"model":"` + strictModel + `","messages":[{"role":"user","content":"hi"}],"max_tokens":16}`
+	req, _ := http.NewRequest(http.MethodPost, "http://"+listener.Addr().String()+"/v1/messages", strings.NewReader(body))
+	req.Header.Set("x-api-key", "client-key")
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("request through proxy: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 200, got %d body=%s", resp.StatusCode, string(b))
+	}
+	if gotPath != "/v1/chat/completions" {
+		t.Fatalf("expected strict openai path /v1/chat/completions, got %s", gotPath)
+	}
+	if gotModel != targetModel {
+		t.Fatalf("expected strict model rewritten to %s, got %s", targetModel, gotModel)
+	}
+}
+
+func TestStrictRouteGeminiNodeUsesGenerateContent(t *testing.T) {
+	gotPath := ""
+	gotModel := ""
+	targetModel := "gemini-2.5-pro"
+	strictModel := "rc-gemini/" + targetModel
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		var payload map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&payload)
+		if model, ok := payload["model"].(string); ok {
+			gotModel = model
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"candidates":[{"content":{"parts":[{"text":"ok"}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":1,"candidatesTokenCount":1,"totalTokenCount":2}}`))
+	}))
+	defer up.Close()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer listener.Close()
+
+	srv := buildServerNoWarmup(t, NewBuilder().
+		WithUpstream(up.URL).
+		WithRetry(1).
+		WithListenAddr(listener.Addr().String()))
+
+	acc, err := srv.createAccount("test-account", "client-key", "test123", false)
+	if err != nil {
+		t.Fatalf("create account: %v", err)
+	}
+	if _, err := srv.addNodeWithMethod(acc, "rc-gemini", up.URL, "", 1, HealthCheckMethodAPI, "", nil, SourceProtocolGemini, "", ""); err != nil {
+		t.Fatalf("add rc-gemini: %v", err)
+	}
+
+	go http.Serve(listener, srv.Handler())
+
+	body := `{"model":"` + strictModel + `","messages":[{"role":"user","content":"hi"}],"max_tokens":16}`
+	req, _ := http.NewRequest(http.MethodPost, "http://"+listener.Addr().String()+"/v1/messages", strings.NewReader(body))
+	req.Header.Set("x-api-key", "client-key")
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("request through proxy: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 200, got %d body=%s", resp.StatusCode, string(b))
+	}
+	if gotPath != "/v1beta/models/"+targetModel+":generateContent" {
+		t.Fatalf("expected strict gemini path with model, got %s", gotPath)
+	}
+	if gotModel != targetModel {
+		t.Fatalf("expected strict model rewritten to %s, got %s", targetModel, gotModel)
+	}
+}
+
+func TestStrictRouteBypassesOpenCircuitBreaker(t *testing.T) {
+	hits := 0
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"chatcmpl-1","object":"chat.completion","created":1,"model":"gpt-test-cb","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`))
+	}))
+	defer up.Close()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer listener.Close()
+
+	srv := buildServerNoWarmup(t, NewBuilder().
+		WithUpstream(up.URL).
+		WithRetry(1).
+		WithListenAddr(listener.Addr().String()))
+
+	acc, err := srv.createAccount("test-account", "client-key", "test123", false)
+	if err != nil {
+		t.Fatalf("create account: %v", err)
+	}
+	node, err := srv.addNodeWithMethod(acc, "rc-codex", up.URL, "", 1, HealthCheckMethodAPI, "", nil, SourceProtocolOpenAI, "", "")
+	if err != nil {
+		t.Fatalf("add rc-codex: %v", err)
+	}
+
+	cb := srv.getOrCreateCircuitBreaker(node.ID)
+	for i := 0; i < cb.config.ConsecutiveFails; i++ {
+		cb.RecordResult(false)
+	}
+	if cb.GetState() != StateOpen {
+		t.Fatalf("expected circuit breaker open, got %s", cb.GetState().String())
+	}
+
+	go http.Serve(listener, srv.Handler())
+
+	body := `{"model":"rc-codex/gpt-test-cb","messages":[{"role":"user","content":"hi"}],"max_tokens":16}`
+	req, _ := http.NewRequest(http.MethodPost, "http://"+listener.Addr().String()+"/v1/messages", strings.NewReader(body))
+	req.Header.Set("x-api-key", "client-key")
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("request through proxy: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 200 with strict bypass on open CB, got %d body=%s", resp.StatusCode, string(b))
+	}
+	if hits < 1 {
+		t.Fatalf("expected upstream to be called despite open CB")
+	}
+}
+
+func TestClaudeIngressRejectsOpenAINodesWithoutClaudeNode(t *testing.T) {
+	gotPath := ""
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"chatcmpl-1","object":"chat.completion","created":1,"model":"gpt-5.3-codex","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`))
+	}))
+	defer up.Close()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer listener.Close()
+
+	srv := buildServerNoWarmup(t, NewBuilder().
+		WithUpstream(up.URL).
+		WithRetry(1).
+		WithListenAddr(listener.Addr().String()))
+
+	acc, err := srv.createAccount("test-account", "client-key", "test123", false)
+	if err != nil {
+		t.Fatalf("create account: %v", err)
+	}
+	if _, err := srv.addNodeWithMethod(acc, "rc-codex", up.URL, "", 1, HealthCheckMethodAPI, "", nil, SourceProtocolOpenAI, "", ""); err != nil {
+		t.Fatalf("add rc-codex: %v", err)
+	}
+
+	go http.Serve(listener, srv.Handler())
+
+	body := `{"model":"gpt-5.3-codex","messages":[{"role":"user","content":"hi"}],"max_tokens":16}`
+	req, _ := http.NewRequest(http.MethodPost, "http://"+listener.Addr().String()+"/v1/messages", strings.NewReader(body))
+	req.Header.Set("x-api-key", "client-key")
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("request through proxy: %v", err)
+	}
+	defer resp.Body.Close()
+
+	b, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(b), `"type":"service_unavailable"`) {
+		t.Fatalf("expected service_unavailable error when only openai node exists for claude ingress, got status=%d body=%s", resp.StatusCode, string(b))
+	}
+	if gotPath != "" {
+		t.Fatalf("expected upstream not called when protocol mismatched, got path %s", gotPath)
+	}
+}
+
+func TestClaudeIngressUsesClaudeNodeWhenMixedProtocolsExist(t *testing.T) {
+	gotPaths := make([]string, 0, 2)
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPaths = append(gotPaths, r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"msg-1","type":"message","role":"assistant","content":[{"type":"text","text":"ok"}]}`))
+	}))
+	defer up.Close()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer listener.Close()
+
+	srv := buildServerNoWarmup(t, NewBuilder().
+		WithUpstream(up.URL).
+		WithRetry(1).
+		WithListenAddr(listener.Addr().String()))
+
+	acc, err := srv.createAccount("test-account", "client-key", "test123", false)
+	if err != nil {
+		t.Fatalf("create account: %v", err)
+	}
+	if _, err := srv.addNodeWithMethod(acc, "openai-node", up.URL, "", 10, HealthCheckMethodAPI, "", nil, SourceProtocolOpenAI, "", ""); err != nil {
+		t.Fatalf("add openai node: %v", err)
+	}
+	if _, err := srv.addNodeWithMethod(acc, "claude-node", up.URL, "", 1, HealthCheckMethodAPI, "", nil, SourceProtocolClaude, "", ""); err != nil {
+		t.Fatalf("add claude node: %v", err)
+	}
+
+	go http.Serve(listener, srv.Handler())
+
+	body := `{"model":"claude-sonnet-4-5","messages":[{"role":"user","content":"hi"}],"max_tokens":16}`
+	req, _ := http.NewRequest(http.MethodPost, "http://"+listener.Addr().String()+"/v1/messages", strings.NewReader(body))
+	req.Header.Set("x-api-key", "client-key")
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("request through proxy: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 200 with claude node available, got %d body=%s", resp.StatusCode, string(b))
+	}
+	if len(gotPaths) != 1 || gotPaths[0] != "/v1/messages" {
+		t.Fatalf("expected claude ingress to keep /v1/messages path, got %v", gotPaths)
+	}
+}
+
+func TestOpenAIIngressPathIsAcceptedAndForwardedAsChatCompletions(t *testing.T) {
+	gotPath := ""
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"chatcmpl-1","object":"chat.completion","created":1,"model":"gpt-5.3-codex","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`))
+	}))
+	defer up.Close()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer listener.Close()
+
+	srv := buildServerNoWarmup(t, NewBuilder().
+		WithUpstream(up.URL).
+		WithRetry(1).
+		WithListenAddr(listener.Addr().String()))
+
+	acc, err := srv.createAccount("test-account", "client-key", "test123", false)
+	if err != nil {
+		t.Fatalf("create account: %v", err)
+	}
+	if _, err := srv.addNodeWithMethod(acc, "openai-node", up.URL, "", 1, HealthCheckMethodAPI, "", nil, SourceProtocolOpenAI, "", ""); err != nil {
+		t.Fatalf("add openai node: %v", err)
+	}
+
+	go http.Serve(listener, srv.Handler())
+
+	body := `{"model":"gpt-5.3-codex","messages":[{"role":"user","content":"hi"}],"max_tokens":16}`
+	req, _ := http.NewRequest(http.MethodPost, "http://"+listener.Addr().String()+"/openai/v1/chat/completions", strings.NewReader(body))
+	req.Header.Set("x-api-key", "client-key")
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("request through proxy: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 200, got %d body=%s", resp.StatusCode, string(b))
+	}
+	if gotPath != "/v1/chat/completions" {
+		t.Fatalf("expected upstream path /v1/chat/completions, got %s", gotPath)
+	}
+}
+
+func TestOpenAIV1PathIsAcceptedDirectlyAndRespectsBaseURL(t *testing.T) {
+	gotPath := ""
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"chatcmpl-1","object":"chat.completion","created":1,"model":"gpt-5.1-codex-mini","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`))
+	}))
+	defer up.Close()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer listener.Close()
+
+	srv := buildServerNoWarmup(t, NewBuilder().
+		WithUpstream(up.URL).
+		WithRetry(1).
+		WithListenAddr(listener.Addr().String()))
+
+	acc, err := srv.createAccount("test-account", "client-key", "test123", false)
+	if err != nil {
+		t.Fatalf("create account: %v", err)
+	}
+	if _, err := srv.addNodeWithMethod(acc, "openai-node", up.URL+"/v1", "", 1, HealthCheckMethodAPI, "", nil, SourceProtocolOpenAI, "", ""); err != nil {
+		t.Fatalf("add openai node: %v", err)
+	}
+
+	go http.Serve(listener, srv.Handler())
+
+	body := `{"model":"gpt-5.1-codex-mini","messages":[{"role":"user","content":"hi"}],"max_tokens":16}`
+	req, _ := http.NewRequest(http.MethodPost, "http://"+listener.Addr().String()+"/v1/chat/completions", strings.NewReader(body))
+	req.Header.Set("x-api-key", "client-key")
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("request through proxy: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 200, got %d body=%s", resp.StatusCode, string(b))
+	}
+	if gotPath != "/v1/chat/completions" {
+		t.Fatalf("expected upstream path /v1/chat/completions, got %s", gotPath)
+	}
+}
+
+func TestOpenAIResponsesIngressPathIsAcceptedAndForwarded(t *testing.T) {
+	gotPath := ""
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"resp_1","object":"response","model":"gpt-5.1-codex-mini","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"ok"}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`))
+	}))
+	defer up.Close()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer listener.Close()
+
+	srv := buildServerNoWarmup(t, NewBuilder().
+		WithUpstream(up.URL).
+		WithRetry(1).
+		WithListenAddr(listener.Addr().String()))
+
+	acc, err := srv.createAccount("test-account", "client-key", "test123", false)
+	if err != nil {
+		t.Fatalf("create account: %v", err)
+	}
+	if _, err := srv.addNodeWithMethod(acc, "openai-node", up.URL+"/v1", "", 1, HealthCheckMethodAPI, "", nil, SourceProtocolOpenAI, "", ""); err != nil {
+		t.Fatalf("add openai node: %v", err)
+	}
+
+	go http.Serve(listener, srv.Handler())
+
+	body := `{"model":"gpt-5.1-codex-mini","input":"hi"}`
+	req, _ := http.NewRequest(http.MethodPost, "http://"+listener.Addr().String()+"/v1/responses", strings.NewReader(body))
+	req.Header.Set("x-api-key", "client-key")
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("request through proxy: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 200, got %d body=%s", resp.StatusCode, string(b))
+	}
+	if gotPath != "/v1/responses" {
+		t.Fatalf("expected upstream path /v1/responses, got %s", gotPath)
+	}
+}
+
+func TestGeminiIngressPathIsAcceptedAndForwardedAsGenerateContent(t *testing.T) {
+	gotPath := ""
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"candidates":[{"content":{"parts":[{"text":"ok"}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":1,"candidatesTokenCount":1,"totalTokenCount":2}}`))
+	}))
+	defer up.Close()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer listener.Close()
+
+	srv := buildServerNoWarmup(t, NewBuilder().
+		WithUpstream(up.URL).
+		WithRetry(1).
+		WithListenAddr(listener.Addr().String()))
+
+	acc, err := srv.createAccount("test-account", "client-key", "test123", false)
+	if err != nil {
+		t.Fatalf("create account: %v", err)
+	}
+	if _, err := srv.addNodeWithMethod(acc, "gemini-node", up.URL, "", 1, HealthCheckMethodAPI, "", nil, SourceProtocolGemini, "", ""); err != nil {
+		t.Fatalf("add gemini node: %v", err)
+	}
+
+	go http.Serve(listener, srv.Handler())
+
+	body := `{"model":"gemini-2.5-flash","messages":[{"role":"user","content":"hi"}],"max_tokens":16}`
+	req, _ := http.NewRequest(http.MethodPost, "http://"+listener.Addr().String()+"/gemini/v1beta/models/gemini-2.5-flash:generateContent", strings.NewReader(body))
+	req.Header.Set("x-api-key", "client-key")
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("request through proxy: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 200, got %d body=%s", resp.StatusCode, string(b))
+	}
+	if gotPath != "/v1beta/models/gemini-2.5-flash:generateContent" {
+		t.Fatalf("expected upstream gemini generateContent path, got %s", gotPath)
+	}
+}
+
+func TestGeminiV1BetaPathIsAcceptedDirectlyAndRespectsBaseURL(t *testing.T) {
+	gotPath := ""
+	gotQuery := ""
+	gotGoogKey := ""
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotQuery = r.URL.RawQuery
+		gotGoogKey = r.Header.Get("x-goog-api-key")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"candidates":[{"content":{"parts":[{"text":"ok"}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":1,"candidatesTokenCount":1,"totalTokenCount":2}}`))
+	}))
+	defer up.Close()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer listener.Close()
+
+	srv := buildServerNoWarmup(t, NewBuilder().
+		WithUpstream(up.URL).
+		WithRetry(1).
+		WithListenAddr(listener.Addr().String()))
+
+	acc, err := srv.createAccount("test-account", "client-key", "test123", false)
+	if err != nil {
+		t.Fatalf("create account: %v", err)
+	}
+	if _, err := srv.addNodeWithMethod(acc, "gemini-node", up.URL+"/v1beta", "upstream-gemini-key", 1, HealthCheckMethodAPI, "", nil, SourceProtocolGemini, "", ""); err != nil {
+		t.Fatalf("add gemini node: %v", err)
+	}
+
+	go http.Serve(listener, srv.Handler())
+
+	req, _ := http.NewRequest(http.MethodPost, "http://"+listener.Addr().String()+"/v1beta/models/gemini-2.5-flash:generateContent?key=client-key", strings.NewReader(`{"contents":[{"role":"user","parts":[{"text":"hi"}]}]}`))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("request through proxy: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 200, got %d body=%s", resp.StatusCode, string(b))
+	}
+	if gotPath != "/v1beta/models/gemini-2.5-flash:generateContent" {
+		t.Fatalf("expected upstream gemini generateContent path, got %s", gotPath)
+	}
+	if gotQuery != "" {
+		t.Fatalf("expected proxy auth query to be stripped before upstream, got %q", gotQuery)
+	}
+	if gotGoogKey != "upstream-gemini-key" {
+		t.Fatalf("expected upstream x-goog-api-key, got %q", gotGoogKey)
+	}
 }
 
 func TestParseUsageFromSSE(t *testing.T) {
@@ -786,5 +1459,138 @@ func TestNodeRecoveryAutoSwitch(t *testing.T) {
 	srv.mu.RUnlock()
 	if activeID != node2.ID {
 		t.Errorf("expected node2 to be active after node1 fails, got %s", activeID)
+	}
+}
+
+func TestExtractAPIKeySupportsBearerCaseInsensitive(t *testing.T) {
+	t.Run("x-api-key takes precedence", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/v1/messages", nil)
+		req.Header.Set("x-api-key", "proxy-key")
+		req.Header.Set("Authorization", "Bearer ignored-token")
+		if got := extractAPIKey(req); got != "proxy-key" {
+			t.Fatalf("expected x-api-key precedence, got %q", got)
+		}
+	})
+
+	t.Run("authorization bearer case insensitive", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/v1/messages", nil)
+		req.Header.Set("Authorization", "bearer token-123")
+		if got := extractAPIKey(req); got != "token-123" {
+			t.Fatalf("expected bearer token, got %q", got)
+		}
+	})
+
+	t.Run("gemini header is accepted", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/v1beta/models/gemini-2.5-flash:generateContent", nil)
+		req.Header.Set("x-goog-api-key", "gemini-proxy-key")
+		if got := extractAPIKey(req); got != "gemini-proxy-key" {
+			t.Fatalf("expected x-goog-api-key, got %q", got)
+		}
+	})
+
+	t.Run("gemini query key is accepted", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/v1beta/models/gemini-2.5-flash:generateContent?key=query-proxy-key", nil)
+		if got := extractAPIKey(req); got != "query-proxy-key" {
+			t.Fatalf("expected query key, got %q", got)
+		}
+	})
+}
+
+func TestOpenAIModelsEndpoint(t *testing.T) {
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer up.Close()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer listener.Close()
+
+	srv := buildServerNoWarmup(t, NewBuilder().
+		WithUpstream(up.URL).
+		WithListenAddr(listener.Addr().String()))
+
+	acc, err := srv.createAccount("models-account", "models-proxy-key", "test123", false)
+	if err != nil {
+		t.Fatalf("create account: %v", err)
+	}
+
+	_, err = srv.addNodeWithMethod(
+		acc,
+		"models-node",
+		up.URL,
+		"",
+		1,
+		HealthCheckMethodHEAD,
+		"claude-haiku-4-5-20251001",
+		map[string]string{
+			"gpt-4o-mini":      "claude-sonnet-4-5-20250929",
+			"gemini-2.5-flash": "claude-3-5-haiku-20241022",
+		},
+		"claude",
+		"",
+		"",
+	)
+	if err != nil {
+		t.Fatalf("add node with mapping: %v", err)
+	}
+
+	go http.Serve(listener, srv.Handler())
+
+	req, _ := http.NewRequest(http.MethodGet, "http://"+listener.Addr().String()+"/v1/models", nil)
+	req.Header.Set("Authorization", "Bearer models-proxy-key")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("request /v1/models: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected status 200, got %d body=%s", resp.StatusCode, string(body))
+	}
+
+	var payload struct {
+		Object string `json:"object"`
+		Data   []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if payload.Object != "list" {
+		t.Fatalf("expected object=list, got %q", payload.Object)
+	}
+
+	gotIDs := make(map[string]struct{}, len(payload.Data))
+	for _, m := range payload.Data {
+		gotIDs[m.ID] = struct{}{}
+	}
+	for _, expected := range []string{
+		"gpt-4o-mini",
+		"gemini-2.5-flash",
+		"claude-sonnet-4-5-20250929",
+		"claude-3-5-haiku-20241022",
+		"claude-haiku-4-5-20251001",
+	} {
+		if _, ok := gotIDs[expected]; !ok {
+			t.Fatalf("expected model %q in list, got %#v", expected, gotIDs)
+		}
+	}
+
+	reqPost, _ := http.NewRequest(http.MethodPost, "http://"+listener.Addr().String()+"/v1/models", strings.NewReader(`{}`))
+	reqPost.Header.Set("x-api-key", "models-proxy-key")
+	respPost, err := http.DefaultClient.Do(reqPost)
+	if err != nil {
+		t.Fatalf("post /v1/models: %v", err)
+	}
+	defer respPost.Body.Close()
+	if respPost.StatusCode != http.StatusMethodNotAllowed {
+		body, _ := io.ReadAll(respPost.Body)
+		t.Fatalf("expected status 405, got %d body=%s", respPost.StatusCode, string(body))
 	}
 }

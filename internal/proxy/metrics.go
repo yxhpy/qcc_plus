@@ -19,6 +19,7 @@ type metricsWriter struct {
 	lastAt      time.Time
 	bytes       int64
 	status      int
+	errorBody   bytes.Buffer
 }
 
 func (mw *metricsWriter) Header() http.Header { return mw.ResponseWriter.Header() }
@@ -42,10 +43,25 @@ func (mw *metricsWriter) Write(b []byte) (int, error) {
 	}
 	mw.lastAt = time.Now()
 	mw.bytes += int64(len(b))
+	if mw.status >= http.StatusBadRequest && mw.errorBody.Len() < errorBodyPreviewLimit {
+		remain := errorBodyPreviewLimit - mw.errorBody.Len()
+		slice := b
+		if len(slice) > remain {
+			slice = slice[:remain]
+		}
+		_, _ = mw.errorBody.Write(slice)
+	}
 	return mw.ResponseWriter.Write(b)
 }
 
-func (p *Server) recordMetrics(ctx context.Context, nodeID string, start time.Time, mw *metricsWriter, u *usage, retryAttempts, retrySuccess int64, finalAttempt bool) {
+func (mw *metricsWriter) ErrorBodyPreview() []byte {
+	if mw == nil || mw.errorBody.Len() == 0 {
+		return nil
+	}
+	return append([]byte(nil), mw.errorBody.Bytes()...)
+}
+
+func (p *Server) recordMetrics(ctx context.Context, nodeID string, start time.Time, mw *metricsWriter, u *usage, retryAttempts, retrySuccess int64, finalAttempt bool, ingressProtocol string) {
 	end := time.Now()
 	var (
 		nodeRec      store.NodeRecord
@@ -63,6 +79,7 @@ func (p *Server) recordMetrics(ctx context.Context, nodeID string, start time.Ti
 		healthAt     time.Time
 		method       string
 		accountID    string
+		sourceProto  string
 	)
 
 	p.mu.Lock()
@@ -104,7 +121,7 @@ func (p *Server) recordMetrics(ctx context.Context, nodeID string, start time.Ti
 	}
 	if p.store != nil {
 		nodeRec = toRecord(node)
-		metricsRec = buildMetricsRecord(accountID, nodeID, start, end, mw, u, retryAttempts, retrySuccess)
+		metricsRec = buildMetricsRecord(accountID, nodeID, start, end, mw, u, retryAttempts, retrySuccess, ingressProtocol)
 	}
 	nodeName = node.Name
 	nodeIDCopy = node.ID
@@ -118,6 +135,7 @@ func (p *Server) recordMetrics(ctx context.Context, nodeID string, start time.Ti
 	healthErr = node.Metrics.LastPingErr
 	healthAt = node.Metrics.LastHealthCheckAt
 	method = node.HealthCheckMethod
+	sourceProto = NormalizedSourceProtocol(node.SourceProtocol)
 	p.mu.Unlock()
 
 	if p.store != nil {
@@ -182,17 +200,19 @@ func (p *Server) recordMetrics(ctx context.Context, nodeID string, start time.Ti
 		}
 
 		p.wsHub.Broadcast(accountID, "node_metrics", map[string]interface{}{
-			"node_id":   nodeIDCopy,
-			"node_name": nodeName,
-			"status":    status,
-			"traffic":   traffic,
-			"health":    health,
-			"timestamp": timestamp,
+			"node_id":          nodeIDCopy,
+			"node_name":        nodeName,
+			"status":           status,
+			"traffic":          traffic,
+			"health":           health,
+			"source_protocol":  sourceProto,
+			"ingress_protocol": chooseNonEmpty(ingressProtocol, "claude"),
+			"timestamp":        timestamp,
 		})
 	}
 }
 
-func buildMetricsRecord(accountID, nodeID string, start, end time.Time, mw *metricsWriter, u *usage, retryAttempts, retrySuccess int64) *store.MetricsRecord {
+func buildMetricsRecord(accountID, nodeID string, start, end time.Time, mw *metricsWriter, u *usage, retryAttempts, retrySuccess int64, ingressProtocol string) *store.MetricsRecord {
 	rec := &store.MetricsRecord{
 		AccountID:          accountID,
 		NodeID:             nodeID,
@@ -224,8 +244,25 @@ func buildMetricsRecord(accountID, nodeID string, start, end time.Time, mw *metr
 	return rec
 }
 
-// 从响应体或 SSE 数据中粗略提取 usage 字段（JSON 格式）。
+// 从响应体或 SSE 数据中提取 usage 字段。
+// 支持三种协议格式：
+//   - Claude:   {"usage":{"input_tokens":N,"output_tokens":M}}
+//   - OpenAI:   {"usage":{"prompt_tokens":N,"completion_tokens":M}}
+//   - Gemini:   {"usageMetadata":{"promptTokenCount":N,"candidatesTokenCount":M}}
 func parseUsage(b []byte) (int64, int64) {
+	// 1. 尝试 Claude/OpenAI 格式: "usage":{...}
+	if in, out := parseUsageBlock(b); in > 0 || out > 0 {
+		return in, out
+	}
+	// 2. 尝试 Gemini 格式: "usageMetadata":{...}
+	if in, out := parseGeminiUsage(b); in > 0 || out > 0 {
+		return in, out
+	}
+	return 0, 0
+}
+
+// parseUsageBlock 提取 "usage":{...} 块，同时兼容 Claude 和 OpenAI 字段名。
+func parseUsageBlock(b []byte) (int64, int64) {
 	key := []byte("\"usage\"")
 	idx := bytes.LastIndex(b, key)
 	if idx < 0 {
@@ -246,11 +283,59 @@ func parseUsage(b []byte) (int64, int64) {
 			if depth == 0 {
 				usageObj := b[braceStart : i+1]
 				var tmp struct {
+					// Claude 字段
 					InputTokens  int64 `json:"input_tokens"`
 					OutputTokens int64 `json:"output_tokens"`
+					// OpenAI 字段
+					PromptTokens     int64 `json:"prompt_tokens"`
+					CompletionTokens int64 `json:"completion_tokens"`
 				}
 				if err := json.Unmarshal(usageObj, &tmp); err == nil {
-					return tmp.InputTokens, tmp.OutputTokens
+					in := tmp.InputTokens
+					out := tmp.OutputTokens
+					if in == 0 {
+						in = tmp.PromptTokens
+					}
+					if out == 0 {
+						out = tmp.CompletionTokens
+					}
+					return in, out
+				}
+				break
+			}
+		}
+	}
+	return 0, 0
+}
+
+// parseGeminiUsage 提取 Gemini 的 "usageMetadata":{...} 块。
+func parseGeminiUsage(b []byte) (int64, int64) {
+	key := []byte("\"usageMetadata\"")
+	idx := bytes.LastIndex(b, key)
+	if idx < 0 {
+		return 0, 0
+	}
+	braceStart := bytes.IndexByte(b[idx:], '{')
+	if braceStart < 0 {
+		return 0, 0
+	}
+	braceStart += idx
+	depth := 0
+	for i := braceStart; i < len(b); i++ {
+		switch b[i] {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				usageObj := b[braceStart : i+1]
+				var tmp struct {
+					PromptTokenCount     int64 `json:"promptTokenCount"`
+					CandidatesTokenCount int64 `json:"candidatesTokenCount"`
+					TotalTokenCount      int64 `json:"totalTokenCount"`
+				}
+				if err := json.Unmarshal(usageObj, &tmp); err == nil {
+					return tmp.PromptTokenCount, tmp.CandidatesTokenCount
 				}
 				break
 			}

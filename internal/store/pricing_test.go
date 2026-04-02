@@ -49,6 +49,36 @@ func TestPricingFunctions(t *testing.T) {
 		}
 	})
 
+	t.Run("seed default pricing keeps existing custom values while adding new models", func(t *testing.T) {
+		custom := ModelPricingRecord{
+			ID:              "custom-openai-id",
+			ModelID:         "gpt-5.1-codex-mini",
+			ModelName:       "Custom GPT-5.1 Codex mini",
+			InputPriceMTok:  9.9,
+			OutputPriceMTok: 19.9,
+			IsActive:        true,
+		}
+		if err := s.UpsertModelPricing(ctx, custom); err != nil {
+			t.Fatalf("UpsertModelPricing failed: %v", err)
+		}
+
+		if err := s.SeedDefaultPricing(ctx); err != nil {
+			t.Fatalf("SeedDefaultPricing failed: %v", err)
+		}
+
+		pricing, err := s.GetModelPricing(ctx, "gpt-5.1-codex-mini")
+		if err != nil {
+			t.Fatalf("GetModelPricing failed: %v", err)
+		}
+		if pricing.InputPriceMTok != 9.9 || pricing.OutputPriceMTok != 19.9 {
+			t.Fatalf("expected custom pricing to remain unchanged, got %+v", pricing)
+		}
+
+		if _, err := s.GetModelPricing(ctx, "gemini-2.5-flash"); err != nil {
+			t.Fatalf("expected latest seeded gemini pricing, got %v", err)
+		}
+	})
+
 	t.Run("get model pricing", func(t *testing.T) {
 		// Get one of the seeded models
 		pricing, err := s.GetModelPricing(ctx, "claude-sonnet-4-5-20250929")

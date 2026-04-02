@@ -5,6 +5,13 @@ export interface Account {
   is_admin: boolean;
 }
 
+export type NodeStatus = 'online' | 'offline' | 'degraded' | 'disabled';
+
+export interface NodeAPIKey {
+  name: string;
+  key: string;
+}
+
 export interface Node {
   id: string;
   name: string;
@@ -12,14 +19,24 @@ export interface Node {
   weight: number;
   health_check_method?: 'api' | 'head' | 'cli';
   health_check_model?: string;
+  model_mapping?: Record<string, string>; // 模型映射：请求模型 -> 转发模型
+  source_protocol?: 'claude' | 'openai' | 'gemini';
+  auth_profile?: string;
+  capabilities?: string;
+  api_key?: string;
+  api_keys?: NodeAPIKey[];
+  key_names?: string[];
   has_api_key?: boolean;
   key_count?: number;          // API Key 总数（多密钥轮换）
   active_key_count?: number;   // 可用 Key 数
   active_conns?: number;       // 活跃连接数
   degraded?: boolean;          // 慢节点降级状态
   error_severity?: string;     // 语义化错误级别: key_invalid/node_down/degraded/account_issue
-  active: boolean;
+  status: NodeStatus;          // 节点状态: online/offline/degraded/disabled
+  is_active: boolean;          // 是否为当前选中节点（非状态，仅标记）
+  /** @deprecated use status === 'offline' */
   failed: boolean;
+  /** @deprecated use status === 'disabled' */
   disabled: boolean;
   health_rate?: number;
   requests?: number;
@@ -34,6 +51,21 @@ export interface Node {
   last_ping_ms?: number;
   last_ping_error?: string;
   created_at?: string;
+}
+
+export interface CCSwitchImportSummary {
+  source_path: string;
+  target: string;
+  account_id: string;
+  providers_read: number;
+  providers_imported: number;
+  providers_skipped: number;
+  pricing_rows_read: number;
+  pricing_imported: number;
+  log_rows_read: number;
+  logs_imported: number;
+  logs_skipped_duplicate: number;
+  logs_skipped_no_provider: number;
 }
 
 export interface Config {
@@ -318,9 +350,37 @@ export interface ModelRecoveryItem {
   offline_human: string;
   last_check?: string;
   check_count: number;
+  non_recoverable?: boolean;
 }
 
 export interface ModelRecoveryResponse {
   total: number;
   items: ModelRecoveryItem[];
+}
+
+export interface ErrorPolicyRule {
+  id: string
+  name: string
+  status_code?: number
+  error_code?: string
+  message_contains?: string
+  action: 'auto_switch'
+  enabled: boolean
+  builtin: boolean
+}
+
+export interface ObservedErrorPolicy {
+  id: string
+  status_code: number
+  error_code?: string
+  message: string
+  count: number
+  last_seen_at: string
+  auto_switch: boolean
+}
+
+export interface ErrorPolicySnapshot {
+  builtin_rules: ErrorPolicyRule[]
+  custom_rules: ErrorPolicyRule[]
+  observed: ObservedErrorPolicy[]
 }

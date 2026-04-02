@@ -158,16 +158,6 @@ func (s *Store) ensurePricingTables(ctx context.Context) error {
 
 // SeedDefaultPricing 预置默认的模型定价数据
 func (s *Store) SeedDefaultPricing(ctx context.Context) error {
-	// 检查是否已有定价数据
-	var count int
-	row := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM model_pricing")
-	if err := row.Scan(&count); err != nil {
-		return err
-	}
-	if count > 0 {
-		return nil // 已有数据，不再预置
-	}
-
 	ctx, cancel := withTimeout(ctx)
 	defer cancel()
 
@@ -187,29 +177,6 @@ func (s *Store) SeedDefaultPricing(ctx context.Context) error {
 		}
 	}
 	return nil
-}
-
-// OfficialPricing 返回 Anthropic 官方模型定价表（截至 2026-02）
-// 数据来源: https://docs.anthropic.com/en/docs/about-claude/pricing
-func OfficialPricing() []ModelPricingRecord {
-	return []ModelPricingRecord{
-		// 最新一代模型
-		{ModelID: "claude-opus-4-6", ModelName: "Claude Opus 4.6", InputPriceMTok: 5.0, OutputPriceMTok: 25.0, IsActive: true},
-		{ModelID: "claude-sonnet-4-5-20250929", ModelName: "Claude Sonnet 4.5", InputPriceMTok: 3.0, OutputPriceMTok: 15.0, IsActive: true},
-		{ModelID: "claude-haiku-4-5-20251001", ModelName: "Claude Haiku 4.5", InputPriceMTok: 1.0, OutputPriceMTok: 5.0, IsActive: true},
-
-		// Legacy 模型
-		{ModelID: "claude-opus-4-5-20251101", ModelName: "Claude Opus 4.5", InputPriceMTok: 5.0, OutputPriceMTok: 25.0, IsActive: true},
-		{ModelID: "claude-opus-4-1-20250805", ModelName: "Claude Opus 4.1", InputPriceMTok: 15.0, OutputPriceMTok: 75.0, IsActive: true},
-		{ModelID: "claude-sonnet-4-20250514", ModelName: "Claude Sonnet 4", InputPriceMTok: 3.0, OutputPriceMTok: 15.0, IsActive: true},
-		{ModelID: "claude-3-7-sonnet-20250219", ModelName: "Claude Sonnet 3.7", InputPriceMTok: 3.0, OutputPriceMTok: 15.0, IsActive: true},
-		{ModelID: "claude-opus-4-20250514", ModelName: "Claude Opus 4", InputPriceMTok: 15.0, OutputPriceMTok: 75.0, IsActive: true},
-		{ModelID: "claude-3-5-sonnet-20241022", ModelName: "Claude 3.5 Sonnet", InputPriceMTok: 3.0, OutputPriceMTok: 15.0, IsActive: true},
-		{ModelID: "claude-3-5-haiku-20241022", ModelName: "Claude 3.5 Haiku", InputPriceMTok: 0.8, OutputPriceMTok: 4.0, IsActive: true},
-		{ModelID: "claude-3-opus-20240229", ModelName: "Claude 3 Opus", InputPriceMTok: 15.0, OutputPriceMTok: 75.0, IsActive: true},
-		{ModelID: "claude-3-sonnet-20240229", ModelName: "Claude 3 Sonnet", InputPriceMTok: 3.0, OutputPriceMTok: 15.0, IsActive: true},
-		{ModelID: "claude-3-haiku-20240307", ModelName: "Claude 3 Haiku", InputPriceMTok: 0.25, OutputPriceMTok: 1.25, IsActive: true},
-	}
 }
 
 // SyncOfficialPricing 从官方定价表同步所有模型定价到数据库
@@ -703,4 +670,26 @@ func (s *Store) CleanupUsageLogs(ctx context.Context, retentionDays int) error {
 	cutoff := time.Now().UTC().AddDate(0, 0, -retentionDays)
 	_, err := s.db.ExecContext(ctx, "DELETE FROM usage_logs WHERE created_at < ?", cutoff)
 	return err
+}
+
+// ListUsageRequestIDs returns existing request IDs for deduplication.
+func (s *Store) ListUsageRequestIDs(ctx context.Context) (map[string]struct{}, error) {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
+	rows, err := s.db.QueryContext(ctx, `SELECT DISTINCT request_id FROM usage_logs WHERE request_id IS NOT NULL AND request_id <> ''`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string]struct{})
+	for rows.Next() {
+		var requestID string
+		if err := rows.Scan(&requestID); err != nil {
+			return nil, err
+		}
+		result[requestID] = struct{}{}
+	}
+	return result, rows.Err()
 }

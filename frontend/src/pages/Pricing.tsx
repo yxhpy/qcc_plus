@@ -1,6 +1,9 @@
 import type { FormEvent } from 'react'
 import { useEffect, useState } from 'react'
 import Card from '../components/Card'
+import PricingCatalogOverview from '../components/pricing/PricingCatalogOverview'
+import PricingForm from '../components/pricing/PricingForm'
+import PricingTable from '../components/pricing/PricingTable'
 import Toast from '../components/Toast'
 import api from '../services/api'
 import type { ModelPricing } from '../types'
@@ -13,6 +16,7 @@ export default function Pricing() {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<string>('')
 
   // 表单状态
   const [formData, setFormData] = useState({
@@ -28,20 +32,33 @@ export default function Pricing() {
     setTimeout(() => setToast(null), 2200)
   }
 
-  const loadPricing = async () => {
-    setLoading(true)
+  const loadPricing = async (silent = false) => {
+    if (!silent) {
+      setLoading(true)
+    }
     try {
       const list = await api.getPricingList()
       setPricingList(list)
+      setLastUpdatedAt(new Date().toLocaleTimeString())
     } catch (err) {
-      showToast((err as Error).message || '加载失败', 'error')
+      if (!silent) {
+        showToast((err as Error).message || '加载失败', 'error')
+      }
     } finally {
-      setLoading(false)
+      if (!silent) {
+        setLoading(false)
+      }
     }
   }
 
   useEffect(() => {
-    loadPricing()
+    void loadPricing()
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        void loadPricing(true)
+      }
+    }, 3000)
+    return () => window.clearInterval(timer)
   }, [])
 
   const handleSync = async () => {
@@ -50,7 +67,7 @@ export default function Pricing() {
     try {
       const result = await api.syncOfficialPricing()
       showToast(`同步完成，已更新 ${result.synced} 个模型定价`)
-      loadPricing()
+      await loadPricing(true)
     } catch (err) {
       showToast((err as Error).message || '同步失败', 'error')
     } finally {
@@ -92,7 +109,7 @@ export default function Pricing() {
       await api.savePricing(formData)
       showToast(editingId ? '定价已更新' : '定价已添加')
       resetForm()
-      loadPricing()
+      await loadPricing(true)
     } catch (err) {
       showToast((err as Error).message || '保存失败', 'error')
     }
@@ -103,28 +120,24 @@ export default function Pricing() {
     try {
       await api.deletePricing(modelId)
       showToast('已删除')
-      loadPricing()
+      await loadPricing(true)
     } catch (err) {
       showToast((err as Error).message || '删除失败', 'error')
     }
-  }
-
-  const formatPrice = (price: number) => {
-    return `$${price.toFixed(2)}`
   }
 
   return (
     <div className="pricing-page">
       <div className="pricing-header">
         <h1>模型定价</h1>
-        <p className="sub">管理 Claude 模型的定价配置，用于计算 API 使用成本。</p>
+        <p className="sub">统一管理 Anthropic、OpenAI、Gemini 与自定义渠道模型定价，并实时同步页面状态。</p>
       </div>
 
       <Card>
         <div className="toolbar">
           <span className="toolbar-title">定价列表</span>
           <div className="spacer" />
-          <button className="btn ghost" type="button" onClick={loadPricing} disabled={loading}>
+          <button className="btn ghost" type="button" onClick={() => void loadPricing()} disabled={loading}>
             刷新
           </button>
           <button className="btn ghost" type="button" onClick={handleSync} disabled={syncing}>
@@ -142,69 +155,16 @@ export default function Pricing() {
           </button>
         </div>
 
+        <PricingCatalogOverview pricingList={pricingList} lastUpdatedAt={lastUpdatedAt} />
+
         {showAddForm && (
-          <form className="pricing-form" onSubmit={handleSubmit}>
-            <div className="form-row">
-              <label>
-                <span className="label-title">模型 ID *</span>
-                <input
-                  type="text"
-                  value={formData.model_id}
-                  onChange={(e) => setFormData({ ...formData, model_id: e.target.value })}
-                  placeholder="claude-sonnet-4-5-20250929"
-                  disabled={!!editingId}
-                  required
-                />
-              </label>
-              <label>
-                <span className="label-title">显示名称</span>
-                <input
-                  type="text"
-                  value={formData.model_name}
-                  onChange={(e) => setFormData({ ...formData, model_name: e.target.value })}
-                  placeholder="Claude Sonnet 4.5"
-                />
-              </label>
-            </div>
-            <div className="form-row">
-              <label>
-                <span className="label-title">输入价格 ($/MTok)</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.input_price_mtok}
-                  onChange={(e) => setFormData({ ...formData, input_price_mtok: parseFloat(e.target.value) || 0 })}
-                />
-              </label>
-              <label>
-                <span className="label-title">输出价格 ($/MTok)</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.output_price_mtok}
-                  onChange={(e) => setFormData({ ...formData, output_price_mtok: parseFloat(e.target.value) || 0 })}
-                />
-              </label>
-              <label className="checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={formData.is_active}
-                  onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                />
-                <span>启用</span>
-              </label>
-            </div>
-            <div className="form-actions">
-              <button className="btn ghost" type="button" onClick={resetForm}>
-                取消
-              </button>
-              <button className="btn primary" type="submit">
-                {editingId ? '更新' : '添加'}
-              </button>
-            </div>
-          </form>
+          <PricingForm
+            formData={formData}
+            editingId={editingId}
+            onChange={(patch) => setFormData((prev) => ({ ...prev, ...patch }))}
+            onCancel={resetForm}
+            onSubmit={handleSubmit}
+          />
         )}
 
         {loading ? (
@@ -212,50 +172,11 @@ export default function Pricing() {
         ) : pricingList.length === 0 ? (
           <div className="empty-text">暂无定价配置</div>
         ) : (
-          <div className="pricing-table-wrapper">
-            <table className="pricing-table">
-              <thead>
-                <tr>
-                  <th>模型</th>
-                  <th>输入价格</th>
-                  <th>输出价格</th>
-                  <th>状态</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pricingList.map((pricing) => (
-                  <tr key={pricing.model_id} className={!pricing.is_active ? 'inactive' : ''}>
-                    <td>
-                      <div className="model-info">
-                        <span className="model-name">{pricing.model_name}</span>
-                        <span className="model-id">{pricing.model_id}</span>
-                      </div>
-                    </td>
-                    <td className="price-cell">{formatPrice(pricing.input_price_mtok)}/MTok</td>
-                    <td className="price-cell">{formatPrice(pricing.output_price_mtok)}/MTok</td>
-                    <td>
-                      <span className={`status-badge ${pricing.is_active ? 'active' : 'inactive'}`}>
-                        {pricing.is_active ? '启用' : '禁用'}
-                      </span>
-                    </td>
-                    <td className="actions-cell">
-                      <button className="btn-small ghost" onClick={() => handleEdit(pricing)}>
-                        编辑
-                      </button>
-                      <button className="btn-small danger" onClick={() => handleDelete(pricing.model_id)}>
-                        删除
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <PricingTable pricingList={pricingList} onEdit={handleEdit} onDelete={handleDelete} />
         )}
 
         <div className="notice">
-          价格单位：美元/百万 Token（MTok）。例如 $3.00/MTok 表示每处理 100 万个 Token 收费 3 美元。
+          价格单位：美元/百万 Token（MTok）。Gemini 若存在长上下文分档、音视频或缓存价格差异，这里默认展示基础文本档位，必要时可按渠道实际账单手动覆盖。
         </div>
       </Card>
       <Toast message={toast?.message} type={toast?.type} />

@@ -374,6 +374,24 @@ func TestParseUsage(t *testing.T) {
 			wantInput:  50,
 			wantOutput: 75,
 		},
+		{
+			name:       "OpenAI usage format",
+			data:       []byte(`{"id":"chatcmpl-1","usage":{"prompt_tokens":300,"completion_tokens":400,"total_tokens":700}}`),
+			wantInput:  300,
+			wantOutput: 400,
+		},
+		{
+			name:       "Gemini usageMetadata format",
+			data:       []byte(`{"candidates":[],"usageMetadata":{"promptTokenCount":500,"candidatesTokenCount":600,"totalTokenCount":1100}}`),
+			wantInput:  500,
+			wantOutput: 600,
+		},
+		{
+			name:       "OpenAI usage in SSE chunk",
+			data:       []byte(`data: {"id":"chatcmpl-1","usage":{"prompt_tokens":30,"completion_tokens":40}}`),
+			wantInput:  30,
+			wantOutput: 40,
+		},
 	}
 
 	for _, tt := range tests {
@@ -403,7 +421,7 @@ func TestServer_newReverseProxy(t *testing.T) {
 	}
 
 	u := &usage{}
-	proxy, state := srv.newReverseProxy(node, u, nil)
+	proxy, state := srv.newReverseProxy(node, u, nil, false)
 
 	if proxy == nil {
 		t.Fatal("newReverseProxy should return non-nil proxy")

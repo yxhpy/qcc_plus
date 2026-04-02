@@ -47,9 +47,13 @@ func toRecord(n *Node) store.NodeRecord {
 		Name:              n.Name,
 		BaseURL:           n.URL.String(),
 		APIKey:            n.APIKey,
-		SourceProtocol:    n.SourceProtocol,
+		APIKeyConfig:      n.APIKeyConfig,
 		HealthCheckMethod: n.HealthCheckMethod,
 		HealthCheckModel:  n.HealthCheckModel,
+		ModelMapping:      encodeModelMapping(n.ModelMapping),
+		SourceProtocol:    chooseNonEmpty(n.SourceProtocol, "claude"),
+		AuthProfile:       n.AuthProfile,
+		Capabilities:      n.Capabilities,
 		AccountID:         chooseNonEmpty(n.AccountID, store.DefaultAccountID),
 		Weight:            n.Weight,
 		Failed:            n.Failed,
@@ -68,4 +72,31 @@ func toRecord(n *Node) store.NodeRecord {
 		LastPingErr:       n.Metrics.LastPingErr,
 		LastHealthCheckAt: n.Metrics.LastHealthCheckAt,
 	}
+}
+
+// encodeModelMapping 将 map[string]string 序列化为 JSON 字符串，空映射返回空字符串。
+func encodeModelMapping(m map[string]string) string {
+	if len(m) == 0 {
+		return ""
+	}
+	b, err := json.Marshal(m)
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
+
+// decodeModelMapping 将 JSON 字符串反序列化为 map[string]string。
+func decodeModelMapping(s string) map[string]string {
+	if s == "" {
+		return nil
+	}
+	var m map[string]string
+	if err := json.Unmarshal([]byte(s), &m); err != nil {
+		return nil
+	}
+	if len(m) == 0 {
+		return nil
+	}
+	return m
 }

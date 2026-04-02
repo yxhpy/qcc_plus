@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import api from '../services/api'
 import type { ModelRecoveryItem } from '../types'
+import { useAuth } from '../hooks/useAuth'
 
 const REFRESH_INTERVAL = 30000 // 30s
 
@@ -21,11 +22,18 @@ interface ModelRecoveryContextType {
 const ModelRecoveryContext = createContext<ModelRecoveryContextType | undefined>(undefined)
 
 export function ModelRecoveryProvider({ children }: { children: ReactNode }) {
+  const { isAuthenticated, loading: authLoading } = useAuth()
   const [byNode, setByNode] = useState<Record<string, NodeRecoveryInfo>>({})
   const [total, setTotal] = useState(0)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const fetchData = useCallback(async () => {
+    if (!isAuthenticated) {
+      setByNode({})
+      setTotal(0)
+      return
+    }
+
     try {
       const data = await api.getModelRecovery()
       const items: ModelRecoveryItem[] = data.items || []
@@ -43,15 +51,27 @@ export function ModelRecoveryProvider({ children }: { children: ReactNode }) {
     } catch {
       // silent fail - recovery info is supplementary
     }
-  }, [])
+  }, [isAuthenticated])
 
   useEffect(() => {
+    // 仅在会话建立后轮询恢复状态，避免登录页持续产生 401。
+    if (authLoading) return
+
     fetchData()
+
+    if (!isAuthenticated) {
+      if (timerRef.current) {
+        clearInterval(timerRef.current)
+        timerRef.current = null
+      }
+      return
+    }
+
     timerRef.current = setInterval(fetchData, REFRESH_INTERVAL)
     return () => {
       if (timerRef.current) clearInterval(timerRef.current)
     }
-  }, [fetchData])
+  }, [authLoading, fetchData, isAuthenticated])
 
   return (
     <ModelRecoveryContext.Provider value={{ byNode, total, refresh: fetchData }}>

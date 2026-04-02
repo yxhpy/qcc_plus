@@ -20,7 +20,7 @@ const (
 	SeverityKeyInvalid
 	// SeverityAccountIssue 账号问题：余额不足、账号被封等（需人工介入）
 	SeverityAccountIssue
-	// SeverityPermanent 永久错误：不应重试（如 400 请求格式错误）
+	// SeverityPermanent 永久错误：不应重试（如明确的参数校验失败）
 	SeverityPermanent
 )
 
@@ -97,6 +97,9 @@ func ClassifyError(statusCode int, body []byte) ClassifiedError {
 		result.Code = apiErr.Error.Type
 		result.Message = apiErr.Error.Message
 		result.RawType = apiErr.Type
+	}
+	if strings.TrimSpace(result.Code) == "" && len(body) > 0 {
+		result.Code = extractUnknownErrorTypeFromBody(string(body))
 	}
 
 	// 基于错误类型精确分类
@@ -239,10 +242,13 @@ func classifyByHTTPStatus(status int, result ClassifiedError) ClassifiedError {
 			result.Message = "请求被限流 (429)"
 		}
 	case status == http.StatusBadRequest: // 400
-		result.Severity = SeverityPermanent
-		result.Retryable = false
+		// 说明：很多第三方上游会把节点/网关故障包装成 400。
+		// 仅凭状态码无法区分请求参数问题还是节点异常，默认按节点故障处理以便快速切换。
+		// 若响应体包含明确参数错误关键词，会在 classifyByBodyKeywords 中回落为 permanent。
+		result.Severity = SeverityNodeDown
+		result.Retryable = true
 		if result.Message == "" {
-			result.Message = "请求格式错误 (400)"
+			result.Message = "上游请求错误 (400)"
 		}
 	case status == http.StatusNotFound: // 404
 		result.Severity = SeverityPermanent
@@ -337,7 +343,54 @@ func classifyByBodyKeywords(body string, result ClassifiedError) ClassifiedError
 		}
 	}
 
+	// 明确的客户端参数错误关键词：保持 permanent，避免无效重试。
+	clientErrorKeywords := []string{
+		"invalid request", "invalid_request", "missing", "required",
+		"malformed", "invalid json", "request body", "unsupported parameter",
+		"max_tokens", "messages", "temperature", "top_p", "top_k",
+	}
+	for _, kw := range clientErrorKeywords {
+		if strings.Contains(lower, kw) {
+			result.Severity = SeverityPermanent
+			result.Retryable = false
+			return result
+		}
+	}
+
+	// 400 默认按 node_down 分类时，若 body 没有明确客户端错误特征则保持可重试。
+	if result.HTTPStatus == http.StatusBadRequest && result.Severity == SeverityPermanent {
+		result.Severity = SeverityNodeDown
+		result.Retryable = true
+		if result.Message == "" || result.Message == "请求格式错误 (400)" {
+			result.Message = "上游请求错误 (400)"
+		}
+		return result
+	}
+
 	return result
+}
+
+func extractUnknownErrorTypeFromBody(body string) string {
+	var payload struct {
+		Error struct {
+			Type string `json:"type"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(body), &payload); err == nil {
+		if strings.TrimSpace(payload.Error.Type) != "" {
+			return payload.Error.Type
+		}
+	}
+	var generic map[string]any
+	if err := json.Unmarshal([]byte(body), &generic); err != nil {
+		return ""
+	}
+	if e, ok := generic["error"].(map[string]any); ok {
+		if t, ok := e["type"].(string); ok {
+			return strings.TrimSpace(t)
+		}
+	}
+	return ""
 }
 
 // HealthCheckResult 健康检查的深度验证结果
@@ -345,6 +398,7 @@ type HealthCheckResult struct {
 	Success      bool            `json:"success"`
 	StatusCode   int             `json:"status_code"`
 	Error        ClassifiedError `json:"error,omitempty"`
+	RawBody      []byte          `json:"-"`
 	InputTokens  int64           `json:"input_tokens,omitempty"`
 	OutputTokens int64           `json:"output_tokens,omitempty"`
 	ModelID      string          `json:"model_id,omitempty"`
@@ -358,6 +412,7 @@ type HealthCheckResult struct {
 func ValidateHealthCheckResponse(statusCode int, body []byte) HealthCheckResult {
 	result := HealthCheckResult{
 		StatusCode: statusCode,
+		RawBody:    append([]byte(nil), body...),
 	}
 
 	if statusCode != http.StatusOK {
@@ -393,14 +448,26 @@ func ValidateHealthCheckResponse(statusCode int, body []byte) HealthCheckResult 
 		return result
 	}
 
-	// 检查 content 字段
+	// 检查 content 字段（Claude）
 	if content, ok := resp["content"]; ok {
 		if arr, ok := content.([]interface{}); ok && len(arr) > 0 {
 			result.HasContent = true
 		}
 	}
+	// 检查 candidates 字段（Gemini）
+	if candidates, ok := resp["candidates"]; ok {
+		if arr, ok := candidates.([]interface{}); ok && len(arr) > 0 {
+			result.HasContent = true
+		}
+	}
+	// 检查 choices 字段（OpenAI/Codex）
+	if choices, ok := resp["choices"]; ok {
+		if arr, ok := choices.([]interface{}); ok && len(arr) > 0 {
+			result.HasContent = true
+		}
+	}
 
-	// 检查 usage 字段
+	// 检查 usage 字段（Claude/OpenAI）
 	if usageObj, ok := resp["usage"]; ok {
 		if usageMap, ok := usageObj.(map[string]interface{}); ok {
 			result.HasUsage = true
@@ -408,6 +475,24 @@ func ValidateHealthCheckResponse(statusCode int, body []byte) HealthCheckResult 
 				result.InputTokens = int64(v)
 			}
 			if v, ok := usageMap["output_tokens"].(float64); ok {
+				result.OutputTokens = int64(v)
+			}
+			if v, ok := usageMap["prompt_tokens"].(float64); ok && result.InputTokens == 0 {
+				result.InputTokens = int64(v)
+			}
+			if v, ok := usageMap["completion_tokens"].(float64); ok && result.OutputTokens == 0 {
+				result.OutputTokens = int64(v)
+			}
+		}
+	}
+	// 检查 usageMetadata 字段（Gemini）
+	if usageObj, ok := resp["usageMetadata"]; ok {
+		if usageMap, ok := usageObj.(map[string]interface{}); ok {
+			result.HasUsage = true
+			if v, ok := usageMap["promptTokenCount"].(float64); ok {
+				result.InputTokens = int64(v)
+			}
+			if v, ok := usageMap["candidatesTokenCount"].(float64); ok {
 				result.OutputTokens = int64(v)
 			}
 		}

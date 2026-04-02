@@ -143,6 +143,9 @@ type Server struct {
 	settingsCache    *SettingsCache
 	settingsStopCh   chan struct{}
 	settingsWg       sync.WaitGroup
+	asyncStoreWg     sync.WaitGroup
+	healthLoopStop   chan struct{}
+	healthLoopOnce   sync.Once
 
 	claudeConfigCache map[string]claudeConfigEntry
 	claudeConfigMu    sync.RWMutex
@@ -167,6 +170,7 @@ type Server struct {
 	shutdownTimeout time.Duration      // 优雅关闭超时，默认 30s
 
 	modelRecovery *ModelRecoveryTracker // 模型级别故障恢复跟踪器
+	errorPolicy   *ErrorPolicyManager   // 动态异常策略管理器
 }
 
 // Start 运行反向代理并阻塞直到收到关闭信号或出错。
@@ -185,6 +189,9 @@ func (p *Server) Start() error {
 		defer p.metricsScheduler.Stop()
 	}
 
+	if p.healthLoopStop == nil {
+		p.healthLoopStop = make(chan struct{})
+	}
 	go p.healthLoop()
 
 	// 启动备用节点预连接保活
@@ -260,6 +267,11 @@ func (p *Server) Start() error {
 // Stop 用于优雅关闭后台任务。
 func (p *Server) Stop() {
 	p.stopPreconnect()
+	p.healthLoopOnce.Do(func() {
+		if p.healthLoopStop != nil {
+			close(p.healthLoopStop)
+		}
+	})
 	if p.healthScheduler != nil {
 		p.healthScheduler.Stop()
 	}
@@ -268,8 +280,17 @@ func (p *Server) Stop() {
 	}
 	if p.settingsStopCh != nil {
 		close(p.settingsStopCh)
+		p.settingsStopCh = nil
 		p.settingsWg.Wait()
 	}
+	if p.modelRecovery != nil {
+		p.modelRecovery.Wait()
+	}
+	p.asyncStoreWg.Wait()
+	if p.notifyMgr != nil {
+		p.notifyMgr.Stop()
+	}
+	_ = p.StopTunnel()
 }
 
 // Handler 暴露 HTTP 处理器，便于测试或自定义服务器。
@@ -332,41 +353,81 @@ func (p *Server) startSettingsWatcher(interval time.Duration) {
 	}()
 }
 
-// applySettingsFromCache 将缓存中的关键配置应用到运行时。
+func parseRuntimeSettingInt(value any) (int, bool) {
+	switch n := value.(type) {
+	case float64:
+		return int(n), true
+	case float32:
+		return int(n), true
+	case int:
+		return n, true
+	case int32:
+		return int(n), true
+	case int64:
+		return int(n), true
+	default:
+		return 0, false
+	}
+}
+
+// applyRuntimeSetting 把需要主动推送的运行时配置应用到当前进程。
+//
+// read-through 类型的配置不需要在这里处理，它们会在业务路径上直接从 cache 中读取。
+func (p *Server) applyRuntimeSetting(key string, value any) {
+	n, ok := parseRuntimeSettingInt(value)
+	if !ok {
+		return
+	}
+	switch key {
+	case "health.check_interval_sec":
+		p.updateHealthInterval(time.Duration(n) * time.Second)
+	case "proxy.retry_max":
+		p.updateRetryMax(n)
+	case "health.fail_threshold":
+		p.updateFailLimit(n)
+	}
+}
+
+func (p *Server) shouldApplyRuntimeSettingFromCache(key string, value any) bool {
+	n, ok := parseRuntimeSettingInt(value)
+	if !ok {
+		return false
+	}
+
+	p.mu.RLock()
+	currentRetries := p.retries
+	currentFailLimit := p.failLimit
+	currentHealthEvery := p.healthEvery
+	p.mu.RUnlock()
+
+	switch key {
+	case "proxy.retry_max":
+		return n != 3 || currentRetries == 0 || currentRetries == 3
+	case "health.fail_threshold":
+		return n != 3 || currentFailLimit == 0 || currentFailLimit == 3
+	case "health.check_interval_sec":
+		return n != 30 || currentHealthEvery == 0 || currentHealthEvery == 30*time.Second
+	default:
+		return true
+	}
+}
+
+// applySettingsFromCache 将 settings 表中的系统级运行时配置恢复到当前进程。
+//
+// settings 表在这里被视为“已持久化的最终运行值”：
+//   - 启动阶段 Builder / 旧 config 表提供的是引导默认值；
+//   - settings 加载完成后，受支持的运行时配置通常以 settings 为准，确保页面保存后的值在重启后仍能恢复；
+//   - 但当 settings 中仍是默认值，而 Builder 已显式给出非默认值时，保留 Builder 值，避免被陈旧默认值覆盖。
 func (p *Server) applySettingsFromCache() {
 	if p == nil || p.settingsCache == nil {
 		return
 	}
-	// Only apply cached settings if the current value is at default (30s)
-	// This prevents overwriting explicitly-set Builder config
-	if v, ok := p.settingsCache.Get("health.check_interval_sec"); ok && (p.healthEvery == 0 || p.healthEvery == 30*time.Second) {
-		switch n := v.(type) {
-		case float64:
-			p.updateHealthInterval(time.Duration(n) * time.Second)
-		case int:
-			p.updateHealthInterval(time.Duration(n) * time.Second)
-		case int64:
-			p.updateHealthInterval(time.Duration(n) * time.Second)
-		}
-	}
-	if v, ok := p.settingsCache.Get("proxy.retry_max"); ok {
-		switch n := v.(type) {
-		case float64:
-			p.updateRetryMax(int(n))
-		case int:
-			p.updateRetryMax(n)
-		case int64:
-			p.updateRetryMax(int(n))
-		}
-	}
-	if v, ok := p.settingsCache.Get("health.fail_threshold"); ok {
-		switch n := v.(type) {
-		case float64:
-			p.updateFailLimit(int(n))
-		case int:
-			p.updateFailLimit(n)
-		case int64:
-			p.updateFailLimit(int(n))
+	for _, key := range RuntimeSettingsAppliedOnChange() {
+		if value, ok := p.settingsCache.Get(key); ok {
+			if !p.shouldApplyRuntimeSettingFromCache(key, value) {
+				continue
+			}
+			p.applyRuntimeSetting(key, value)
 		}
 	}
 }
@@ -398,6 +459,7 @@ func (p *Server) createDefaultAccount(defaultUpstream *url.URL, defaultCfg store
 		APIKey:            upstreamKey,
 		HealthCheckMethod: method,
 		HealthCheckModel:  defaultHealthCheckModel,
+		SourceProtocol:    "claude",
 		AccountID:         acc.ID,
 		CreatedAt:         time.Now(),
 		Weight:            1,
@@ -409,7 +471,7 @@ func (p *Server) createDefaultAccount(defaultUpstream *url.URL, defaultCfg store
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = p.store.CreateAccount(ctx, store.AccountRecord{ID: acc.ID, Name: acc.Name, Password: acc.Password, ProxyAPIKey: acc.ProxyAPIKey, IsAdmin: true, CreatedAt: node.CreatedAt, UpdatedAt: node.CreatedAt})
-		_ = p.store.UpsertNode(ctx, store.NodeRecord{ID: node.ID, Name: node.Name, BaseURL: node.URL.String(), APIKey: node.APIKey, HealthCheckMethod: node.HealthCheckMethod, HealthCheckModel: node.HealthCheckModel, AccountID: acc.ID, Weight: node.Weight, CreatedAt: node.CreatedAt})
+		_ = p.store.UpsertNode(ctx, store.NodeRecord{ID: node.ID, Name: node.Name, BaseURL: node.URL.String(), APIKey: node.APIKey, HealthCheckMethod: node.HealthCheckMethod, HealthCheckModel: node.HealthCheckModel, SourceProtocol: node.SourceProtocol, AccountID: acc.ID, Weight: node.Weight, CreatedAt: node.CreatedAt})
 		_ = p.store.SetActive(ctx, acc.ID, node.ID)
 		_ = p.store.UpdateConfig(ctx, acc.ID, defaultCfg, node.ID)
 	}
@@ -482,20 +544,22 @@ func (p *Server) loadAccountsFromStore(defaultUpstream *url.URL, defaultCfg stor
 				ID:                "default",
 				Name:              chooseNonEmpty(defaultUpstream.Host, "default"),
 				URL:               defaultUpstream,
-				APIKey:            defaultUpstreamKey,
 				HealthCheckMethod: method,
 				HealthCheckModel:  defaultHealthCheckModel,
+				SourceProtocol:    "claude",
 				AccountID:         acc.ID,
 				CreatedAt:         time.Now(),
 				Weight:            1,
 			}
+			applyNodeKeyState(node, defaultUpstreamKey, "")
 			acc.Nodes[node.ID] = node
 			acc.ActiveID = node.ID
-			_ = p.store.UpsertNode(context.Background(), store.NodeRecord{ID: node.ID, Name: node.Name, BaseURL: node.URL.String(), HealthCheckMethod: node.HealthCheckMethod, HealthCheckModel: node.HealthCheckModel, AccountID: acc.ID, Weight: node.Weight, CreatedAt: node.CreatedAt})
+			_ = p.store.UpsertNode(context.Background(), toRecord(node))
 			_ = p.store.SetActive(context.Background(), acc.ID, node.ID)
 		} else {
 			for _, r := range recs {
 				n := p.nodeFromRecord(r)
+				n.AccountID = acc.ID
 				acc.Nodes[n.ID] = n
 				// 重启后恢复失败节点到 FailedSet，确保健康检查能够探活这些节点
 				if n.Failed {
@@ -551,48 +615,6 @@ func (p *Server) registerAccount(acc *Account) {
 		// 确保节点属于账号
 		n.AccountID = acc.ID
 	}
-}
-
-func (p *Server) nodeFromRecord(r store.NodeRecord) *Node {
-	u, _ := url.Parse(r.BaseURL)
-	hcMethod := normalizeHealthCheckMethod(chooseNonEmpty(r.HealthCheckMethod, defaultHealthCheckMethod))
-	hcModel := chooseNonEmpty(r.HealthCheckModel, defaultHealthCheckModel)
-	if healthMethodRequiresAPIKey(hcMethod) && r.APIKey == "" {
-		hcMethod = HealthCheckMethodHEAD
-	}
-	n := &Node{
-		ID:                r.ID,
-		Name:              r.Name,
-		URL:               u,
-		APIKey:            r.APIKey,
-		SourceProtocol:    chooseNonEmpty(r.SourceProtocol, SourceProtocolClaude),
-		HealthCheckMethod: hcMethod,
-		HealthCheckModel:  hcModel,
-		AccountID:         r.AccountID,
-		CreatedAt:         r.CreatedAt,
-		Weight:            r.Weight,
-		Failed:            r.Failed,
-		Disabled:          r.Disabled,
-		LastError:         r.LastError,
-		Metrics: metrics{
-			Requests:          r.Requests,
-			FailCount:         r.FailCount,
-			FailStreak:        r.FailStreak,
-			TotalBytes:        r.TotalBytes,
-			TotalInputTokens:  r.TotalInput,
-			TotalOutputTokens: r.TotalOutput,
-			StreamDur:         time.Duration(r.StreamDurMs) * time.Millisecond,
-			FirstByteDur:      time.Duration(r.FirstByteMs) * time.Millisecond,
-			LastPingMS:        r.LastPingMs,
-			LastPingErr:       r.LastPingErr,
-			LastHealthCheckAt: r.LastHealthCheckAt,
-		},
-	}
-	if strings.Contains(r.APIKey, ",") {
-		n.APIKeys = NewKeyRotator(r.APIKey, loadKeyRotatorConfig())
-		n.APIKey = n.APIKeys.GetPrimaryKey()
-	}
-	return n
 }
 
 func (p *Server) getAccountByProxyKey(key string) *Account {

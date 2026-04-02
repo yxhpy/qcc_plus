@@ -1,4 +1,3 @@
-/* System Settings Animations */
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -12,32 +11,300 @@
 }
 
 .system-settings-page {
-  animation: fadeIn 0.6s ease-out;
+  animation: fadeIn 0.45s ease-out;
 }
 
 .system-settings-header {
-  margin-bottom: var(--spacing-3);
+  margin-bottom: var(--spacing-4);
 }
 
 .system-settings-header h1 {
+  margin: 0 0 6px;
   font-size: var(--font-size-page-title);
   font-weight: var(--font-weight-semibold);
-  margin: 0 0 4px 0;
   color: var(--color-text-primary);
 }
 
 .system-settings-header .sub {
+  margin: 0;
+  max-width: 920px;
   color: var(--color-text-secondary);
   font-size: var(--font-size-subtitle);
+  line-height: 1.6;
+}
+
+.settings-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--spacing-3);
+  margin-bottom: var(--spacing-4);
+}
+
+.overview-card {
+  min-height: 148px;
+  background:
+    radial-gradient(
+      circle at top right,
+      color-mix(in srgb, var(--color-primary) 10%, transparent),
+      transparent 46%
+    ),
+    var(--color-bg-card);
+}
+
+.overview-kicker {
+  display: inline-flex;
+  margin-bottom: 10px;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  color: var(--color-primary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.overview-card h3 {
+  margin: 0 0 8px;
+  color: var(--color-text-primary);
+  font-size: 20px;
+}
+
+.overview-card p {
   margin: 0;
-  font-weight: 300;
+  color: var(--color-text-secondary);
+  line-height: 1.65;
+}
+
+.settings-section {
+  margin-bottom: var(--spacing-5);
+}
+
+.section-heading {
+  margin-bottom: var(--spacing-3);
+}
+
+.section-heading h2 {
+  margin: 0 0 6px;
+  color: var(--color-text-primary);
+  font-size: 24px;
+}
+
+.section-heading p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  line-height: 1.6;
 }
 
 .settings-card {
-  animation: fadeIn 0.7s ease-out;
+  margin-bottom: var(--spacing-3);
+  animation: fadeIn 0.55s ease-out;
 }
 
-/* Tabs & Toolbar */
+.runtime-summary-card {
+  padding-top: var(--spacing-3);
+}
+
+.runtime-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--spacing-3);
+}
+
+.runtime-summary-item {
+  padding: var(--spacing-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-xl);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-bg-elevated) 85%, transparent),
+    var(--color-bg-card)
+  );
+}
+
+.runtime-summary-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-small);
+}
+
+.runtime-summary-item strong {
+  color: var(--color-text-primary);
+  font-size: 18px;
+}
+
+.settings-loading,
+.settings-error,
+.no-settings {
+  padding: var(--spacing-5);
+  text-align: center;
+  color: var(--color-text-secondary);
+}
+
+.settings-error {
+  color: var(--color-danger);
+}
+
+.runtime-setting-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-3);
+}
+
+.runtime-setting-card {
+  padding: var(--spacing-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-xl);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-bg-elevated) 90%, transparent),
+    var(--color-bg-card)
+  );
+}
+
+.runtime-setting-head {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.runtime-setting-head h3 {
+  margin: 0 0 6px;
+  color: var(--color-text-primary);
+  font-size: 18px;
+}
+
+.runtime-setting-head code {
+  display: inline-block;
+  font-size: 12px;
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  padding: 3px 8px;
+  border-radius: var(--radius-md);
+  word-break: break-all;
+}
+
+.setting-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.setting-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.setting-badge.persisted {
+  background: color-mix(in srgb, var(--color-success) 16%, transparent);
+  color: var(--color-success);
+}
+
+.setting-badge.hot {
+  background: color-mix(in srgb, var(--color-primary) 14%, transparent);
+  color: var(--color-primary);
+}
+
+.setting-badge.mode {
+  background: color-mix(in srgb, var(--color-warning) 14%, transparent);
+  color: var(--color-warning);
+}
+
+.runtime-setting-desc {
+  margin: 0 0 12px;
+  color: var(--color-text-secondary);
+  line-height: 1.65;
+}
+
+.runtime-setting-meta {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-small);
+}
+
+.runtime-setting-note {
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--color-info) 10%, transparent);
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+}
+
+.runtime-setting-editor {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.number-field {
+  display: inline-flex;
+  align-items: center;
+  min-width: 220px;
+  gap: 10px;
+}
+
+.number-field input {
+  width: 140px;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-body);
+}
+
+.number-field input:focus,
+.search-box input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--color-primary) 22%, transparent);
+}
+
+.field-unit {
+  color: var(--color-text-secondary);
+}
+
+.switch-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.switch-field input {
+  width: 18px;
+  height: 18px;
+}
+
+.runtime-setting-actions {
+  display: inline-flex;
+  gap: 10px;
+}
+
+.runtime-setting-error {
+  margin-top: 12px;
+  color: var(--color-danger);
+  font-size: var(--font-size-small);
+}
+
 .settings-toolbar {
   display: flex;
   align-items: center;
@@ -80,7 +347,6 @@
   color: var(--color-text-inverse);
 }
 
-/* Search Box */
 .search-box {
   position: relative;
   display: flex;
@@ -97,13 +363,7 @@
   background: var(--color-bg-elevated);
   color: var(--color-text-primary);
   font-size: var(--font-size-small);
-  outline: none;
   transition: all var(--transition-normal) var(--easing-in-out);
-}
-
-.search-box input:focus {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 22%, transparent);
 }
 
 .search-box input::placeholder {
@@ -130,10 +390,9 @@
 
 .search-box .clear-btn:hover {
   background: var(--color-danger);
-  color: white;
+  color: #fff;
 }
 
-/* Category Description */
 .category-description {
   padding: var(--spacing-2) var(--spacing-3);
   margin-bottom: var(--spacing-2);
@@ -144,7 +403,6 @@
   border-left: 3px solid var(--color-primary);
 }
 
-/* Environment Variable Table */
 .envvar-table-container {
   overflow-x: auto;
 }
@@ -183,7 +441,6 @@
   background: color-mix(in srgb, var(--color-primary) 10%, transparent);
 }
 
-/* Column Widths */
 .col-name {
   min-width: 220px;
   max-width: 300px;
@@ -203,7 +460,6 @@
   min-width: 200px;
 }
 
-/* Variable Name */
 .envvar-name {
   font-family: var(--font-family-mono);
   font-size: var(--font-size-small);
@@ -226,7 +482,6 @@
   vertical-align: middle;
 }
 
-/* Variable Values */
 .envvar-value,
 .default-value {
   font-family: var(--font-family-mono);
@@ -243,7 +498,8 @@
   color: var(--color-text-primary);
 }
 
-.envvar-value.empty {
+.envvar-value.empty,
+.default-value.empty {
   color: var(--color-text-tertiary);
   font-style: italic;
 }
@@ -254,110 +510,56 @@
   border: 1px dashed var(--color-border-default);
 }
 
-.default-value.empty {
-  font-style: italic;
-}
-
 .secret-value {
-  font-family: var(--font-family-mono);
-  font-size: var(--font-size-small);
-  color: var(--color-warning);
-  background: color-mix(in srgb, var(--color-warning) 10%, transparent);
-  padding: 2px 6px;
-  border-radius: var(--radius-md);
-}
-
-/* Description */
-.envvar-desc {
   color: var(--color-text-secondary);
-  line-height: 1.5;
-}
-
-/* Info Card */
-.info-card {
-  margin-top: var(--spacing-3);
 }
 
 .info-section h3 {
-  font-size: var(--font-size-body);
-  font-weight: 600;
+  margin: 0 0 12px;
   color: var(--color-text-primary);
-  margin: 0 0 var(--spacing-2) 0;
 }
 
 .info-section ul {
   margin: 0;
-  padding: 0 0 0 var(--spacing-4);
+  padding-left: 18px;
   color: var(--color-text-secondary);
-  font-size: var(--font-size-small);
-  line-height: 1.8;
+  line-height: 1.7;
 }
 
-.info-section ul li {
-  margin-bottom: var(--spacing-1);
-}
-
-.info-section code {
-  font-family: var(--font-family-mono);
-  font-size: 0.9em;
-  background: var(--color-bg-subtle);
-  padding: 1px 4px;
-  border-radius: var(--radius-sm);
-  color: var(--color-primary);
-}
-
-/* Loading and Empty States */
-.settings-loading,
-.no-settings {
-  text-align: center;
-  color: var(--color-text-secondary);
-  padding: var(--spacing-4);
-  border: 1px dashed var(--color-border-default);
-  border-radius: var(--radius-xl);
-  background: var(--color-bg-elevated);
-}
-
-/* Responsive */
 @media (max-width: 1024px) {
-  .col-default {
-    display: none;
+  .settings-overview-grid,
+  .runtime-summary-grid,
+  .runtime-setting-grid {
+    grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 768px) {
-  .settings-toolbar {
+  .runtime-setting-head,
+  .runtime-setting-editor {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .tab-group {
+  .setting-badges {
     justify-content: flex-start;
-    overflow-x: auto;
-    padding-bottom: var(--spacing-1);
   }
 
-  .search-box {
-    width: 100%;
+  .number-field {
+    min-width: 0;
   }
 
+  .number-field input,
   .search-box input {
     width: 100%;
-    min-width: unset;
+    min-width: 0;
   }
 
-  .envvar-table {
-    font-size: 12px;
+  .runtime-setting-actions {
+    width: 100%;
   }
 
-  .col-name {
-    min-width: 150px;
-  }
-
-  .col-value {
-    min-width: 120px;
-  }
-
-  .col-desc {
-    min-width: 150px;
+  .runtime-setting-actions .btn {
+    flex: 1;
   }
 }

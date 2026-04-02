@@ -27,11 +27,6 @@ export default function Modal({
 }: ModalProps) {
   const overlayRef = useRef<HTMLDivElement | null>(null)
   const modalRef = useRef<HTMLDivElement | null>(null)
-  const onCloseRef = useRef(onClose)
-
-  useEffect(() => {
-    onCloseRef.current = onClose
-  }, [onClose])
 
   useEffect(() => {
     if (!open) return
@@ -54,7 +49,7 @@ export default function Modal({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onCloseRef.current?.()
+        onClose?.()
       }
       if (e.key === 'Tab') {
         const list = modalRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)
@@ -78,7 +73,7 @@ export default function Modal({
       document.body.style.overflow = prevOverflow
       previousActive?.focus()
     }
-  }, [open])
+  }, [open, onClose])
 
   if (!open) return null
 

@@ -14,8 +14,22 @@ import (
 // OpenSQLite initializes a SQLite-backed store.
 // The dsn can be a file path like "/path/to/data.db" or ":memory:" for in-memory.
 func OpenSQLite(dsn string) (*Store, error) {
-	// Ensure directory exists for file-based databases
-	if dsn != "" && dsn != ":memory:" && !strings.HasPrefix(dsn, "file:") {
+	return openSQLiteStore(dsn, true, true, false)
+}
+
+// OpenExistingSQLite opens an existing SQLite database without running migrations.
+func OpenExistingSQLite(path string) (*Store, error) {
+	return openSQLiteStore(path, false, false, true)
+}
+
+func openSQLiteStore(dsn string, ensureDir bool, runMigrations bool, requireExisting bool) (*Store, error) {
+	if requireExisting && dsn != "" && dsn != ":memory:" && !strings.HasPrefix(dsn, "file:") {
+		if _, err := os.Stat(dsn); err != nil {
+			return nil, err
+		}
+	}
+
+	if ensureDir && dsn != "" && dsn != ":memory:" && !strings.HasPrefix(dsn, "file:") {
 		dir := filepath.Dir(dsn)
 		if dir != "" && dir != "." {
 			if err := os.MkdirAll(dir, 0755); err != nil {
@@ -28,8 +42,26 @@ func OpenSQLite(dsn string) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
+	applySQLitePragmas(db)
 
-	// SQLite optimizations
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+	if err := db.PingContext(ctx); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+
+	s := &Store{db: db, dialect: dialectSQLite}
+	if runMigrations {
+		if err := s.migrate(ctx); err != nil {
+			_ = db.Close()
+			return nil, err
+		}
+	}
+	return s, nil
+}
+
+func applySQLitePragmas(db *sql.DB) {
 	pragmas := []string{
 		"PRAGMA journal_mode=WAL",
 		"PRAGMA synchronous=NORMAL",
@@ -42,16 +74,4 @@ func OpenSQLite(dsn string) (*Store, error) {
 			log.Printf("sqlite: warning: %s failed: %v", pragma, err)
 		}
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-	defer cancel()
-	if err := db.PingContext(ctx); err != nil {
-		return nil, err
-	}
-
-	s := &Store{db: db, dialect: dialectSQLite}
-	if err := s.migrate(ctx); err != nil {
-		return nil, err
-	}
-	return s, nil
 }

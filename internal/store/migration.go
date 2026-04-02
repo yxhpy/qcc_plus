@@ -85,59 +85,67 @@ func (s *Store) ensureNodesTable(ctx context.Context) error {
 	var stmt string
 	if s.IsSQLite() {
 		stmt = `CREATE TABLE IF NOT EXISTS nodes (
-            id TEXT PRIMARY KEY,
-            name TEXT,
-            base_url TEXT NOT NULL,
-            api_key TEXT,
-			source_protocol TEXT DEFAULT 'claude',
+			id TEXT PRIMARY KEY,
+			name TEXT,
+			base_url TEXT NOT NULL,
+			api_key TEXT,
+			api_key_config TEXT DEFAULT '',
 			health_check_method TEXT DEFAULT 'api',
 			health_check_model TEXT DEFAULT '` + defaultHealthCheckModel + `',
+			model_mapping TEXT DEFAULT '',
+			source_protocol TEXT DEFAULT 'claude',
+			auth_profile TEXT DEFAULT '',
+			capabilities TEXT DEFAULT '',
 			account_id TEXT NOT NULL DEFAULT '` + DefaultAccountID + `',
-            weight INTEGER DEFAULT 1,
-            failed INTEGER DEFAULT 0,
+			weight INTEGER DEFAULT 1,
+			failed INTEGER DEFAULT 0,
 			disabled INTEGER DEFAULT 0,
-            last_error TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            requests INTEGER DEFAULT 0,
-            fail_count INTEGER DEFAULT 0,
-            fail_streak INTEGER DEFAULT 0,
-            total_bytes INTEGER DEFAULT 0,
-            total_input INTEGER DEFAULT 0,
-            total_output INTEGER DEFAULT 0,
-            stream_dur_ms INTEGER DEFAULT 0,
-            first_byte_ms INTEGER DEFAULT 0,
-            last_ping_ms INTEGER DEFAULT -1,
-            last_ping_err TEXT,
+			last_error TEXT,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			requests INTEGER DEFAULT 0,
+			fail_count INTEGER DEFAULT 0,
+			fail_streak INTEGER DEFAULT 0,
+			total_bytes INTEGER DEFAULT 0,
+			total_input INTEGER DEFAULT 0,
+			total_output INTEGER DEFAULT 0,
+			stream_dur_ms INTEGER DEFAULT 0,
+			first_byte_ms INTEGER DEFAULT 0,
+			last_ping_ms INTEGER DEFAULT -1,
+			last_ping_err TEXT,
 			last_health_check_at DATETIME DEFAULT NULL
-        )`
+		)`
 	} else {
 		stmt = `CREATE TABLE IF NOT EXISTS nodes (
-            id VARCHAR(64) PRIMARY KEY,
-            name VARCHAR(255),
-            base_url TEXT NOT NULL,
-            api_key TEXT,
-			source_protocol VARCHAR(32) DEFAULT 'claude',
+			id VARCHAR(64) PRIMARY KEY,
+			name VARCHAR(255),
+			base_url TEXT NOT NULL,
+			api_key TEXT,
+			api_key_config TEXT,
 			health_check_method VARCHAR(10) DEFAULT 'api',
 			health_check_model VARCHAR(128) DEFAULT '` + defaultHealthCheckModel + `',
+			model_mapping TEXT,
+			source_protocol VARCHAR(20) DEFAULT 'claude',
+			auth_profile TEXT,
+			capabilities TEXT,
 			account_id VARCHAR(64) NOT NULL DEFAULT '` + DefaultAccountID + `',
-            weight INT DEFAULT 1,
-            failed BOOLEAN DEFAULT FALSE,
+			weight INT DEFAULT 1,
+			failed BOOLEAN DEFAULT FALSE,
 			disabled BOOLEAN DEFAULT FALSE,
-            last_error TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            requests BIGINT DEFAULT 0,
-            fail_count BIGINT DEFAULT 0,
-            fail_streak BIGINT DEFAULT 0,
-            total_bytes BIGINT DEFAULT 0,
-            total_input BIGINT DEFAULT 0,
-            total_output BIGINT DEFAULT 0,
-            stream_dur_ms BIGINT DEFAULT 0,
-            first_byte_ms BIGINT DEFAULT 0,
-            last_ping_ms BIGINT DEFAULT -1,
-            last_ping_err TEXT,
+			last_error TEXT,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			requests BIGINT DEFAULT 0,
+			fail_count BIGINT DEFAULT 0,
+			fail_streak BIGINT DEFAULT 0,
+			total_bytes BIGINT DEFAULT 0,
+			total_input BIGINT DEFAULT 0,
+			total_output BIGINT DEFAULT 0,
+			stream_dur_ms BIGINT DEFAULT 0,
+			first_byte_ms BIGINT DEFAULT 0,
+			last_ping_ms BIGINT DEFAULT -1,
+			last_ping_err TEXT,
 			last_health_check_at DATETIME DEFAULT NULL,
 			KEY idx_nodes_account (account_id)
-        )`
+		)`
 	}
 	if _, err := s.db.ExecContext(ctx, stmt); err != nil {
 		return err
@@ -221,6 +229,27 @@ func (s *Store) ensureNodesTable(ctx context.Context) error {
 		}
 	}
 
+	hasAPIKeyConfig, err := s.columnExists(context.Background(), "nodes", "api_key_config")
+	if err != nil {
+		return err
+	}
+	if !hasAPIKeyConfig {
+		alterCtx, cancel := withTimeout(context.Background())
+		defer cancel()
+		var alterStmt string
+		if s.IsSQLite() {
+			alterStmt = `ALTER TABLE nodes ADD COLUMN api_key_config TEXT DEFAULT ''`
+		} else {
+			alterStmt = `ALTER TABLE nodes ADD COLUMN api_key_config TEXT AFTER api_key`
+		}
+		if _, err := s.db.ExecContext(alterCtx, alterStmt); err != nil {
+			return err
+		}
+		if _, err := s.db.ExecContext(alterCtx, `UPDATE nodes SET api_key_config='' WHERE api_key_config IS NULL`); err != nil {
+			return err
+		}
+	}
+
 	hasHealthModel, err := s.columnExists(context.Background(), "nodes", "health_check_model")
 	if err != nil {
 		return err
@@ -239,6 +268,23 @@ func (s *Store) ensureNodesTable(ctx context.Context) error {
 		}
 	}
 
+	hasModelMapping, err := s.columnExists(context.Background(), "nodes", "model_mapping")
+	if err != nil {
+		return err
+	}
+	if !hasModelMapping {
+		alterCtx, cancel := withTimeout(context.Background())
+		defer cancel()
+		var alterStmt string
+		if s.IsSQLite() {
+			alterStmt = `ALTER TABLE nodes ADD COLUMN model_mapping TEXT DEFAULT ''`
+		} else {
+			alterStmt = `ALTER TABLE nodes ADD COLUMN model_mapping TEXT AFTER health_check_model`
+		}
+		if _, err := s.db.ExecContext(alterCtx, alterStmt); err != nil {
+			return err
+		}
+	}
 	hasSourceProtocol, err := s.columnExists(context.Background(), "nodes", "source_protocol")
 	if err != nil {
 		return err
@@ -250,48 +296,45 @@ func (s *Store) ensureNodesTable(ctx context.Context) error {
 		if s.IsSQLite() {
 			alterStmt = `ALTER TABLE nodes ADD COLUMN source_protocol TEXT DEFAULT 'claude'`
 		} else {
-			alterStmt = `ALTER TABLE nodes ADD COLUMN source_protocol VARCHAR(32) DEFAULT 'claude' AFTER api_key`
+			alterStmt = `ALTER TABLE nodes ADD COLUMN source_protocol VARCHAR(20) DEFAULT 'claude' AFTER model_mapping`
 		}
 		if _, err := s.db.ExecContext(alterCtx, alterStmt); err != nil {
 			return err
 		}
 	}
-	return nil
-}
 
-func (s *Store) ensureSessionsTable(ctx context.Context) error {
-	ctx, cancel := withTimeout(ctx)
-	defer cancel()
-
-	var stmt string
-	if s.IsSQLite() {
-		stmt = `CREATE TABLE IF NOT EXISTS sessions (
-			token TEXT PRIMARY KEY,
-			account_id TEXT NOT NULL,
-			is_admin INTEGER DEFAULT 0,
-			created_at DATETIME NOT NULL,
-			expires_at DATETIME NOT NULL
-		)`
-	} else {
-		stmt = `CREATE TABLE IF NOT EXISTS sessions (
-			token VARCHAR(255) PRIMARY KEY,
-			account_id VARCHAR(64) NOT NULL,
-			is_admin BOOLEAN DEFAULT FALSE,
-			created_at DATETIME NOT NULL,
-			expires_at DATETIME NOT NULL,
-			KEY idx_sessions_account (account_id),
-			KEY idx_sessions_expires_at (expires_at)
-		)`
-	}
-	if _, err := s.db.ExecContext(ctx, stmt); err != nil {
+	hasAuthProfile, err := s.columnExists(context.Background(), "nodes", "auth_profile")
+	if err != nil {
 		return err
 	}
-
-	if s.IsSQLite() {
-		if _, err := s.db.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS idx_sessions_account ON sessions(account_id)`); err != nil {
+	if !hasAuthProfile {
+		alterCtx, cancel := withTimeout(context.Background())
+		defer cancel()
+		var alterStmt string
+		if s.IsSQLite() {
+			alterStmt = `ALTER TABLE nodes ADD COLUMN auth_profile TEXT DEFAULT ''`
+		} else {
+			alterStmt = `ALTER TABLE nodes ADD COLUMN auth_profile TEXT AFTER source_protocol`
+		}
+		if _, err := s.db.ExecContext(alterCtx, alterStmt); err != nil {
 			return err
 		}
-		if _, err := s.db.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at)`); err != nil {
+	}
+
+	hasCapabilities, err := s.columnExists(context.Background(), "nodes", "capabilities")
+	if err != nil {
+		return err
+	}
+	if !hasCapabilities {
+		alterCtx, cancel := withTimeout(context.Background())
+		defer cancel()
+		var alterStmt string
+		if s.IsSQLite() {
+			alterStmt = `ALTER TABLE nodes ADD COLUMN capabilities TEXT DEFAULT ''`
+		} else {
+			alterStmt = `ALTER TABLE nodes ADD COLUMN capabilities TEXT AFTER auth_profile`
+		}
+		if _, err := s.db.ExecContext(alterCtx, alterStmt); err != nil {
 			return err
 		}
 	}
@@ -986,6 +1029,9 @@ func (s *Store) insertSettingIfMissing(ctx context.Context, key, scope string, a
 		stmt = "INSERT OR IGNORE INTO settings (`key`, scope, account_id, value, data_type, category, is_secret, version) VALUES (?,?,?,?,?,?,0,1)"
 	} else {
 		stmt = "INSERT IGNORE INTO settings (`key`, scope, account_id, value, data_type, category, is_secret, version) VALUES (?,?,?,?,?,?,FALSE,1)"
+	}
+	if normalizeScope(scope) == "system" && account == nil {
+		account = ""
 	}
 	_, err = s.db.ExecContext(ictx, stmt, key, scope, account, body, dataType, category)
 	return err

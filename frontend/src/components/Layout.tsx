@@ -123,6 +123,15 @@ const icons = {
       <circle cx="10" cy="10" r="2" />
     </svg>
   ),
+  errorPolicies: (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 4h12v8H4z" />
+      <path d="M7 7h6" />
+      <path d="M7 10h4" />
+      <path d="M8 14h4" />
+      <path d="M10 12v4" />
+    </svg>
+  ),
   collapse: (
     <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="m11.5 5.5-4 4 4 4" />
@@ -182,6 +191,7 @@ const navItems: NavItem[] = [
 	{ path: '/admin/notifications', label: '通知管理', icon: 'notifications', group: 'system' },
 	{ path: '/settings', label: '系统设置', icon: 'settings', adminOnly: true, group: 'system' },
 	{ path: '/admin/tunnel', label: '隧道设置', icon: 'tunnel', adminOnly: true, group: 'system' },
+	{ path: '/admin/error-policies', label: '异常策略', icon: 'errorPolicies', adminOnly: true, group: 'system' },
 ]
 
 const SIDEBAR_STORAGE_KEY = 'qcc-sidebar-collapsed'

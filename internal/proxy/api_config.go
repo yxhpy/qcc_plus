@@ -61,22 +61,22 @@ func (p *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// getConfig 获取默认账号配置。
+// getConfig 获取新账号应继承的当前运行时默认配置。
+// 这里使用服务级运行时字段，而不是 default account 的持久化快照，
+// 以避免显式 Builder 配置被数据库中的陈旧默认值覆盖。
 func (p *Server) getConfig() Config {
 	p.mu.RLock()
-	defer p.mu.RUnlock()
-	if p.defaultAccount != nil {
-		return p.defaultAccount.Config
-	}
 	retries := p.retries
+	fail := p.failLimit
+	health := p.healthEvery
+	p.mu.RUnlock()
+
 	if retries == 0 {
 		retries = 3
 	}
-	fail := p.failLimit
 	if fail == 0 {
 		fail = 3
 	}
-	health := p.healthEvery
 	if health == 0 {
 		health = 30 * time.Second
 	}
@@ -106,7 +106,51 @@ func (p *Server) updateConfigForAccount(acc *Account, retries, failLimit int, he
 
 	if p.store != nil {
 		cfg := store.Config{Retries: retries, FailLimit: failLimit, HealthEvery: healthEvery}
-		return p.store.UpdateConfig(context.Background(), acc.ID, cfg, active)
+		if err := p.store.UpdateConfig(context.Background(), acc.ID, cfg, active); err != nil {
+			return err
+		}
+	}
+	if acc.ID == store.DefaultAccountID {
+		// 旧 /admin/api/config 仍然保留给默认账号兼容使用，但系统级运行时配置已经迁移到 settings 表。
+		// 这里同步写回 settings，确保旧入口修改后依然具备热更新和重启持久化能力。
+		if err := p.syncDefaultAccountConfigToSettings(retries, failLimit, healthEvery); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (p *Server) syncDefaultAccountConfigToSettings(retries, failLimit int, healthEvery time.Duration) error {
+	if p == nil || p.store == nil || p.settingsCache == nil {
+		return nil
+	}
+	updates := []struct {
+		key   string
+		value any
+	}{
+		{key: "proxy.retry_max", value: retries},
+		{key: "health.fail_threshold", value: failLimit},
+		{key: "health.check_interval_sec", value: int(healthEvery / time.Second)},
+	}
+
+	for _, item := range updates {
+		def, ok := LookupRuntimeSettingDefinition(item.key)
+		if !ok {
+			continue
+		}
+		setting, err := p.store.GetSetting(item.key, "system", "")
+		if err != nil && err != store.ErrNotFound {
+			return err
+		}
+		if setting == nil {
+			setting = buildRuntimeSettingRecord(def, item.value)
+		} else {
+			setting.Value = item.value
+		}
+		if err := p.store.UpsertSetting(setting); err != nil {
+			return err
+		}
+		p.settingsCache.UpdateLocal(item.key, item.value, int64(setting.Version))
 	}
 	return nil
 }

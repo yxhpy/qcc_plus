@@ -413,15 +413,6 @@ func TestQueryMetricsGranularity(t *testing.T) {
 	})
 }
 
-func currentHourSampleTime(now time.Time) time.Time {
-	currentHourStart := now.Truncate(time.Hour)
-	sample := currentHourStart.Add(5 * time.Minute)
-	if !sample.Before(now) {
-		sample = now.Add(-time.Second)
-	}
-	return sample
-}
-
 func TestGetNode24hTrend(t *testing.T) {
 	s := setupTestStore(t)
 	defer s.Close()
@@ -442,7 +433,7 @@ func TestGetNode24hTrend(t *testing.T) {
 	rec := MetricsRecord{
 		AccountID:         "test-acc-trend",
 		NodeID:            "node-trend",
-		Timestamp:         currentHourSampleTime(now),
+		Timestamp:         now.Add(-5 * time.Minute),
 		RequestsTotal:     10,
 		RequestsSuccess:   8,
 		RequestsFailed:    2,
@@ -500,7 +491,7 @@ func TestGetNodes24hTrend(t *testing.T) {
 		rec := MetricsRecord{
 			AccountID:         "test-acc-trends",
 			NodeID:            nid,
-			Timestamp:         currentHourSampleTime(now),
+			Timestamp:         now.Add(-5 * time.Minute),
 			RequestsTotal:     10,
 			RequestsSuccess:   10,
 			ResponseTimeSumMs: 1000,

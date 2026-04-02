@@ -321,6 +321,84 @@
   color: var(--color-text-primary);
 }
 
+.group-head-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.group-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  margin: 0;
+}
+
+.group-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--color-primary);
+}
+
+/* 批量操作工具栏 */
+.batch-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+}
+
+.batch-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.batch-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  margin: 0;
+}
+
+.batch-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--color-primary);
+}
+
+.btn-sm {
+  padding: 2px 10px !important;
+  font-size: 12px !important;
+  line-height: 22px !important;
+}
+
+.batch-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.selection-count {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.selection-count strong {
+  color: var(--color-primary);
+}
+
 .event-list {
   display: flex;
   flex-direction: column;
@@ -336,6 +414,17 @@
   border: 1px solid var(--color-border-default);
   border-radius: var(--radius-lg);
   cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.event-item:hover {
+  background: var(--color-hover);
+  border-color: var(--color-primary);
+}
+
+.event-item.checked {
+  background: color-mix(in srgb, var(--color-primary) 8%, var(--color-bg-card));
+  border-color: color-mix(in srgb, var(--color-primary) 40%, var(--color-border-default));
 }
 
 .event-item input {

@@ -14,6 +14,18 @@ type SettingsHandler struct {
 	cache *SettingsCache
 }
 
+// GetRuntimeDefinitions GET /api/settings/runtime-definitions
+// 返回前端可编辑的系统级运行时配置目录。
+func (h *SettingsHandler) GetRuntimeDefinitions(w http.ResponseWriter, r *http.Request) {
+	if !isAdmin(r.Context()) {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"data": RuntimeSettingDefinitions(),
+	})
+}
+
 // ListSettings GET /api/settings?scope=system&category=monitor&account_id=xxx
 func (h *SettingsHandler) ListSettings(w http.ResponseWriter, r *http.Request) {
 	if !isAdmin(r.Context()) {

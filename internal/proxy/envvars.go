@@ -96,7 +96,7 @@ func GetAllEnvVarDefinitions() []EnvVarDefinition {
 		{Name: "HEALTH_ALL_INTERVAL_MIN", Category: EnvCategoryHealth, DefaultValue: "10", Description: "全量健康检查间隔（分钟，备选）"},
 		{Name: "HEALTH_CHECK_CONCURRENCY", Category: EnvCategoryHealth, DefaultValue: "2", Description: "全量健康检查并发数（HEAD/API，自动限制 1~4）"},
 		{Name: "HEALTH_CHECK_CONCURRENCY_CLI", Category: EnvCategoryHealth, DefaultValue: "1", Description: "CLI 健康检查并发数（建议 1~2）"},
-		{Name: "HEALTH_MODEL_AWARE", Category: EnvCategoryHealth, DefaultValue: "0", Description: "模型感知健康检查（1=使用节点配置模型，0=使用默认轻量模型）"},
+		{Name: "HEALTH_MODEL_AWARE", Category: EnvCategoryHealth, DefaultValue: "1", Description: "模型感知健康检查（1=使用节点配置模型，0=使用默认轻量模型）"},
 		{Name: "HEALTH_VALIDATE_USAGE", Category: EnvCategoryHealth, DefaultValue: "1", Description: "健康检查时验证响应体 usage 字段（1=启用，0=仅检查状态码）"},
 		{Name: "HEALTH_VALIDATE_CONTENT", Category: EnvCategoryHealth, DefaultValue: "0", Description: "健康检查时验证响应体 content 字段（1=启用，0=关闭）"},
 		{Name: "KEY_COOLDOWN_SEC", Category: EnvCategoryHealth, DefaultValue: "60", Description: "API Key 限流冷却时间（秒）"},
@@ -181,8 +181,12 @@ func GetAllEnvVarDefinitions() []EnvVarDefinition {
 		}
 
 		if exists {
-			if def.IsSecret && val != "" {
-				def.CurrentValue = maskSecret(val)
+			if def.IsSecret {
+				if val != "" {
+					def.CurrentValue = maskSecret(val)
+				} else {
+					def.CurrentValue = "(未设置)"
+				}
 			} else {
 				def.CurrentValue = val
 			}

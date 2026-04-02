@@ -107,13 +107,8 @@
   color: var(--color-status-warning-text);
 }
 
-.error-text {
-  font-size: var(--font-size-caption);
-  color: var(--color-text-muted);
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.model-recovery-error-detail {
+  max-width: 420px;
 }
 
 .check-count {

@@ -48,6 +48,63 @@
   color: var(--color-text-primary);
 }
 
+.pricing-realtime-note {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.pricing-overview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.pricing-overview-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--color-border-default);
+  background: var(--color-bg-elevated);
+}
+
+.pricing-overview-card strong {
+  font-size: 22px;
+  color: var(--color-text-primary);
+}
+
+.pricing-overview-label {
+  font-size: var(--font-size-small);
+  color: var(--color-text-secondary);
+}
+
+.pricing-overview-card.provider-claude {
+  background: color-mix(in srgb, var(--color-primary) 8%, var(--color-bg-elevated));
+}
+
+.pricing-overview-card.provider-openai {
+  background: color-mix(in srgb, var(--color-success) 10%, var(--color-bg-elevated));
+}
+
+.pricing-overview-card.provider-gemini {
+  background: color-mix(in srgb, #f59e0b 12%, var(--color-bg-elevated));
+}
+
+.pricing-overview-meta {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.pricing-catalog-note {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
 .toolbar .spacer {
   flex: 1;
 }
@@ -178,6 +235,13 @@
   gap: 2px;
 }
 
+.model-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .model-name {
   font-weight: 600;
   color: var(--color-text-primary);
@@ -192,6 +256,38 @@
 .price-cell {
   font-family: var(--font-mono);
   color: var(--color-text-primary);
+}
+
+.provider-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.provider-badge.provider-claude {
+  background: color-mix(in srgb, var(--color-primary) 14%, transparent);
+  color: var(--color-primary);
+}
+
+.provider-badge.provider-openai {
+  background: color-mix(in srgb, var(--color-success) 16%, transparent);
+  color: var(--color-success);
+}
+
+.provider-badge.provider-gemini {
+  background: color-mix(in srgb, #f59e0b 16%, transparent);
+  color: #c57b00;
+}
+
+.provider-badge.provider-other {
+  background: color-mix(in srgb, var(--color-text-secondary) 14%, transparent);
+  color: var(--color-text-secondary);
 }
 
 .status-badge {
@@ -307,6 +403,10 @@
 
 /* Responsive */
 @media (max-width: 768px) {
+  .pricing-overview {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .form-row {
     flex-direction: column;
   }
@@ -323,5 +423,10 @@
   .actions-cell {
     flex-direction: column;
     gap: 4px;
+  }
+
+  .pricing-overview-meta {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }

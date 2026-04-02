@@ -25,7 +25,7 @@ const Pricing = lazy(() => import('./pages/Pricing'))
 const Usage = lazy(() => import('./pages/Usage'))
 const RequestLogs = lazy(() => import('./pages/RequestLogs'))
 const ModelRecovery = lazy(() => import('./pages/ModelRecovery'))
-
+const ErrorPolicies = lazy(() => import('./pages/ErrorPolicies'))
 function ProtectedRoute({ children, adminOnly = false }: { children: ReactElement; adminOnly?: boolean }) {
   const { isAuthenticated, loading, isAdmin } = useAuth()
 
@@ -203,6 +203,16 @@ export default function App() {
                   <ProtectedRoute>
                     <Layout>
                       <ModelRecovery />
+                    </Layout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/error-policies"
+                element={
+                  <ProtectedRoute adminOnly>
+                    <Layout>
+                      <ErrorPolicies />
                     </Layout>
                   </ProtectedRoute>
                 }

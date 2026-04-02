@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Card from '../components/Card'
+import ErrorDetailBlock from '../components/errors/ErrorDetailBlock'
 import Toast from '../components/Toast'
 import { useAuth } from '../hooks/useAuth'
 import api from '../services/api'
@@ -33,10 +34,11 @@ export default function ModelRecovery() {
       setTotal(data.total || 0)
     } catch (err) {
       console.error('Failed to load model recovery data:', err)
+      showToast('加载模型恢复数据失败，请检查服务端日志', 'error')
     } finally {
       setLoading(false)
     }
-  }, [selectedAccount])
+  }, [selectedAccount, showToast])
 
   const loadAccounts = useCallback(async () => {
     if (!isAdmin) return
@@ -77,6 +79,16 @@ export default function ModelRecovery() {
     try {
       await api.dismissModelRecovery(nodeId, modelId)
       showToast('已移除恢复跟踪')
+      fetchData()
+    } catch (err) {
+      showToast('操作失败', 'error')
+    }
+  }
+
+  const handleToggleNonRecoverable = async (nodeId: string, modelId: string, value: boolean) => {
+    try {
+      await api.setModelRecoveryNonRecoverable(nodeId, modelId, value)
+      showToast(value ? '已标记不可恢复' : '已恢复为可检查')
       fetchData()
     } catch (err) {
       showToast('操作失败', 'error')
@@ -184,6 +196,7 @@ export default function ModelRecovery() {
                 <th>失败时间</th>
                 <th>检查次数</th>
                 <th>最后检查</th>
+                <th>不可恢复</th>
                 <th>操作</th>
               </tr>
             </thead>
@@ -198,9 +211,7 @@ export default function ModelRecovery() {
                     </span>
                   </td>
                   <td>
-                    <span className="error-text" title={item.error}>
-                      {item.error}
-                    </span>
+                    <ErrorDetailBlock detail={item.error} className="model-recovery-error-detail" />
                   </td>
                   <td style={{ fontSize: '12px', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
                     {item.failed_at}
@@ -210,6 +221,16 @@ export default function ModelRecovery() {
                   </td>
                   <td style={{ fontSize: '12px', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
                     {item.last_check || '--'}
+                  </td>
+                  <td>
+                    <label style={{ fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <input
+                        type="checkbox"
+                        checked={!!item.non_recoverable}
+                        onChange={e => handleToggleNonRecoverable(item.node_id, item.model_id, e.target.checked)}
+                      />
+                      不可恢复
+                    </label>
                   </td>
                   <td>
                     <button

@@ -144,8 +144,7 @@ func (p *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		Name:     "session_token",
 		Value:    sess.Token,
 		Path:     "/",
-		MaxAge:   int(defaultSessionTTL / time.Second),
-		Expires:  sess.ExpiresAt,
+		MaxAge:   86400,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 	})

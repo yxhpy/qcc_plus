@@ -300,46 +300,20 @@
 
 .alert-card .alert-title {
   color: var(--color-text-primary);
-  margin-bottom: 2px;
+  margin-bottom: 6px;
   line-height: 1.4;
 }
 
-.alert-card details {
-  margin-top: 12px;
-  cursor: pointer;
+.alert-error-detail .error-detail-summary {
+  color: var(--color-danger-text);
 }
 
-.alert-card summary {
-  color: color-mix(in srgb, var(--color-text-primary) 60%, transparent);
-  font-size: var(--font-size-small);
-  padding: var(--spacing-1) 0;
-  list-style: none;
-  user-select: none;
+.alert-error-detail .error-detail-chip {
+  background: color-mix(in srgb, var(--color-bg-elevated) 90%, transparent);
 }
 
-.alert-card summary::-webkit-details-marker {
-  display: none;
-}
-
-.alert-card summary::before {
-  content: '▸ ';
-  display: inline-block;
-  transition: transform 0.2s ease;
-}
-
-.alert-card details[open] summary::before {
-  transform: rotate(90deg);
-}
-
-.alert-card pre {
-  margin: 8px 0 0;
-  padding: var(--spacing-3);
-  background: var(--color-bg-elevated);
-  border-radius: var(--radius-md);
-  overflow-x: auto;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: var(--font-size-caption);
-  line-height: 1.6;
+.alert-error-detail .error-detail-raw {
+  background: color-mix(in srgb, var(--color-bg-elevated) 94%, transparent);
   color: var(--color-danger-text);
 }
 

@@ -11,10 +11,15 @@ type Node struct {
 	Name              string
 	URL               *url.URL
 	APIKey            string
+	APIKeyConfig      string
+	APIKeyItems       []NamedAPIKey
 	APIKeys           *KeyRotator // 多密钥轮换器（当 APIKey 包含逗号时自动启用）
-	SourceProtocol    string
 	HealthCheckMethod string
-	HealthCheckModel  string // CLI 健康检查使用的模型，默认为 claude-haiku-4-5-20251001
+	HealthCheckModel  string            // CLI 健康检查使用的模型，默认为 claude-haiku-4-5-20251001
+	ModelMapping      map[string]string // 模型映射：请求中的模型 -> 转发给上游的模型
+	SourceProtocol    string            // 源协议：claude/openai/gemini
+	AuthProfile       string            // JSON 格式鉴权配置
+	Capabilities      string            // JSON 格式能力声明
 	AccountID         string
 	CreatedAt         time.Time
 	Metrics           metrics
@@ -24,12 +29,70 @@ type Node struct {
 	LastError         string
 }
 
+// MapModel 根据节点的模型映射表转换模型 ID，无映射则返回原值。
+func (n *Node) MapModel(model string) string {
+	if n.ModelMapping == nil {
+		return model
+	}
+	if mapped, ok := n.ModelMapping[model]; ok && mapped != "" {
+		return mapped
+	}
+	return model
+}
+
+type ActiveAPIKeyInfo struct {
+	Key         string
+	Name        string
+	DisplayName string
+}
+
 // GetActiveAPIKey 获取当前应使用的 API Key（支持多密钥轮换）
 func (n *Node) GetActiveAPIKey() string {
-	if n.APIKeys != nil && n.APIKeys.KeyCount() > 0 {
-		return n.APIKeys.GetCurrentKey()
+	return n.GetActiveAPIKeyInfo().Key
+}
+
+func (n *Node) GetActiveAPIKeyInfo() ActiveAPIKeyInfo {
+	if n == nil {
+		return ActiveAPIKeyInfo{}
 	}
-	return n.APIKey
+
+	key := n.APIKey
+	if n.APIKeys != nil && n.APIKeys.KeyCount() > 0 {
+		key = n.APIKeys.GetCurrentKey()
+	}
+
+	info := ActiveAPIKeyInfo{
+		Key:         key,
+		DisplayName: n.Name,
+	}
+	if key == "" {
+		return info
+	}
+
+	for _, item := range n.APIKeyItems {
+		if item.Key == key {
+			info.Name = item.Name
+			info.DisplayName = displayNodeNameForKey(n.Name, item.Name)
+			return info
+		}
+	}
+
+	return info
+}
+
+func (n *Node) DisplayNameForKey(key string) string {
+	if n == nil {
+		return ""
+	}
+	if key == "" {
+		return n.Name
+	}
+	for _, item := range n.APIKeyItems {
+		if item.Key == key {
+			return displayNodeNameForKey(n.Name, item.Name)
+		}
+	}
+	return n.Name
 }
 
 // metrics 记录节点请求与健康状况统计。

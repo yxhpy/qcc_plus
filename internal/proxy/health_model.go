@@ -3,6 +3,7 @@ package proxy
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // HealthCheckModelConfig 模型感知健康检查配置
@@ -17,7 +18,7 @@ type HealthCheckModelConfig struct {
 
 func loadHealthCheckModelConfig() HealthCheckModelConfig {
 	return HealthCheckModelConfig{
-		ModelAwareEnabled: GetEnvBool("HEALTH_MODEL_AWARE", false),
+		ModelAwareEnabled: GetEnvBool("HEALTH_MODEL_AWARE", true),
 		ValidateUsage:     GetEnvBool("HEALTH_VALIDATE_USAGE", true),
 		ValidateContent:   GetEnvBool("HEALTH_VALIDATE_CONTENT", false),
 	}
@@ -27,16 +28,23 @@ func loadHealthCheckModelConfig() HealthCheckModelConfig {
 type ModelFamily string
 
 const (
-	ModelFamilyClaude  ModelFamily = "claude" // Claude 系列（chat/messages）
+	ModelFamilyClaude  ModelFamily = "claude"
+	ModelFamilyOpenAI  ModelFamily = "openai"
+	ModelFamilyGemini  ModelFamily = "gemini"
 	ModelFamilyUnknown ModelFamily = "unknown"
 )
 
-// DetectModelFamily 根据模型 ID 检测模型族
 func DetectModelFamily(modelID string) ModelFamily {
 	if modelID == "" {
-		return ModelFamilyClaude // 默认 Claude
+		return ModelFamilyClaude
 	}
-	// 目前 qcc_plus 主要代理 Anthropic Claude API
+	lower := strings.ToLower(modelID)
+	if strings.HasPrefix(lower, "gpt-") || strings.HasPrefix(lower, "o1-") || strings.HasPrefix(lower, "o3-") || strings.HasPrefix(lower, "o4-") {
+		return ModelFamilyOpenAI
+	}
+	if strings.HasPrefix(lower, "gemini-") {
+		return ModelFamilyGemini
+	}
 	return ModelFamilyClaude
 }
 
@@ -74,7 +82,7 @@ func buildClaudeHealthPayload(model string) ([]byte, error) {
 }
 
 // ChooseHealthCheckModel 选择健康检查使用的模型
-// 如果启用了模型感知，使用节点配置的模型；否则使用默认的轻量模型
+// 默认优先使用节点配置的模型；显式关闭模型感知时才回退到默认轻量模型
 func ChooseHealthCheckModel(nodeModel string, cfg HealthCheckModelConfig) string {
 	if cfg.ModelAwareEnabled && nodeModel != "" {
 		return nodeModel
@@ -87,16 +95,72 @@ func FormatHealthCheckError(result HealthCheckResult) string {
 	if result.Success {
 		return ""
 	}
+	return formatUpstreamErrorDetail(result.StatusCode, result.Error, result.RawBody, result.Error.Message)
+}
 
-	msg := fmt.Sprintf("status %d", result.StatusCode)
-	if result.Error.Code != "" {
-		msg += fmt.Sprintf(" [%s]", result.Error.Code)
+type HealthProbeSpec struct {
+	Method  string
+	Path    string
+	Headers map[string]string
+	Body    []byte
+}
+
+func BuildHealthProbeSpec(sourceProtocol, model string) (HealthProbeSpec, error) {
+	switch sourceProtocol {
+	case SourceProtocolOpenAI:
+		payload := map[string]any{
+			"model":      model,
+			"messages":   []map[string]string{{"role": "user", "content": "ping"}},
+			"max_tokens": 1,
+		}
+		body, err := json.Marshal(payload)
+		if err != nil {
+			return HealthProbeSpec{}, err
+		}
+		return HealthProbeSpec{
+			Method: "POST",
+			Path:   "/v1/chat/completions",
+			Headers: map[string]string{
+				"Content-Type": "application/json",
+			},
+			Body: body,
+		}, nil
+	case SourceProtocolGemini:
+		effectiveModel := model
+		if effectiveModel == "" {
+			effectiveModel = "gemini-2.5-flash"
+		}
+		payload := map[string]any{
+			"contents": []map[string]any{{
+				"role":  "user",
+				"parts": []map[string]string{{"text": "ping"}},
+			}},
+		}
+		body, err := json.Marshal(payload)
+		if err != nil {
+			return HealthProbeSpec{}, err
+		}
+		return HealthProbeSpec{
+			Method: "POST",
+			Path:   fmt.Sprintf("/v1beta/models/%s:generateContent", effectiveModel),
+			Headers: map[string]string{
+				"Content-Type": "application/json",
+			},
+			Body: body,
+		}, nil
+	default:
+		body, err := BuildHealthCheckPayload(model)
+		if err != nil {
+			return HealthProbeSpec{}, err
+		}
+		return HealthProbeSpec{
+			Method: "POST",
+			Path:   "/v1/messages",
+			Headers: map[string]string{
+				"Content-Type":      "application/json",
+				"anthropic-version": "2023-06-01",
+			},
+			Body: body,
+		}, nil
 	}
-	if result.Error.Message != "" {
-		msg += ": " + result.Error.Message
-	}
-	if result.Error.Severity != SeverityTransient {
-		msg += fmt.Sprintf(" (severity=%s)", result.Error.Severity)
-	}
-	return msg
 }

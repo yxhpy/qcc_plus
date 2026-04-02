@@ -1,0 +1,42 @@
+.error-policies-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.error-policies-header .sub {
+  color: var(--color-text-muted);
+  margin-top: 6px;
+}
+
+.error-policies-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 10px;
+}
+
+.error-policy-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+}
+
+.error-policy-table th,
+.error-policy-table td {
+  border-bottom: 1px solid var(--color-border);
+  padding: 8px 10px;
+  text-align: left;
+  font-size: 13px;
+}
+
+.error-policy-table .msg {
+  max-width: 420px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.empty {
+  color: var(--color-text-muted);
+  padding: 16px 8px;
+}

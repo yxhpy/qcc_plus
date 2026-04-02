@@ -6,6 +6,77 @@
 
 ## [Unreleased]
 
+## [1.12.1] - 2026-02-28
+
+### 文档
+- **同步项目版本口径到 v1.12.1**
+  - 更新项目入口文档中的版本信息
+
+## [1.12.0] - 2026-02-10
+
+### 新增
+- **节点模型映射功能**
+  - 代理时自动完成模型重定向，支持自定义输入模型名称
+  - 健康检查应用模型映射规则
+- **模型恢复通知事件**
+  - 新增 `model.failed`（模型进入恢复列表）和 `model.recovered`（模型恢复）通知事件
+  - `MarkFailed` 返回是否首次进入恢复列表，避免重复通知
+  - 健康检查恢复使用正确的 `EventModelRecovered` 事件类型
+- **通知页面批量操作**
+  - 新增全选、反选、清空选择、分类级别全选/取消功能
+  - 事件项增加 hover 和选中高亮样式
+  - 新增“模型恢复”事件分类
+
+### 修复
+- **移除请求中的 brotli 编码**，修复 BrotliDecompressionError
+- **修复模型映射支持自定义输入**，同时让健康检查应用映射规则
+- **修复 MySQL TEXT 列不支持 DEFAULT 值**，移除 `model_mapping` 默认值
+
+### 测试
+- 新增 `MarkFailed` 返回值测试，覆盖首次/重复/恢复后再次标记场景
+
+## [1.11.0] - 2026-02-10
+
+### 新增
+- **SSE 流式响应空闲超时机制**
+  - 流式请求不再使用 30 秒总超时，改为 120 秒空闲超时
+  - 只要上游持续发送数据就不会超时，连续 120 秒无数据才中断
+  - 新增 `RETRY_STREAM_IDLE_TIMEOUT_SEC` 环境变量配置空闲超时
+  - 新增 `idleTimeoutReader` 组件，在 response body 层面实现空闲检测
+
+### 修复
+- **修复 504 代理超时不切换节点的严重问题**
+  - 区分客户端关闭（499）和代理超时（504）两种 context 错误
+  - 504 超时现在会标记节点失败、触发熔断器、自动切换到下一个节点
+  - 499 客户端关闭保持原行为，不标记失败，也不重试
+- **新增 `retryBuf` 安全检查**
+  - 重试前检查响应是否已部分发送，防止数据损坏
+
+### 文档
+- **清理冗余与过时文档**
+  - 删除 30+ 冗余、历史性或临时性文档
+  - 更新保留文档的版本号和内容
+
+## [1.10.0] - 2026-02-10
+
+### 新增
+- **请求日志可展开尝试链**
+  - `RequestLogs` 页面支持展开查看每次请求的完整尝试链（重试、Key 轮换、节点切换）
+  - 所有 `usage log` 行支持展开查看尝试详情
+
+### 改进
+- **增强日志、监控和重试韧性**
+  - 改进请求日志的详细程度和可读性
+  - 增强重试机制的稳定性
+- **容器开机自启动策略**
+- **自动清理部署产生的悬空镜像**
+
+### 修复
+- **修复 `recordMetrics` 重复写入 usage log 的问题**
+- **修复 Builder 配置被数据库默认值覆盖的问题**
+- **修复 Docker Compose 配置兼容性问题**
+- **部署脚本补充 MySQL 健康检查等待**
+
 ## [1.9.4] - 2025-12-10
 
 ### 修复
@@ -520,7 +591,11 @@
 - 前端：React 18, TypeScript, Vite, Chart.js
 - 部署：Docker Compose, Cloudflare Tunnel
 
-[unreleased]: https://github.com/yxhpy/qcc_plus/compare/v1.9.4...HEAD
+[unreleased]: https://github.com/yxhpy/qcc_plus/compare/v1.12.1...HEAD
+[1.12.1]: https://github.com/yxhpy/qcc_plus/compare/v1.12.0...v1.12.1
+[1.12.0]: https://github.com/yxhpy/qcc_plus/compare/v1.11.0...v1.12.0
+[1.11.0]: https://github.com/yxhpy/qcc_plus/compare/v1.10.0...v1.11.0
+[1.10.0]: https://github.com/yxhpy/qcc_plus/compare/v1.9.4...v1.10.0
 [1.9.4]: https://github.com/yxhpy/qcc_plus/compare/v1.9.3...v1.9.4
 [1.9.3]: https://github.com/yxhpy/qcc_plus/compare/v1.9.2...v1.9.3
 [1.9.2]: https://github.com/yxhpy/qcc_plus/compare/v1.9.1...v1.9.2

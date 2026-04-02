@@ -449,7 +449,7 @@ func (b *Builder) Build() (*Server, error) {
 		store:            st,
 		adminKey:         adminKey,
 		defaultAccName:   defaultAccountName,
-		sessionMgr:       NewSessionManager(defaultSessionTTL, st),
+		sessionMgr:       NewSessionManager(defaultSessionTTL),
 		metricsScheduler: metricsScheduler,
 		wsHub:            hub,
 		retryConfig:      loadRetryConfig(),
@@ -458,12 +458,20 @@ func (b *Builder) Build() (*Server, error) {
 		warmupSem:        make(chan struct{}, warmupConcurrency),
 		lbConfig:         loadLoadBalancerConfig(),
 		shutdownTimeout:  time.Duration(GetEnvInt("GRACEFUL_SHUTDOWN_TIMEOUT_SEC", 30)) * time.Second,
+		healthLoopStop:   make(chan struct{}),
 	}
 	srv.nodeScorer = NewNodeScorer(srv.lbConfig)
 	srv.modelRecovery = NewModelRecoveryTracker()
+	srv.modelRecovery.SetLogger(logger)
+	if st != nil {
+		srv.modelRecovery.SetStore(st)
+	}
 
 	if st != nil {
 		srv.settingsCache = NewSettingsCache(st)
+	}
+	if srv.settingsCache != nil {
+		srv.errorPolicy = NewErrorPolicyManager(srv.settingsCache)
 	}
 
 	if healthAllInterval > 0 {
@@ -484,37 +492,14 @@ func (b *Builder) Build() (*Server, error) {
 	srv.healthEvery = defaultCfg.HealthEvery
 
 	if srv.settingsCache != nil {
+		// on-change 类型的配置需要主动推送到运行时字段；
+		// read-through / frontend 类型则直接在读取路径上消费缓存，不在这里额外分发。
 		srv.settingsCache.OnChange(func(key string, value any) {
-			switch key {
-			case "health.check_interval_sec":
-				switch n := value.(type) {
-				case float64:
-					srv.updateHealthInterval(time.Duration(n) * time.Second)
-				case int:
-					srv.updateHealthInterval(time.Duration(n) * time.Second)
-				case int64:
-					srv.updateHealthInterval(time.Duration(n) * time.Second)
-				}
-			case "proxy.retry_max":
-				switch n := value.(type) {
-				case float64:
-					srv.updateRetryMax(int(n))
-				case int:
-					srv.updateRetryMax(n)
-				case int64:
-					srv.updateRetryMax(int(n))
-				}
-			case "health.fail_threshold":
-				switch n := value.(type) {
-				case float64:
-					srv.updateFailLimit(int(n))
-				case int:
-					srv.updateFailLimit(n)
-				case int64:
-					srv.updateFailLimit(int(n))
-				}
-			}
+			srv.applyRuntimeSetting(key, value)
 		})
+		if srv.errorPolicy != nil {
+			srv.errorPolicy.reloadFromCache()
+		}
 	}
 
 	// Initialize accounts from storage (st is always non-nil now: SQLite or MySQL)
@@ -579,6 +564,11 @@ func (b *Builder) Build() (*Server, error) {
 		return nil, err
 	}
 
+	// 从数据库恢复失败模型状态（必须在节点加载完成后）
+	if err := srv.modelRecovery.LoadFromStore(); err != nil {
+		logger.Printf("[model-recovery] warning: failed to load from store: %v", err)
+	}
+
 	if srv.defaultAccount != nil && srv.defaultAccount.ActiveID == "" {
 		for id := range srv.defaultAccount.Nodes {
 			srv.defaultAccount.ActiveID = id
@@ -592,7 +582,7 @@ func (b *Builder) Build() (*Server, error) {
 		srv.startSettingsWatcher(30 * time.Second)
 	}
 
-	if srv.store != nil {
+	if srv.store != nil && os.Getenv("QCC_SKIP_TUNNEL_AUTOSTART") != "1" {
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			cfg, err := srv.store.GetTunnelConfig(ctx)

@@ -133,12 +133,23 @@ func (p *Server) handleFailure(nodeID string, errMsg string) {
 
 // 定时探活失败节点。
 func (p *Server) healthLoop() {
+	stopCh := p.healthLoopStop
 	for {
 		interval := p.healthInterval()
 		if interval <= 0 {
 			return
 		}
-		time.Sleep(interval)
+		timer := time.NewTimer(interval)
+		if stopCh == nil {
+			<-timer.C
+		} else {
+			select {
+			case <-timer.C:
+			case <-stopCh:
+				timer.Stop()
+				return
+			}
+		}
 		p.checkFailedNodes()
 		p.checkFailedModels()
 	}
@@ -246,23 +257,28 @@ func (p *Server) checkModelRecovery(acc *Account, node *Node, modelID string) {
 		return
 	}
 
-	// 构造使用指定模型的健康检查请求
-	bodyBytes, err := BuildHealthCheckPayload(modelID)
+	probeModelID := modelID
+	if node != nil {
+		probeModelID = node.MapModel(modelID)
+	}
+
+	// 构造协议感知的健康检查请求（按节点 source_protocol 选择路径和请求体）
+	spec, err := BuildHealthProbeSpec(NormalizedSourceProtocol(node.SourceProtocol), probeModelID)
 	if err != nil {
-		p.logger.Printf("[model-recovery] build payload failed for model %s: %v", modelID, err)
+		p.logger.Printf("[model-recovery] build probe spec failed for model %s (probe=%s): %v", modelID, probeModelID, err)
 		return
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	apiURL := strings.TrimSuffix(node.URL.String(), "/") + "/v1/messages"
-	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, bytes.NewReader(bodyBytes))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("anthropic-version", "2023-06-01")
+	apiURL := buildHealthProbeURL(node.URL.String(), spec.Path)
+	req, _ := http.NewRequestWithContext(ctx, spec.Method, apiURL, bytes.NewReader(spec.Body))
+	for k, v := range spec.Headers {
+		req.Header.Set(k, v)
+	}
 	req.Header.Set("x-api-key", apiKey)
 	req.Header.Set("Authorization", "Bearer "+apiKey)
-
 	client := &http.Client{Transport: p.healthRT, Timeout: 10 * time.Second}
 	start := time.Now()
 	resp, err := client.Do(req)
@@ -282,7 +298,11 @@ func (p *Server) checkModelRecovery(acc *Account, node *Node, modelID string) {
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		// 模型恢复成功
 		p.modelRecovery.MarkRecovered(node.ID, modelID)
-		p.logger.Printf("[model-recovery] model %s recovered on node %s (latency=%s)", modelID, node.Name, latency)
+		if probeModelID != modelID {
+			p.logger.Printf("[model-recovery] model %s recovered on node %s via mapped probe %s (latency=%s)", modelID, node.Name, probeModelID, latency)
+		} else {
+			p.logger.Printf("[model-recovery] model %s recovered on node %s (latency=%s)", modelID, node.Name, latency)
+		}
 
 		// 记录恢复事件
 		p.recordHealthEvent(acc.ID, node.ID, HealthCheckMethodAPI, "model_recovery", true, latency, "", time.Now().UTC())
@@ -303,9 +323,9 @@ func (p *Server) checkModelRecovery(acc *Account, node *Node, modelID string) {
 		if p.notifyMgr != nil {
 			p.notifyMgr.Publish(notify.Event{
 				AccountID:  acc.ID,
-				EventType:  notify.EventNodeRecovered,
+				EventType:  notify.EventModelRecovered,
 				Title:      "模型已恢复",
-				Content:    fmt.Sprintf("**节点名称**: %s\n**模型**: %s\n**恢复时间**: %s", node.Name, modelID, timeutil.FormatBeijingTime(time.Now())),
+				Content:    fmt.Sprintf("**节点名称**: %s\n**模型**: %s\n**恢复方式**: 健康检查\n**恢复时间**: %s", node.Name, modelID, timeutil.FormatBeijingTime(time.Now())),
 				DedupKey:   node.ID + ":" + modelID,
 				OccurredAt: time.Now(),
 			})
@@ -315,10 +335,7 @@ func (p *Server) checkModelRecovery(acc *Account, node *Node, modelID string) {
 
 	// 仍然失败
 	classified := ClassifyError(resp.StatusCode, respBody)
-	errMsg := fmt.Sprintf("status %d", resp.StatusCode)
-	if classified.Message != "" {
-		errMsg = classified.Message
-	}
+	errMsg := formatUpstreamErrorDetail(resp.StatusCode, classified, respBody, classified.Message)
 	p.modelRecovery.MarkFailed(node.ID, modelID, acc.ID, errMsg)
 	p.logger.Printf("[model-recovery] model %s on node %s still failing: %s (latency=%s)", modelID, node.Name, errMsg, latency)
 }
@@ -504,10 +521,9 @@ func (p *Server) checkNodeHealth(acc *Account, id string, source string) {
 		(wasFailed || activeID == "" || n.Weight < activeWeight)
 
 	if ok && wasFailed && !isWarmup {
-		// 节点整体恢复时，清除该节点上所有失败的模型记录
-		if p.modelRecovery != nil {
-			p.modelRecovery.MarkNodeRecovered(id)
-		}
+		// 节点整体恢复：节点级健康检查使用的是轻量模型（如 haiku），
+		// 不能代表所有模型都可用。不再盲目清除模型级失败记录，
+		// 让 checkFailedModels() 用实际失败的模型逐个验证恢复。
 		// 恢复后重新在健康节点中选择最优的一个。
 		if p.notifyMgr != nil && acc != nil && n != nil {
 			p.notifyMgr.Publish(notify.Event{
@@ -573,6 +589,14 @@ func normalizeHealthCheckMethod(method string) string {
 	}
 }
 
+func protocolFixedHealthCheckMethod(protocol string) (string, bool) {
+	p := NormalizedSourceProtocol(protocol)
+	if p == SourceProtocolOpenAI || p == SourceProtocolGemini {
+		return HealthCheckMethodAPI, true
+	}
+	return "", false
+}
+
 func healthMethodRequiresAPIKey(method string) bool {
 	m := normalizeHealthCheckMethod(method)
 	return m == HealthCheckMethodAPI || m == HealthCheckMethodCLI
@@ -591,20 +615,22 @@ func (p *Server) healthCheckViaAPI(ctx context.Context, node Node) (bool, string
 	// 模型感知：选择合适的健康检查模型
 	hcModelCfg := loadHealthCheckModelConfig()
 	model := ChooseHealthCheckModel(node.HealthCheckModel, hcModelCfg)
+	// 应用节点模型映射
+	model = node.MapModel(model)
 
-	// 构造模型感知的健康检查请求
-	bodyBytes, err := BuildHealthCheckPayload(model)
+	// 构造协议感知的健康检查请求（当前默认仍走 claude，可扩展 openai/gemini）
+	spec, err := BuildHealthProbeSpec(NormalizedSourceProtocol(node.SourceProtocol), model)
 	if err != nil {
-		return false, fmt.Sprintf("build health check payload failed: %v", err), 0
+		return false, fmt.Sprintf("build health probe spec failed: %v", err), 0
 	}
 
-	apiURL := strings.TrimSuffix(node.URL.String(), "/") + "/v1/messages"
-	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, bytes.NewReader(bodyBytes))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("anthropic-version", "2023-06-01")
+	apiURL := buildHealthProbeURL(node.URL.String(), spec.Path)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, bytes.NewReader(spec.Body))
+	for k, v := range spec.Headers {
+		req.Header.Set(k, v)
+	}
 	req.Header.Set("x-api-key", apiKey)
 	req.Header.Set("Authorization", "Bearer "+apiKey)
-
 	client := &http.Client{Transport: p.healthRT, Timeout: 5 * time.Second}
 	start := time.Now()
 	resp, err := client.Do(req)
@@ -654,13 +680,7 @@ func (p *Server) healthCheckViaAPI(ctx context.Context, node Node) (bool, string
 
 	// 失败：语义化错误分析
 	classified := ClassifyError(resp.StatusCode, respBody)
-	errMsg := fmt.Sprintf("status %d", resp.StatusCode)
-	if classified.Message != "" {
-		errMsg = classified.Message
-	}
-	if classified.Code != "" {
-		errMsg = fmt.Sprintf("[%s] %s", classified.Code, errMsg)
-	}
+	errMsg := formatUpstreamErrorDetail(resp.StatusCode, classified, respBody, classified.Message)
 
 	// Key 相关错误时尝试切换 key
 	if classified.Severity.ShouldSwitchKey() && node.APIKeys != nil {
@@ -707,6 +727,8 @@ func (p *Server) healthCheckViaCLI(ctx context.Context, node Node) (bool, string
 	if model == "" {
 		model = defaultHealthCheckModel
 	}
+	// 应用节点模型映射
+	model = node.MapModel(model)
 	env := map[string]string{
 		"ANTHROPIC_API_KEY":    node.APIKey,
 		"ANTHROPIC_AUTH_TOKEN": chooseNonEmpty(os.Getenv("ANTHROPIC_AUTH_TOKEN"), node.APIKey),
@@ -757,7 +779,9 @@ func (p *Server) recordHealthEvent(accountID, nodeID, method, source string, suc
 	}
 
 	if p.store != nil {
+		p.asyncStoreWg.Add(1)
 		go func(rec store.HealthCheckRecord) {
+			defer p.asyncStoreWg.Done()
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancel()
 			if !p.shouldInsertHealthRecord(ctx, rec.AccountID, rec.NodeID, rec.Success, rec.CheckTime) {

@@ -203,6 +203,23 @@ func streamFlagEnabled(v any) bool {
 	}
 }
 
+func stripProxyAuthQuery(req *http.Request) {
+	if req == nil || req.URL == nil {
+		return
+	}
+	query := req.URL.Query()
+	changed := false
+	for _, key := range []string{"key", "api_key"} {
+		if query.Has(key) {
+			query.Del(key)
+			changed = true
+		}
+	}
+	if changed {
+		req.URL.RawQuery = query.Encode()
+	}
+}
+
 func isStreamRequest(req *http.Request) bool {
 	if req == nil {
 		return false
@@ -251,13 +268,16 @@ func wrapFirstByteFlush(w http.ResponseWriter, state *streamState) http.Response
 }
 
 // 构建指向指定节点的反向代理。
-func (p *Server) newReverseProxy(node *Node, u *usage, idleCfg *streamIdleConfig) (*httputil.ReverseProxy, *streamState) {
+func (p *Server) newReverseProxy(node *Node, u *usage, idleCfg *streamIdleConfig, strictRouting bool) (*httputil.ReverseProxy, *streamState) {
 	proxy := httputil.NewSingleHostReverseProxy(node.URL)
 	proxy.Transport = p.transport
 	proxy.FlushInterval = -1
 	streamingState := &streamState{}
 
-	// 清理工具定义，去除 Anthropic 未支持的字段。
+	// cleanTools 清理工具定义中的非标准字段。
+	// Claude 协议保留 name/description/input_schema； OpenAI 协议保留 name/description/function/parameters。
+	// Gemini 协议不使用 Claude tools 格式，不做清理。
+	// 当节点不是 Claude 协议时，跳过工具清理以避免破坏 OpenAI/Gemini 格式。
 	cleanTools := func(body []byte) ([]byte, bool) {
 		var payload map[string]any
 		if err := json.Unmarshal(body, &payload); err != nil {
@@ -276,15 +296,18 @@ func (p *Server) newReverseProxy(node *Node, u *usage, idleCfg *streamIdleConfig
 				sanitized = append(sanitized, item)
 				continue
 			}
-			cleaned := make(map[string]any, 3)
+			cleaned := make(map[string]any, 4)
 			if v, ok := obj["name"]; ok {
 				cleaned["name"] = v
 			}
 			if v, ok := obj["description"]; ok {
 				cleaned["description"] = v
 			}
+			// Claude: input_schema; OpenAI: function
 			if v, ok := obj["input_schema"]; ok {
 				cleaned["input_schema"] = v
+			} else if v, ok := obj["function"]; ok {
+				cleaned["function"] = v
 			}
 			if len(cleaned) != len(obj) {
 				changed = true
@@ -303,8 +326,6 @@ func (p *Server) newReverseProxy(node *Node, u *usage, idleCfg *streamIdleConfig
 	}
 
 	proxy.ModifyResponse = func(resp *http.Response) error {
-		bridge := protocolBridgeFromRequest(resp.Request)
-
 		// 将 handler 中的 usage 指针放入响应上下文，便于 body 包装更新。
 		if u != nil {
 			resp.Request = resp.Request.WithContext(context.WithValue(resp.Request.Context(), usageContextKey{}, u))
@@ -335,47 +356,12 @@ func (p *Server) newReverseProxy(node *Node, u *usage, idleCfg *streamIdleConfig
 
 		// 对 SSE 流响应，插入修复层确保事件分隔正确
 		ct := resp.Header.Get("Content-Type")
-		if bridge != nil && bridge.enabled() && resp.StatusCode >= http.StatusBadRequest {
-			body, err := io.ReadAll(resp.Body)
-			if err != nil {
-				return err
-			}
-			_ = resp.Body.Close()
-			resp.Body = io.NopCloser(bytes.NewReader(translateGeminiErrorToClaude(body, resp.StatusCode)))
-			resp.Header.Set("Content-Type", "application/json")
-		}
-		if bridge != nil && bridge.enabled() && resp.StatusCode < http.StatusBadRequest {
-			if strings.Contains(ct, "text/event-stream") {
-				resp.Body = newGeminiToClaudeStreamReader(resp.Body, bridge.model)
-				resp.ContentLength = -1
-				resp.Header.Del("Content-Length")
-				resp.Header.Set("Content-Type", "text/event-stream")
-				ct = resp.Header.Get("Content-Type")
-			} else {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return err
-				}
-				_ = resp.Body.Close()
-				translated, err := translateGeminiResponseToClaude(body, bridge.model)
-				if err != nil {
-					return err
-				}
-				resp.Body = io.NopCloser(bytes.NewReader(translated))
-				resp.ContentLength = int64(len(translated))
-				resp.Header.Set("Content-Length", strconv.Itoa(len(translated)))
-				resp.Header.Set("Content-Type", "application/json")
-				ct = resp.Header.Get("Content-Type")
-			}
-		}
-		if strings.Contains(ct, "text/event-stream") && (bridge == nil || !bridge.enabled()) {
+		if strings.Contains(ct, "text/event-stream") {
 			resp.Body = newSSEFixReader(resp.Body)
 			// 对 SSE 流启用空闲超时：连续 idleTimeout 没收到数据则取消 context
 			if idleCfg != nil && idleCfg.idleTimeout > 0 && idleCfg.cancel != nil {
 				resp.Body = newIdleTimeoutReader(resp.Body, idleCfg.idleTimeout, idleCfg.cancel)
 			}
-		} else if strings.Contains(ct, "text/event-stream") && idleCfg != nil && idleCfg.idleTimeout > 0 && idleCfg.cancel != nil {
-			resp.Body = newIdleTimeoutReader(resp.Body, idleCfg.idleTimeout, idleCfg.cancel)
 		}
 
 		// 包装 body，捕获 SSE/JSON 中的 usage。
@@ -386,13 +372,41 @@ func (p *Server) newReverseProxy(node *Node, u *usage, idleCfg *streamIdleConfig
 	originalDirector := proxy.Director
 	proxy.Director = func(req *http.Request) {
 		streaming := isStreamRequest(req)
+		desiredPath := req.URL.Path
 		originalDirector(req)
+		req.URL.Path = joinUpstreamPath(node.URL.Path, desiredPath)
+		req.URL.RawPath = req.URL.Path
+		stripProxyAuthQuery(req)
 		req.Host = node.URL.Host
-		// 使用多密钥轮换器获取当前活跃 key
 		activeKey := node.GetActiveAPIKey()
 		if activeKey != "" {
-			req.Header.Set("x-api-key", activeKey)
-			req.Header.Set("Authorization", "Bearer "+activeKey)
+			switch NormalizedSourceProtocol(node.SourceProtocol) {
+			case SourceProtocolOpenAI:
+				req.Header.Set("Authorization", "Bearer "+activeKey)
+				req.Header.Del("x-api-key")
+				req.Header.Del("x-goog-api-key")
+			case SourceProtocolGemini:
+				req.Header.Set("x-goog-api-key", activeKey)
+				req.Header.Del("x-api-key")
+				req.Header.Del("Authorization")
+			default:
+				req.Header.Set("x-api-key", activeKey)
+				req.Header.Set("Authorization", "Bearer "+activeKey)
+				req.Header.Del("x-goog-api-key")
+			}
+		}
+
+		// 移除 brotli 编码：Go 的 reverse proxy 不支持 br 解压，
+		// usageReader 包装 resp.Body 时会破坏 brotli 流导致客户端 BrotliDecompressionError。
+		if ae := req.Header.Get("Accept-Encoding"); ae != "" {
+			ae = strings.ReplaceAll(ae, "br", "")
+			ae = strings.ReplaceAll(ae, ",,", ",")
+			ae = strings.Trim(ae, ", ")
+			if ae == "" {
+				req.Header.Del("Accept-Encoding")
+			} else {
+				req.Header.Set("Accept-Encoding", ae)
+			}
 		}
 
 		// 仅处理 JSON 体的写请求，剔除 tools 中的非标准字段（如 custom）。
@@ -418,28 +432,24 @@ func (p *Server) newReverseProxy(node *Node, u *usage, idleCfg *streamIdleConfig
 							u.modelID = modelID
 						}
 					}
-				}
-
-				bridgeModel := ""
-				if node.SourceProtocol == SourceProtocolGemini {
-					if modelID, ok := payload["model"].(string); ok {
-						bridgeModel = extractGeminiTargetModel(modelID)
+					// 模型映射：将请求中的模型替换为节点配置的目标模型（严格路由时禁用）
+					if !strictRouting && len(node.ModelMapping) > 0 {
+						if modelID, ok := payload["model"].(string); ok && modelID != "" {
+							if mapped := node.MapModel(modelID); mapped != modelID {
+								payload["model"] = mapped
+								if rewritten, err := json.Marshal(payload); err == nil {
+									bodyBytes = rewritten
+								}
+								p.logger.Printf("model mapping: %s -> %s (node=%s)", modelID, mapped, node.Name)
+							}
+						}
 					}
 				}
 
-				if cleaned, ok := cleanTools(bodyBytes); ok {
-					bodyBytes = cleaned
-				}
-				if bridge := newProtocolBridge(req.URL.Path, SourceProtocolClaude, node.SourceProtocol, bridgeModel, streaming); bridge != nil && bridge.enabled() {
-					translated, err := buildGeminiRequestFromClaude(bodyBytes, bridge.model)
-					if err != nil {
-						p.logger.Printf("proxy: translate Claude request to Gemini failed: %v", err)
-					} else {
-						bodyBytes = translated
-						req.URL.Path = bridge.upstreamPath()
-						req.URL.RawQuery = bridge.upstreamRawQuery()
-						newReq := req.WithContext(context.WithValue(req.Context(), protocolBridgeContextKey{}, bridge))
-						*req = *newReq
+				// 非 Claude 协议跳过工具清理，避免破坏 OpenAI/Gemini 的 tools 格式
+				if NormalizedSourceProtocol(node.SourceProtocol) == SourceProtocolClaude {
+					if cleaned, ok := cleanTools(bodyBytes); ok {
+						bodyBytes = cleaned
 					}
 				}
 
@@ -494,8 +504,12 @@ func (p *Server) newReverseProxy(node *Node, u *usage, idleCfg *streamIdleConfig
 			}
 			return
 		}
+		// 严格路由模式下尽量透传网络层错误，不额外包装业务语义。
+		if strictRouting {
+			http.Error(w, err.Error(), http.StatusBadGateway)
+			return
+		}
 		// 返回 503 而非 502，避免触发客户端重试
-		w.Header().Set("Content-Type", "application/json")
 		http.Error(w, fmt.Sprintf(`{"error":{"type":"upstream_connection_error","message":"%s"}}`, err.Error()), http.StatusServiceUnavailable)
 	}
 
@@ -510,12 +524,28 @@ func (p *Server) newPassthroughProxy(node *Node) *httputil.ReverseProxy {
 
 	originalDirector := proxy.Director
 	proxy.Director = func(req *http.Request) {
+		desiredPath := req.URL.Path
 		originalDirector(req)
+		req.URL.Path = joinUpstreamPath(node.URL.Path, desiredPath)
+		req.URL.RawPath = req.URL.Path
+		stripProxyAuthQuery(req)
 		req.Host = node.URL.Host
 		activeKey := node.GetActiveAPIKey()
 		if activeKey != "" {
-			req.Header.Set("x-api-key", activeKey)
-			req.Header.Set("Authorization", "Bearer "+activeKey)
+			switch NormalizedSourceProtocol(node.SourceProtocol) {
+			case SourceProtocolOpenAI:
+				req.Header.Set("Authorization", "Bearer "+activeKey)
+				req.Header.Del("x-api-key")
+				req.Header.Del("x-goog-api-key")
+			case SourceProtocolGemini:
+				req.Header.Set("x-goog-api-key", activeKey)
+				req.Header.Del("x-api-key")
+				req.Header.Del("Authorization")
+			default:
+				req.Header.Set("x-api-key", activeKey)
+				req.Header.Set("Authorization", "Bearer "+activeKey)
+				req.Header.Del("x-goog-api-key")
+			}
 		}
 	}
 

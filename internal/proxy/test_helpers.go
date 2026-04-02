@@ -16,12 +16,15 @@ func (p *Server) TestAddNode(accountID, name, baseURL, apiKey, healthMethod stri
 	if acc == nil {
 		return nil, fmt.Errorf("account %s not found", accountID)
 	}
-	return p.addNodeWithMethod(acc, name, baseURL, apiKey, weight, healthMethod, "")
+	return p.addNodeWithMethod(acc, name, baseURL, apiKey, weight, healthMethod, "", nil, "", "", "")
 }
 
-// TestAccount 获取指定账号（测试辅助）。
-func (p *Server) TestAccount(id string) *Account {
-	return p.getAccountByID(id)
+// TestAccount 返回测试用账号句柄。
+func (p *Server) TestAccount(accountID string) *Account {
+	if p == nil {
+		return nil
+	}
+	return p.getAccountByID(accountID)
 }
 
 // TestCheckNodeHealth 触发一次健康检查（测试辅助）。

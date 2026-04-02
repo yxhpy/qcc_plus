@@ -15,6 +15,35 @@ func withAdmin(ctx context.Context, isAdmin bool) context.Context {
 	return context.WithValue(ctx, isAdminContextKey{}, isAdmin)
 }
 
+func TestParseStrictRouteModel(t *testing.T) {
+	tests := []struct {
+		name     string
+		model    string
+		wantOn   bool
+		wantNode string
+		wantUp   string
+	}{
+		{name: "strict node+model", model: "rc-codex/gpt-5-codex-mini", wantOn: true, wantNode: "rc-codex", wantUp: "gpt-5-codex-mini"},
+		{name: "normal model", model: "claude-sonnet-4-5", wantOn: false, wantNode: "", wantUp: ""},
+		{name: "empty suffix", model: "rc-gemini/", wantOn: false, wantNode: "", wantUp: ""},
+		{name: "empty node", model: "/gpt-5", wantOn: false, wantNode: "", wantUp: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseStrictRouteModel(tt.model)
+			if got.enabled != tt.wantOn {
+				t.Fatalf("enabled=%v want=%v", got.enabled, tt.wantOn)
+			}
+			if got.targetNodeName != tt.wantNode {
+				t.Fatalf("targetNodeName=%q want=%q", got.targetNodeName, tt.wantNode)
+			}
+			if got.upstreamModel != tt.wantUp {
+				t.Fatalf("upstreamModel=%q want=%q", got.upstreamModel, tt.wantUp)
+			}
+		})
+	}
+}
+
 // TestHandleVersion tests the /version endpoint
 func TestHandleVersion(t *testing.T) {
 	b := NewBuilder().

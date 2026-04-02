@@ -1,0 +1,54 @@
+#!/bin/sh
+set -eu
+
+zero_oid="0000000000000000000000000000000000000000"
+current_branch="$(git branch --show-current 2>/dev/null || true)"
+
+is_descendant() {
+  local_sha="$1"
+  remote_sha="$2"
+  if [ "$remote_sha" = "$zero_oid" ]; then
+    return 0
+  fi
+  git merge-base --is-ancestor "$remote_sha" "$local_sha"
+}
+
+while IFS=' ' read -r local_ref local_sha remote_ref remote_sha
+do
+  [ -n "${local_ref:-}" ] || continue
+
+  case "$remote_ref" in
+    refs/heads/test)
+      if [ "$local_ref" != "refs/heads/main" ]; then
+        echo "ERROR: pushes to 'test' are only allowed from local 'main'." >&2
+        echo "Use: git push origin main:test" >&2
+        exit 1
+      fi
+      if ! is_descendant "$local_sha" "$remote_sha"; then
+        echo "ERROR: non-fast-forward update to 'test' is blocked." >&2
+        exit 1
+      fi
+      ;;
+    refs/heads/prod)
+      if [ "$local_ref" != "refs/heads/test" ]; then
+        echo "ERROR: pushes to 'prod' are only allowed from local 'test'." >&2
+        echo "Use: git push origin test:prod" >&2
+        exit 1
+      fi
+      if ! is_descendant "$local_sha" "$remote_sha"; then
+        echo "ERROR: non-fast-forward update to 'prod' is blocked." >&2
+        exit 1
+      fi
+      ;;
+  esac
+done
+
+case "$current_branch" in
+  test|prod)
+    echo "ERROR: direct pushes while checked out on '$current_branch' are blocked." >&2
+    echo "Switch to 'main' or a feature branch and push with explicit refspecs." >&2
+    exit 1
+    ;;
+esac
+
+exit 0

@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+
+branch="$(git branch --show-current 2>/dev/null || true)"
+
+case "$branch" in
+  test|prod)
+    echo "ERROR: direct commits on '$branch' are blocked." >&2
+    echo "Develop on 'main' or a feature branch, then promote with push flow." >&2
+    exit 1
+    ;;
+esac
+
+exit 0

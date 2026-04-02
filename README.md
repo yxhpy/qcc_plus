@@ -52,13 +52,17 @@ qccplus start
 - 管理员账号：`admin`
 - 管理员密码：`admin123`
 
-### Docker 部署
+### Docker 本地体验
 
 ```bash
 git clone https://github.com/yxhpy/qcc_plus.git
 cd qcc_plus
 docker compose up -d
 ```
+
+上面的 `docker compose up -d` 仅适合本地开发 / 快速体验。
+
+正式测试环境或生产环境部署，请统一使用 `scripts/deploy-server.sh test` / `scripts/deploy-server.sh prod`，由脚本负责代码同步、前端构建和 `docker compose` 重建。
 
 ### 源码运行
 

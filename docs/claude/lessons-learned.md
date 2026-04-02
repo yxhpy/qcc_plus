@@ -86,6 +86,12 @@
 
 ## 部署类
 
+### [2026-04-02] 正式部署入口不能分散在 workflow、脚本和文档里各自维护
+- **现象**：测试环境 workflow 先手工执行 `git reset/clean/fetch/checkout/pull`，再调用 `scripts/deploy-server.sh`；文档里还保留了直接 `docker compose up` 的正式部署写法
+- **原因**：部署逻辑没有收敛到单一入口，导致 CI、脚本和文档口径漂移
+- **解决**：统一以 `scripts/deploy-server.sh <env>` 作为正式部署入口，workflow 只负责 SSH 调用，文档不再描述脚本外的正式部署命令
+- **预防**：凡是涉及测试/生产重新部署，优先改脚本本身，再让 CI 和文档引用脚本入口，不要复制粘贴 `git pull` 或 `docker compose up`
+
 ### [模板] CI/CD 健康检查超时
 - **现象**：GitHub Actions 部署失败，健康检查超时
 - **原因**：服务启动慢 / 端口未开放 / 防火墙

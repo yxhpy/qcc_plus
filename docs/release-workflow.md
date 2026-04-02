@@ -38,7 +38,6 @@ git push origin test
 
 **自动化行为**:
 - ✅ GitHub Actions (`deploy-test.yml`) 自动触发
-- ✅ 构建前端
 - ✅ 部署到测试服务器 (端口 8001)
 - ✅ Docker 镜像仅在测试服务器本地构建（**不推送到 Docker Hub**）
 - ✅ 自动健康检查
@@ -176,14 +175,13 @@ docker pull yxhpy520/qcc_plus:latest
 docker run --rm yxhpy520/qcc_plus:v1.3.0 --version
 
 # 4. 部署到生产环境
-# 方式 1: 手动部署
+# 方式 1: 推送 prod 分支，触发 deploy-prod.yml
 git checkout prod
 git merge main
 git push origin prod  # 触发 deploy-prod.yml
 
-# 方式 2: 使用 Docker 镜像直接部署
-docker compose pull  # 拉取 latest 镜像
-docker compose up -d
+# 方式 2: 在生产服务器统一走脚本入口
+ssh deploy@your-prod-server 'cd /opt/qcc_plus && chmod +x scripts/deploy-server.sh && ./scripts/deploy-server.sh prod'
 ```
 
 ---

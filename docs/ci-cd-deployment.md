@@ -14,11 +14,11 @@
 flowchart LR
   dev((Developer))-- push test/prod -->GH[GitHub]
   GH-- CI trigger -->A[GitHub Actions
-  build frontend]
+  SSH invoke deploy-server.sh]
   A-- appleboy/ssh-action -->S[Target Server
   /opt/qcc_plus]
   S-- run -->D[scripts/deploy-server.sh
-  docker compose up]
+  sync + build + docker compose]
   D-- health check -->OK{{Healthy?}}
   OK-- yes -->Done(Deploy success)
   OK-- no -->RB[Rollback to previous image]
@@ -138,40 +138,43 @@ vim .env
 - **触发条件**：向 `test` 或 `prod` 分支推送代码。
 - **流水线主要步骤**（见 `.github/workflows/deploy-*.yml`）：
   1) Checkout 代码；
-  2) Node.js 20 + npm 缓存，前端 `npm ci && npm run build`；
-  3) 通过 `appleboy/ssh-action@v1.2.0` SSH 到目标机；
-  4) 在服务器执行 `./scripts/deploy-server.sh <env>`；
+  2) 通过 `appleboy/ssh-action@v1.2.0` SSH 到目标机；
+  3) 在服务器执行 `./scripts/deploy-server.sh <env>`；
+  4) 脚本内部完成 `git` 同步、前端构建、`docker compose` 部署与本机健康检查；
   5) GitHub Actions 侧进行 HTTP 健康检查（测试 `http://$TEST_HOST:8001/`，生产 `http://$PROD_HOST:8000/`）。
 
 ### 5.1 健康检查机制
 
 - `scripts/deploy-server.sh` 内置 `curl` 检测（默认 12 次、间隔 5 秒）对本机 `127.0.0.1:<port>/` 进行探活。
+- 脚本启动时会打印 `deploy_id=<timestamp>-<suffix>`、目标环境、分支、端口和 compose 文件，便于跨 CI / 服务器日志追踪。
 - Actions 工作流在远端再次做 HTTP 状态码校验，非 2xx/3xx 会标记失败。
 
 ### 5.2 回滚机制
 
 - 部署脚本在执行前记录上一版代理镜像 ID，若失败会尝试 `docker tag` 回退并 `docker compose up --no-build` 重新拉起。
-- 若自动回滚仍异常，可在服务器执行：
+- 若自动回滚仍异常，可在服务器先排查当前状态，再回到脚本入口重试：
   ```bash
   cd /opt/qcc_plus
   docker compose -p qcc_prod -f docker-compose.prod.yml ps
-  docker compose -p qcc_prod -f docker-compose.prod.yml up -d --no-build
+  docker logs --tail 150 qcc_prod_proxy
+  ./scripts/deploy-server.sh prod
   ```
 
 ## 6. 手动部署
 
-在目标服务器执行（需已配置 .env 与权限）：
+在目标服务器执行（需已配置 `.env` 与权限）：
 
 ```bash
 cd /opt/qcc_plus
-git fetch --prune origin
-git checkout test   # 或 prod
-git pull --rebase origin test
 chmod +x scripts/deploy-server.sh
 ./scripts/deploy-server.sh test   # 或 prod
 ```
 
-命令快捷方式：`./scripts/deploy-server.sh test` 或 `./scripts/deploy-server.sh prod`。
+说明：
+
+- 统一入口是 `./scripts/deploy-server.sh test` 或 `./scripts/deploy-server.sh prod`。
+- 脚本内部会执行 `git reset/clean/fetch/checkout/pull`、前端构建和 `docker compose` 重建，不需要再手工补一层 `git pull` 或 `docker compose up`。
+- 如需只查看本次部署会使用的环境信息，可先执行 `./scripts/deploy-server.sh --dry-run test`。
 
 ## 7. 监控与故障排查
 

@@ -6,6 +6,19 @@
 
 ## [Unreleased]
 
+## [1.12.2] - 2026-04-02
+
+### 修复
+- **强制刷新版本与更新日志数据**
+  - 前端请求 `/version`、`/changelog` 时追加时间戳并禁用缓存
+  - 服务端为版本和更新日志接口返回强禁缓存响应头，避免部署后继续展示旧数据
+- **统一版本接口与实际发布版本口径**
+  - 识别 Go pseudo-version 与 Docker `git describe` 构建串，避免把构建元数据误展示成正式版本
+  - 当构建注入版本不可用时，回退到 `CHANGELOG.md` 中的最新正式版本
+- **修复节点管理输入时焦点跳转**
+  - 稳定节点列表行标识，避免输入过程中行组件被重建导致焦点漂移
+  - 修复弹窗焦点初始化依赖不稳定回调导致的重复抢焦点问题
+
 ## [1.12.1] - 2026-02-28
 
 ### 文档
@@ -591,7 +604,8 @@
 - 前端：React 18, TypeScript, Vite, Chart.js
 - 部署：Docker Compose, Cloudflare Tunnel
 
-[unreleased]: https://github.com/yxhpy/qcc_plus/compare/v1.12.1...HEAD
+[unreleased]: https://github.com/yxhpy/qcc_plus/compare/v1.12.2...HEAD
+[1.12.2]: https://github.com/yxhpy/qcc_plus/compare/v1.12.1...v1.12.2
 [1.12.1]: https://github.com/yxhpy/qcc_plus/compare/v1.12.0...v1.12.1
 [1.12.0]: https://github.com/yxhpy/qcc_plus/compare/v1.11.0...v1.12.0
 [1.11.0]: https://github.com/yxhpy/qcc_plus/compare/v1.10.0...v1.11.0

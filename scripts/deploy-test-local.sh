@@ -9,9 +9,12 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 COMPOSE_FILE="docker-compose.test.yml"
-IMAGE_NAME="qcc_plus-proxy:test"
-PROXY_CONTAINER="qcc_plus-test-proxy-1"
-MYSQL_CONTAINER="qcc_plus-test-mysql-1"
+COMPOSE_PROJECT="qcc_test"
+COMPOSE_PROXY_SERVICE="proxy"
+PROXY_CONTAINER="qcc_test_proxy"
+MYSQL_CONTAINER="qcc_test_mysql"
+LEGACY_PROXY_CONTAINER="qcc_plus-test-proxy-1"
+LEGACY_MYSQL_CONTAINER="qcc_plus-test-mysql-1"
 PROXY_PORT="${PROXY_PORT:-8001}"
 HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:${PROXY_PORT}/version}"
 
@@ -33,24 +36,25 @@ fi
 VERSION="${VERSION:-$(git describe --tags --always --dirty 2>/dev/null || echo 'dev')}"
 GIT_COMMIT="${GIT_COMMIT:-$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')}"
 BUILD_DATE="${BUILD_DATE:-$(date -u +"%Y-%m-%dT%H:%M:%SZ")}"
+export VERSION GIT_COMMIT BUILD_DATE
 
 log "building frontend bundle into web/dist"
 bash scripts/build-frontend.sh
 
-log "building docker image $IMAGE_NAME"
-docker build \
-  --build-arg VERSION="$VERSION" \
-  --build-arg GIT_COMMIT="$GIT_COMMIT" \
-  --build-arg BUILD_DATE="$BUILD_DATE" \
-  -t "$IMAGE_NAME" .
-
 # docker-compose.test.yml uses fixed container_name values.
-# Remove stale containers first, otherwise compose may fail with name conflicts.
+# Remove both current and legacy containers first, otherwise compose may fail with name conflicts.
 log "removing stale test containers if they exist"
-docker rm -f "$PROXY_CONTAINER" "$MYSQL_CONTAINER" >/dev/null 2>&1 || true
+docker rm -f \
+  "$PROXY_CONTAINER" \
+  "$MYSQL_CONTAINER" \
+  "$LEGACY_PROXY_CONTAINER" \
+  "$LEGACY_MYSQL_CONTAINER" >/dev/null 2>&1 || true
 
-log "starting test environment from $COMPOSE_FILE"
-docker compose -f "$COMPOSE_FILE" up -d
+log "building proxy image via docker compose"
+docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" build "$COMPOSE_PROXY_SERVICE"
+
+log "starting mysql service from $COMPOSE_FILE"
+docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" up -d mysql
 
 log "waiting for mysql health"
 for ((i=1; i<=30; i++)); do
@@ -66,6 +70,9 @@ for ((i=1; i<=30; i++)); do
   fi
   sleep 2
 done
+
+log "starting proxy service"
+docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" up -d --no-deps "$COMPOSE_PROXY_SERVICE"
 
 log "waiting for proxy health at $HEALTH_URL"
 for ((i=1; i<=30; i++)); do

@@ -131,6 +131,16 @@ export default function Nodes() {
     }
   }, [detailNode, editingNode])
 
+  const closeDetailModal = useCallback(() => {
+    setDetailNode(null)
+  }, [])
+
+  const closeEditModal = useCallback(() => {
+    if (!saving) {
+      setEditingNode(null)
+    }
+  }, [saving])
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     return nodes.filter((n) => {
@@ -622,11 +632,11 @@ export default function Nodes() {
       <Modal
         open={!!detailNode}
         title="节点详情"
-        onClose={() => setDetailNode(null)}
+        onClose={closeDetailModal}
         size="lg"
         footer={
           <div className="dialog-actions">
-            <button className="btn ghost" type="button" onClick={() => setDetailNode(null)}>
+            <button className="btn ghost" type="button" onClick={closeDetailModal}>
               关闭
             </button>
           </div>
@@ -679,11 +689,11 @@ export default function Nodes() {
       <Modal
         open={!!editingNode}
         title="编辑节点"
-        onClose={() => (!saving ? setEditingNode(null) : null)}
+        onClose={closeEditModal}
         size="lg"
         footer={
           <div className="dialog-actions">
-            <button className="btn ghost" type="button" onClick={() => (!saving ? setEditingNode(null) : null)}>
+            <button className="btn ghost" type="button" onClick={closeEditModal}>
               取消
             </button>
             <button className="btn primary" type="button" onClick={submitEdit} disabled={saving}>

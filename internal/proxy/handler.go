@@ -975,6 +975,7 @@ func (p *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	setNoStoreHeaders(w)
 	writeJSON(w, http.StatusOK, version.GetVersionInfo())
 }
 
@@ -1003,6 +1004,7 @@ func (p *Server) handleChangelog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	setNoStoreHeaders(w)
 	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(content)

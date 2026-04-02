@@ -20,6 +20,12 @@ interface EditKeyForm {
   key: string
 }
 
+interface EditMappingForm {
+  id: string
+  from: string
+  to: string
+}
+
 interface EditForm {
   name: string
   base_url: string
@@ -30,7 +36,7 @@ interface EditForm {
   source_protocol: 'claude' | 'openai' | 'gemini'
   auth_profile: string
   capabilities: string
-  model_mapping: Array<{ from: string; to: string }>
+  model_mapping: EditMappingForm[]
 }
 
 interface CCSwitchImportForm {
@@ -50,10 +56,18 @@ const healthMethodOptions: { value: 'api' | 'head' | 'cli'; label: string }[] = 
   { value: 'cli', label: 'Claude Code CLI (Docker)' },
 ]
 
+const createFormRowID = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+
 const makeKeyRow = (name = '', key = ''): EditKeyForm => ({
-  id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  id: createFormRowID(),
   name,
   key,
+})
+
+const makeMappingRow = (from = '', to = ''): EditMappingForm => ({
+  id: createFormRowID(),
+  from,
+  to,
 })
 
 const defaultImportForm = (): CCSwitchImportForm => ({
@@ -113,7 +127,7 @@ const buildEmptyEditForm = (protocol: SourceProtocol = 'claude'): EditForm => ({
 
 const buildEditFormFromNode = (node: Node): EditForm => {
   const protocol = (node.source_protocol || 'claude') as SourceProtocol
-  const mapping = Object.entries(node.model_mapping || {}).map(([from, to]) => ({ from, to }))
+  const mapping = Object.entries(node.model_mapping || {}).map(([from, to]) => makeMappingRow(from, to))
   const apiKeys = (node.api_keys && node.api_keys.length > 0 ? node.api_keys : node.api_key ? [{ name: '', key: node.api_key }] : [])
     .map((item) => makeKeyRow(item.name || '', item.key || ''))
 
@@ -1090,14 +1104,14 @@ export default function Nodes() {
                   type="button"
                   className="btn ghost"
                   style={{ padding: '2px 8px', fontSize: 12, lineHeight: '20px' }}
-                  onClick={() => setEditForm((prev) => ({ ...prev, model_mapping: [...prev.model_mapping, { from: '', to: '' }] }))}
+                  onClick={() => setEditForm((prev) => ({ ...prev, model_mapping: [...prev.model_mapping, makeMappingRow()] }))}
                 >
                   添加映射
                 </button>
                 <span className="weight-hint" style={{ marginLeft: 4 }}>请求中的模型自动替换为目标模型</span>
               </div>
               {editForm.model_mapping.map((entry, idx) => (
-                <div key={`${entry.from}-${idx}`} className="mapping-editor-row">
+                <div key={entry.id} className="mapping-editor-row">
                   <input
                     list="model-list-from"
                     value={entry.from}

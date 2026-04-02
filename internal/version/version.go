@@ -1,7 +1,13 @@
 package version
 
 import (
+	"os"
+	"path/filepath"
+	"regexp"
 	"runtime"
+	"runtime/debug"
+	"strings"
+	"sync"
 	"time"
 
 	"qcc_plus/internal/timeutil"
@@ -13,6 +19,16 @@ var (
 	GitCommit = ""
 	BuildDate = ""
 	GoVersion = runtime.Version()
+)
+
+var (
+	semverPattern          = regexp.MustCompile(`^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$`)
+	changelogReleaseRegexp = regexp.MustCompile(`(?m)^## \[(v?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)\]`)
+	goPseudoVersionRegexp  = regexp.MustCompile(`^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?\.\d{14}-[0-9a-f]{12}(?:\+dirty)?$`)
+	resolveBuildInfo       = buildInfoVersion
+	resolveFallbackVersion = changelogVersionFallback
+	changelogVersionOnce   sync.Once
+	changelogVersion       string
 )
 
 // Info represents build and runtime version metadata.
@@ -42,10 +58,83 @@ func GetFormattedBuildDate() string {
 	return timeutil.FormatBeijingTime(t)
 }
 
+func normalizeVersionString(v string) string {
+	trimmed := strings.TrimSpace(v)
+	if trimmed == "" {
+		return ""
+	}
+	if strings.HasPrefix(trimmed, "v") {
+		return trimmed
+	}
+	if semverPattern.MatchString(trimmed) {
+		return "v" + trimmed
+	}
+	return trimmed
+}
+
+func isUnsetVersion(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "", "dev", "(devel)", "unknown":
+		return true
+	default:
+		return goPseudoVersionRegexp.MatchString(strings.TrimSpace(v))
+	}
+}
+
+func buildInfoVersion() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok || info == nil {
+		return ""
+	}
+	return info.Main.Version
+}
+
+func changelogVersionFallback() string {
+	changelogVersionOnce.Do(func() {
+		paths := []string{"CHANGELOG.md", "/app/CHANGELOG.md"}
+		if exe, err := os.Executable(); err == nil {
+			paths = append(paths, filepath.Join(filepath.Dir(exe), "CHANGELOG.md"))
+		}
+
+		for _, path := range paths {
+			content, err := os.ReadFile(path)
+			if err != nil {
+				continue
+			}
+			if version := parseLatestReleaseVersion(content); version != "" {
+				changelogVersion = version
+				return
+			}
+		}
+	})
+	return changelogVersion
+}
+
+func parseLatestReleaseVersion(content []byte) string {
+	match := changelogReleaseRegexp.FindSubmatch(content)
+	if len(match) != 2 {
+		return ""
+	}
+	return normalizeVersionString(string(match[1]))
+}
+
+func resolvedVersion() string {
+	if normalized := normalizeVersionString(Version); !isUnsetVersion(normalized) {
+		return normalized
+	}
+	if buildInfoVersion := normalizeVersionString(resolveBuildInfo()); !isUnsetVersion(buildInfoVersion) {
+		return buildInfoVersion
+	}
+	if fallbackVersion := normalizeVersionString(resolveFallbackVersion()); fallbackVersion != "" {
+		return fallbackVersion
+	}
+	return strings.TrimSpace(Version)
+}
+
 // GetVersionInfo returns the current version metadata.
 func GetVersionInfo() Info {
 	return Info{
-		Version:          Version,
+		Version:          resolvedVersion(),
 		GitCommit:        GitCommit,
 		BuildDate:        BuildDate,
 		BuildDateBeijing: GetFormattedBuildDate(),

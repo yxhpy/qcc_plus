@@ -59,6 +59,9 @@ func TestHandleVersion(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Errorf("expected status 200, got %d", w.Code)
 		}
+		if got := w.Header().Get("Cache-Control"); got != "no-store, no-cache, must-revalidate, max-age=0" {
+			t.Errorf("expected Cache-Control no-store header, got %q", got)
+		}
 
 		var response map[string]interface{}
 		if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
@@ -114,6 +117,9 @@ func TestHandleChangelog(t *testing.T) {
 
 		if w.Header().Get("Content-Type") != "text/markdown; charset=utf-8" {
 			t.Errorf("expected markdown content type, got %s", w.Header().Get("Content-Type"))
+		}
+		if got := w.Header().Get("Cache-Control"); got != "no-store, no-cache, must-revalidate, max-age=0" {
+			t.Errorf("expected Cache-Control no-store header, got %q", got)
 		}
 
 		if w.Body.String() != string(content) {

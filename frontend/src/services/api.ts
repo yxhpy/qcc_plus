@@ -23,6 +23,7 @@ import type {
 } from '../types'
 
 const defaultHeaders = { 'Content-Type': 'application/json' }
+const noCacheHeaders = { 'Cache-Control': 'no-cache', Pragma: 'no-cache' }
 
 async function parseJSON<T>(res: Response): Promise<T> {
   const ct = res.headers.get('content-type') || ''
@@ -89,6 +90,11 @@ function parseContentDispositionFilename(disposition: string): string {
   }
   const match = disposition.match(/filename="?([^"]+)"?/i)
   return match?.[1] || ''
+}
+
+function withNoCacheParam(url: string): string {
+  const separator = url.includes('?') ? '&' : '?'
+  return `${url}${separator}_ts=${Date.now()}`
 }
 
 export { request }
@@ -390,11 +396,18 @@ async function listZones(): Promise<string[]> {
 }
 
 async function getVersion(): Promise<VersionInfo> {
-  return request<VersionInfo>('/version')
+  return request<VersionInfo>(withNoCacheParam('/version'), {
+    cache: 'no-store',
+    headers: noCacheHeaders,
+  })
 }
 
 async function getChangelog(): Promise<string> {
-  const res = await fetch('/changelog', { credentials: 'include' })
+  const res = await fetch(withNoCacheParam('/changelog'), {
+    credentials: 'include',
+    cache: 'no-store',
+    headers: noCacheHeaders,
+  })
   const text = await res.text()
   if (res.redirected || res.url.includes('/login')) {
     throw new Error('unauthenticated')

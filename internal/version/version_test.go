@@ -68,15 +68,21 @@ func TestGetVersionInfo(t *testing.T) {
 	originalGitCommit := GitCommit
 	originalBuildDate := BuildDate
 	originalGoVersion := GoVersion
+	originalResolveBuildInfo := resolveBuildInfo
+	originalResolveFallbackVersion := resolveFallbackVersion
 
 	defer func() {
 		Version = originalVersion
 		GitCommit = originalGitCommit
 		BuildDate = originalBuildDate
 		GoVersion = originalGoVersion
+		resolveBuildInfo = originalResolveBuildInfo
+		resolveFallbackVersion = originalResolveFallbackVersion
 	}()
 
 	t.Run("returns complete version info", func(t *testing.T) {
+		resolveBuildInfo = func() string { return "" }
+		resolveFallbackVersion = func() string { return "" }
 		Version = "v1.2.3"
 		GitCommit = "abc123"
 		BuildDate = "2026-02-03T12:30:45Z"
@@ -102,6 +108,8 @@ func TestGetVersionInfo(t *testing.T) {
 	})
 
 	t.Run("returns dev version info", func(t *testing.T) {
+		resolveBuildInfo = func() string { return "" }
+		resolveFallbackVersion = func() string { return "" }
 		Version = "dev"
 		GitCommit = ""
 		BuildDate = "dev"
@@ -118,6 +126,8 @@ func TestGetVersionInfo(t *testing.T) {
 	})
 
 	t.Run("handles empty values", func(t *testing.T) {
+		resolveBuildInfo = func() string { return "" }
+		resolveFallbackVersion = func() string { return "" }
 		Version = ""
 		GitCommit = ""
 		BuildDate = ""
@@ -132,6 +142,53 @@ func TestGetVersionInfo(t *testing.T) {
 			t.Errorf("BuildDateBeijing = %s, want 未知", info.BuildDateBeijing)
 		}
 	})
+
+	t.Run("falls back to changelog version when build version is unset", func(t *testing.T) {
+		resolveBuildInfo = func() string { return "" }
+		resolveFallbackVersion = func() string { return "1.12.1" }
+		Version = "dev"
+		GitCommit = "abc123"
+		BuildDate = "2026-02-03T12:30:45Z"
+		GoVersion = "go1.21.0"
+
+		info := GetVersionInfo()
+
+		if info.Version != "v1.12.1" {
+			t.Errorf("Version = %s, want v1.12.1", info.Version)
+		}
+	})
+
+	t.Run("falls back to changelog version when build info is a pseudo version", func(t *testing.T) {
+		resolveBuildInfo = func() string { return "v1.11.1-0.20260402064355-3cb2cdfe0528+dirty" }
+		resolveFallbackVersion = func() string { return "1.12.1" }
+		Version = "dev"
+		GitCommit = ""
+		BuildDate = ""
+		GoVersion = "go1.21.0"
+
+		info := GetVersionInfo()
+
+		if info.Version != "v1.12.1" {
+			t.Errorf("Version = %s, want v1.12.1", info.Version)
+		}
+	})
+}
+
+func TestParseLatestReleaseVersion(t *testing.T) {
+	content := []byte(`# 更新日志
+
+## [Unreleased]
+
+## [1.12.1] - 2026-02-28
+
+### 修复
+- 修复版本显示
+`)
+
+	got := parseLatestReleaseVersion(content)
+	if got != "v1.12.1" {
+		t.Errorf("parseLatestReleaseVersion() = %s, want v1.12.1", got)
+	}
 }
 
 func TestVersionVariables(t *testing.T) {

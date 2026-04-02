@@ -93,10 +93,10 @@ export default function Login() {
             <div className="login-brand-badge">QCC Plus</div>
             <img src={loginIcon} alt="QCC Plus Logo" className="login-icon" />
             <div className="login-brand-copy">
-              <p className="login-brand-eyebrow">Claude Code CLI Gateway</p>
-              <h2>统一管理多租户代理服务</h2>
+              <p className="login-brand-eyebrow">AI Coding Gateway</p>
+              <h2>统一管理你的 AI Coding 代理</h2>
               <p className="login-brand-slogan">
-                稳定接入、会话隔离、版本可追踪，集中管理你的 QCC Plus 节点与使用入口。
+                支持 Claude Code、Codex、Gemini 等 AI 工具的统一代理网关，多租户隔离、用量可观测。
               </p>
             </div>
             <div className="login-brand-highlights">
@@ -105,8 +105,8 @@ export default function Login() {
                 <span>账号与会话分区管理</span>
               </div>
               <div className="login-brand-highlight">
-                <strong>可观测</strong>
-                <span>请求日志与使用量统一查看</span>
+                <strong>多引擎</strong>
+                <span>Claude Code / Codex / Gemini 统一接入</span>
               </div>
             </div>
           </div>

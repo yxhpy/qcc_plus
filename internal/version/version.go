@@ -25,6 +25,7 @@ var (
 	semverPattern          = regexp.MustCompile(`^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$`)
 	changelogReleaseRegexp = regexp.MustCompile(`(?m)^## \[(v?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)\]`)
 	goPseudoVersionRegexp  = regexp.MustCompile(`^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?\.\d{14}-[0-9a-f]{12}(?:\+dirty)?$`)
+	gitDescribeRegexp      = regexp.MustCompile(`^v?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?-\d+-g[0-9a-f]{7,}(?:-dirty)?$`)
 	resolveBuildInfo       = buildInfoVersion
 	resolveFallbackVersion = changelogVersionFallback
 	changelogVersionOnce   sync.Once
@@ -77,7 +78,8 @@ func isUnsetVersion(v string) bool {
 	case "", "dev", "(devel)", "unknown":
 		return true
 	default:
-		return goPseudoVersionRegexp.MatchString(strings.TrimSpace(v))
+		trimmed := strings.TrimSpace(v)
+		return goPseudoVersionRegexp.MatchString(trimmed) || gitDescribeRegexp.MatchString(trimmed)
 	}
 }
 

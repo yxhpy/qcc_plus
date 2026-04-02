@@ -172,6 +172,36 @@ func TestGetVersionInfo(t *testing.T) {
 			t.Errorf("Version = %s, want v1.12.1", info.Version)
 		}
 	})
+
+	t.Run("falls back to changelog version when build version is git describe output", func(t *testing.T) {
+		resolveBuildInfo = func() string { return "" }
+		resolveFallbackVersion = func() string { return "1.12.1" }
+		Version = "v1.11.0-17-g2ba0fec"
+		GitCommit = "2ba0fec"
+		BuildDate = "2026-04-02T08:19:55Z"
+		GoVersion = "go1.24.13"
+
+		info := GetVersionInfo()
+
+		if info.Version != "v1.12.1" {
+			t.Errorf("Version = %s, want v1.12.1", info.Version)
+		}
+	})
+
+	t.Run("falls back to changelog version when build version is dirty git describe output", func(t *testing.T) {
+		resolveBuildInfo = func() string { return "" }
+		resolveFallbackVersion = func() string { return "1.12.1" }
+		Version = "v1.11.0-17-g2ba0fec-dirty"
+		GitCommit = "2ba0fec"
+		BuildDate = "2026-04-02T08:19:55Z"
+		GoVersion = "go1.24.13"
+
+		info := GetVersionInfo()
+
+		if info.Version != "v1.12.1" {
+			t.Errorf("Version = %s, want v1.12.1", info.Version)
+		}
+	})
 }
 
 func TestParseLatestReleaseVersion(t *testing.T) {

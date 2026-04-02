@@ -36,6 +36,12 @@
 - **解决**：识别 pseudo-version 后将其视为非正式版本，继续回退到 `CHANGELOG.md` 中的最新正式版本
 - **预防**：版本展示逻辑要区分“发布版本”和“VCS 构建版本”，不能只要是 semver 形式就直接当最终版本
 
+### [2026-04-02] Docker `git describe` 版本串也会让 `/version` 偏到旧 tag
+- **现象**：本地 `bash scripts/deploy-test-local.sh` 后，`/version` 一度返回 `v1.11.0-17-g2ba0fec`，而不是项目口径 `v1.12.1`
+- **原因**：Docker 构建脚本把 `git describe --tags --always --dirty` 注入到 `-ldflags Version`；这种字符串不是正式发布版本，但旧逻辑会把它当成有效版本直接展示
+- **解决**：补充识别 `vX.Y.Z-<n>-g<sha>` / `...-dirty` 这类 `git describe` 版本，统一回退到 `CHANGELOG.md` 最新正式版本
+- **预防**：凡是展示给用户的版本号，都要把 `git describe` / pseudo-version 视为构建元数据，而不是正式发布版本
+
 ### [2026-04-02] 文档把默认存储写成内存模式
 - **现象**：README、CLI 说明和部署文档写着“未配置 MySQL 时默认内存模式”
 - **原因**：实现已改为默认 SQLite，但文档没有同步

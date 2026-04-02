@@ -31,6 +31,15 @@ GitHub Actions 自动完成：
 - 创建 GitHub Release 并上传构建产物
 - 更新 Docker Hub 仓库信息
 
+`release.yml` 保持 tag 推送自动触发，同时提供 `workflow_dispatch` 作为补触发入口；手动触发时仍应选择已存在的版本 tag。
+
+## 正式环境部署策略
+
+- `test` 分支推送后会自动部署测试环境。
+- 正式环境不再由 `push prod` 自动触发部署。
+- 正式部署入口统一为 GitHub Actions `deploy-prod.yml` 的 `workflow_dispatch`。
+- `deploy-prod.yml` 的 `ref` 支持 branch/tag，正式发布建议直接填写版本 tag，便于追踪和回滚。
+
 ## Commit Message 规范
 
 使用 Conventional Commits 格式：`type: description`
@@ -80,6 +89,7 @@ goreleaser release --snapshot --clean --skip=publish
 2. 更新 CHANGELOG.md
 3. 验证 Docker 镜像：`docker pull yxhpy520/qcc_plus:vX.Y.Z`
 4. 验证版本信息：`curl http://localhost:8000/version`
+5. 在 GitHub Actions 手动执行 `Deploy Prod`，`ref` 推荐填写本次发布 tag
 
 ## 重要提醒
 
@@ -87,6 +97,7 @@ goreleaser release --snapshot --clean --skip=publish
 - `latest` 标签始终指向最新稳定版本
 - 发布前必须确保代码已通过所有测试
 - 版本信息通过构建时 ldflags 注入，无需手动修改代码
+- 开发流程结束后不会自动发布生产，必须显式执行 `workflow_dispatch`
 
 ## 相关文档
 

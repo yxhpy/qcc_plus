@@ -13,7 +13,7 @@ description: Use for Git workflow, branch strategy, and commit conventions in qc
 |------|------|------|
 | `test` | 日常开发 | ✅ 在这里开发，推送后自动部署到测试环境（端口 8001） |
 | `main` | 正式发布 | 合并测试通过的代码，用于打 tag 发布版本 |
-| `prod` | 生产部署 | 部署到生产服务器（端口 8000） |
+| `prod` | 生产候选分支 | 作为生产部署默认 ref，需通过 GitHub Actions 手动触发部署到生产服务器（端口 8000） |
 
 ## 编写代码前检查
 
@@ -39,10 +39,14 @@ git merge test
 git tag vX.Y.Z
 git push origin vX.Y.Z
 
-# 3. 部署
+# 3. 更新生产候选分支
 git checkout prod
 git merge main
-git push origin prod
+git push origin prod  # 仅更新候选分支，不自动部署
+
+# 4. 生产部署
+# GitHub Actions -> Deploy Prod -> Run workflow
+# ref 填 prod 或具体 tag（推荐版本 tag）
 ```
 
 ## Commit 格式

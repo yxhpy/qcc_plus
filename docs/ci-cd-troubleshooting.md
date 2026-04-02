@@ -65,7 +65,8 @@ sudo ufw allow 8001/tcp
 - Compose file: `docker-compose.test.yml`
 
 #### Production Environment
-- Branch: `prod`
+- Deploy entry: `deploy-prod.yml` `workflow_dispatch`
+- Ref: `prod` by default, also supports explicit branch/tag
 - Port: `8000`
 - Container: `qcc_prod-proxy-1`
 - Compose file: `docker-compose.prod.yml`
@@ -103,17 +104,19 @@ sudo apt-get install docker-compose-plugin
 docker compose version
 ```
 
-### Git Pull Conflicts
+### Git Ref Checkout Issues
 
-**Symptom**: `git pull --rebase` fails with conflicts
+**Symptom**: production manual deploy fails with `git ref ... not found on origin as a branch or tag`
 
-**Solution**: The deploy script uses `--prune` and `--rebase`, but if local changes exist:
+**Solution**: the deploy script now resets local changes, fetches tags, and checks out the requested branch/tag. Confirm the `workflow_dispatch` input really exists on `origin`:
 ```bash
 cd /opt/qcc_plus
-git stash
-git fetch --prune origin test
-git checkout test
-git pull --rebase origin test
+git fetch --force --prune origin --tags
+git branch -r --list 'origin/prod'
+git tag --list 'v1.2.0*'
+
+# Re-run with an existing ref
+./scripts/deploy-server.sh prod v1.2.0
 ```
 
 ## GitHub Actions Secrets
@@ -148,7 +151,7 @@ sudo chown $USER:$USER /opt/qcc_plus
 # Clone repository
 cd /opt/qcc_plus
 git clone https://github.com/yxhpy/qcc_plus.git .
-git checkout test  # or prod
+git checkout test
 ```
 
 ### Firewall Configuration
@@ -191,11 +194,13 @@ The deploy script includes automatic rollback on failure:
 ### Manual Rollback
 ```bash
 cd /opt/qcc_plus
+# Test environment rollback
 git checkout test
-git reset --hard HEAD~1  # Rollback to previous commit
-
-# Rebuild and restart
+git reset --hard HEAD~1
 ./scripts/deploy-server.sh test
+
+# Production rollback example
+./scripts/deploy-server.sh prod v1.2.0
 ```
 
 ## Contact and Support

@@ -5,6 +5,11 @@ on:
     # 当推送 tag 时触发（例如 v1.0.0）
     tags:
       - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: '要发布的 Git ref，建议填写已存在的版本 tag（例如 v1.12.1、v1.12.1-rc.1）'
+        required: true
 
 permissions:
   contents: write  # 允许创建 Release
@@ -17,10 +22,29 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.ref }}
           fetch-depth: 0  # 获取完整的 git 历史，用于生成 changelog
 
       - name: Fetch all tags
         run: git fetch --force --tags
+
+      - name: Validate release tag
+        run: |
+          set -euo pipefail
+          tag="$(git describe --tags --exact-match 2>/dev/null || true)"
+          if [[ -z "$tag" ]]; then
+            echo "::error::release workflow 必须运行在已存在的版本 tag 上，例如 v1.12.1 或 v1.12.1-rc.1"
+            exit 1
+          fi
+          case "$tag" in
+            v*.*.*)
+              echo "Releasing tag: $tag"
+              ;;
+            *)
+              echo "::error::当前 ref 对应 tag 为 $tag，不符合 v*.*.* 规则"
+              exit 1
+              ;;
+          esac
 
       - name: Set up Go
         uses: actions/setup-go@v5

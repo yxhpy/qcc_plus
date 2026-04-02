@@ -86,6 +86,12 @@
 
 ## 部署类
 
+### [2026-04-02] 生产部署跟随 `push prod` 自动触发会绕过人工确认
+- **现象**：开发流程结束后只要推送 `prod` 分支，就会立即触发正式环境部署，无法在上线前再次确认部署来源
+- **原因**：`.github/workflows/deploy-prod.yml` 绑定了 `push prod`，部署脚本也只支持固定分支，不支持手动选择 branch/tag
+- **解决**：将生产部署统一改为 GitHub Actions `workflow_dispatch`，增加 `ref` 输入，并让 `scripts/deploy-server.sh` 支持按 branch/tag 部署
+- **预防**：正式环境入口统一走手动工作流；自动化默认只到测试环境，发布后是否上线生产必须显式确认
+
 ### [模板] CI/CD 健康检查超时
 - **现象**：GitHub Actions 部署失败，健康检查超时
 - **原因**：服务启动慢 / 端口未开放 / 防火墙

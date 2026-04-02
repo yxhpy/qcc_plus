@@ -82,6 +82,7 @@ git push origin v1.3.0-beta.1
 
 **自动化行为**:
 - ✅ GoReleaser 自动触发 (`release.yml`)
+- ✅ 如需补触发，可在 GitHub Actions 手动执行 `release.yml`，但仍需指向已存在的版本 tag
 - ✅ 编译多平台二进制
 - ✅ 构建多架构 Docker 镜像
 - ✅ **推送到 Docker Hub**（打 `v1.3.0-beta.1` 标签）
@@ -127,8 +128,8 @@ docker run -d -p 8002:8000 yxhpy520/qcc_plus:v1.3.0-beta.1
 
 **流程**:
 ```bash
-# 1. 确保所有更改已合并到 main/prod
-git checkout main  # 或 prod
+# 1. 确保所有更改已合并到 main
+git checkout main
 git merge test
 git push origin main
 
@@ -145,10 +146,19 @@ git tag v1.3.0
 
 # 5. 推送 tag 触发发布
 git push origin v1.3.0
+
+# 6. 更新生产候选分支（可选但推荐）
+git checkout prod
+git merge main
+git push origin prod  # 仅更新候选分支，不会自动部署生产
+
+# 7. 到 GitHub Actions 手动触发 Deploy Prod
+# ref 推荐填写 v1.3.0；若按候选分支部署则填写 prod
 ```
 
 **自动化行为**:
 - ✅ GoReleaser 自动触发
+- ✅ `release.yml` 支持 `workflow_dispatch` 作为补触发入口，但仍要求选择已存在的版本 tag
 - ✅ 编译多平台二进制（5 个平台）
 - ✅ 构建多架构 Docker 镜像（amd64 + arm64）
 - ✅ **推送到 Docker Hub**:
@@ -162,6 +172,7 @@ git push origin v1.3.0
 - ✅ 上传所有构建产物（二进制 + checksums）
 - ✅ 自动生成并发布 CHANGELOG
 - ✅ 更新 Docker Hub 仓库信息
+- ✅ 正式环境部署改为人工确认，不会在 tag 推送后自动发布
 
 **验证步骤**:
 ```bash
@@ -175,13 +186,15 @@ docker pull yxhpy520/qcc_plus:latest
 # 3. 验证版本信息
 docker run --rm yxhpy520/qcc_plus:v1.3.0 --version
 
-# 4. 部署到生产环境
-# 方式 1: 手动部署
+# 4. 更新生产候选分支（可选）
 git checkout prod
 git merge main
-git push origin prod  # 触发 deploy-prod.yml
+git push origin prod  # 仅更新候选分支，不触发部署
 
-# 方式 2: 使用 Docker 镜像直接部署
+# 5. 到 GitHub Actions 手动执行 Deploy Prod
+# ref 推荐填写 v1.3.0；若需部署候选分支则填写 prod
+
+# 6. 方式 2: 使用 Docker 镜像直接部署
 docker compose pull  # 拉取 latest 镜像
 docker compose up -d
 ```
@@ -303,6 +316,16 @@ git checkout test
 git push origin test  # 自动部署到测试环境
 ```
 
+### 生产环境部署
+```bash
+git checkout prod
+git merge main
+git push origin prod  # 仅更新候选分支
+
+# GitHub Actions -> Deploy Prod -> Run workflow
+# ref 推荐填写版本 tag，例如 v1.x.x
+```
+
 ### 发布 Beta 版本
 ```bash
 git tag v1.x.x-beta.1
@@ -330,8 +353,8 @@ git push origin v1.x.(x+1)  # 自动发布
 | 工作流 | 触发条件 | 行为 | Docker Hub | 环境 |
 |-------|---------|------|-----------|------|
 | `deploy-test.yml` | push test 分支 | 部署到测试服务器 | ❌ 不推送 | test |
-| `deploy-prod.yml` | push prod 分支 | 部署到生产服务器 | ❌ 不推送 | prod |
-| `release.yml` | push tag `v*.*.*` | GoReleaser 发布 | ✅ 推送 | - |
+| `deploy-prod.yml` | `workflow_dispatch` + `ref` | 手动部署到生产服务器 | ❌ 不推送 | prod |
+| `release.yml` | push tag `v*.*.*` / `workflow_dispatch` | GoReleaser 发布 | ✅ 推送 | - |
 
 ---
 
@@ -351,9 +374,10 @@ git push origin v1.x.(x+1)  # 自动发布
 2. ✅ **渐进发布**: 重大更新先发布 beta/rc 版本收集反馈
 3. ✅ **保护 latest**: 只有正式版本更新 `latest` 标签
 4. ✅ **自动化**: 使用 GoReleaser 避免手动错误
-5. ✅ **可回滚**: 保留历史版本，支持快速回滚
-6. ✅ **语义化版本**: 严格遵循版本号规范
-7. ✅ **规范提交**: 使用 Conventional Commits 自动生成 CHANGELOG
+5. ✅ **生产门禁**: 正式环境统一通过 `workflow_dispatch` 手动确认后部署
+6. ✅ **可回滚**: 保留历史版本，支持快速回滚
+7. ✅ **语义化版本**: 严格遵循版本号规范
+8. ✅ **规范提交**: 使用 Conventional Commits 自动生成 CHANGELOG
 
 ---
 

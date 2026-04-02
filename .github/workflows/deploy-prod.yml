@@ -1,14 +1,18 @@
 name: Deploy Prod
 
 on:
-  push:
-    branches: [prod]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: '要部署的 Git 分支或 tag（例如 prod、main、v1.12.1）'
+        required: true
+        default: 'prod'
 
 env:
   PROD_PORT: 8000
 
 concurrency:
-  group: qcc-plus-prod-${{ github.ref }}
+  group: qcc-plus-prod-${{ inputs.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -20,6 +24,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -36,6 +42,9 @@ jobs:
 
       - name: Deploy to prod server
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          DEPLOY_REF: ${{ inputs.ref }}
+          APP_DIR: ${{ secrets.APP_DIR }}
         with:
           host: ${{ secrets.PROD_HOST }}
           username: ${{ secrets.PROD_SSH_USER }}
@@ -43,13 +52,13 @@ jobs:
           port: 22
           script_stop: true
           timeout: 30m
-          envs: PROD_PORT,APP_DIR
+          envs: PROD_PORT,APP_DIR,DEPLOY_REF
           script: |
             set -euo pipefail
             APP_DIR="${APP_DIR:-/opt/qcc_plus}"
             cd "$APP_DIR"
             chmod +x scripts/deploy-server.sh
-            ./scripts/deploy-server.sh prod
+            ./scripts/deploy-server.sh prod "$DEPLOY_REF"
 
       - name: Health check
         env:

@@ -7,8 +7,9 @@ log() {
 }
 
 APP_ENV="${1:-}"
+DEPLOY_REF_INPUT="${2:-${DEPLOY_REF:-}}"
 if [[ "$APP_ENV" != "test" && "$APP_ENV" != "prod" ]]; then
-  echo "Usage: $0 [test|prod]" >&2
+  echo "Usage: $0 [test|prod] [git-ref]" >&2
   exit 1
 fi
 
@@ -17,18 +18,22 @@ cd "$ROOT_DIR"
 
 case "$APP_ENV" in
   test)
-    BRANCH="test"
+    DEFAULT_REF="test"
     COMPOSE_FILE="docker-compose.test.yml"
     PROJECT_NAME="qcc_test"
     PROXY_PORT=8001
     ;;
   prod)
-    BRANCH="prod"
+    DEFAULT_REF="prod"
     COMPOSE_FILE="docker-compose.prod.yml"
     PROJECT_NAME="qcc_prod"
     PROXY_PORT=8000
     ;;
 esac
+
+TARGET_REF="${DEPLOY_REF_INPUT:-$DEFAULT_REF}"
+RESOLVED_REF_KIND=""
+RESOLVED_REF_NAME=""
 
 IMAGE_NAME="${PROJECT_NAME}-proxy"
 HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:${PROXY_PORT}/}"
@@ -64,14 +69,55 @@ rollback() {
 }
 trap rollback ERR
 
-log "syncing branch $BRANCH"
+checkout_git_ref() {
+  local ref="$1"
+
+  if [[ "$ref" == refs/heads/* ]]; then
+    local branch="${ref#refs/heads/}"
+    git fetch --prune origin "$branch"
+    git checkout -B "$branch" "origin/$branch"
+    RESOLVED_REF_KIND="branch"
+    RESOLVED_REF_NAME="$branch"
+    return 0
+  fi
+
+  if [[ "$ref" == refs/tags/* ]]; then
+    local tag="${ref#refs/tags/}"
+    git fetch --force --prune origin "refs/tags/$tag:refs/tags/$tag"
+    git checkout --detach "refs/tags/$tag"
+    RESOLVED_REF_KIND="tag"
+    RESOLVED_REF_NAME="$tag"
+    return 0
+  fi
+
+  if git ls-remote --exit-code --heads origin "$ref" >/dev/null 2>&1; then
+    git fetch --prune origin "$ref"
+    git checkout -B "$ref" "origin/$ref"
+    RESOLVED_REF_KIND="branch"
+    RESOLVED_REF_NAME="$ref"
+    return 0
+  fi
+
+  if git ls-remote --exit-code --tags origin "refs/tags/$ref" >/dev/null 2>&1; then
+    git fetch --force --prune origin "refs/tags/$ref:refs/tags/$ref"
+    git checkout --detach "refs/tags/$ref"
+    RESOLVED_REF_KIND="tag"
+    RESOLVED_REF_NAME="$ref"
+    return 0
+  fi
+
+  echo "[error] git ref $ref not found on origin as a branch or tag" >&2
+  exit 1
+}
+
+log "syncing git ref $TARGET_REF"
 log "resetting local changes"
 git reset --hard HEAD
 log "cleaning untracked files"
 git clean -fd
-git fetch --prune origin "$BRANCH"
-git checkout "$BRANCH"
-git pull --rebase origin "$BRANCH"
+git fetch --force --prune origin --tags
+checkout_git_ref "$TARGET_REF"
+log "checked out ${RESOLVED_REF_KIND} ${RESOLVED_REF_NAME} at commit $(git rev-parse --short HEAD)"
 
 log "installing frontend dependencies (npm ci)"
 (
@@ -167,4 +213,4 @@ if [[ -n "${OLD_IMAGES}" ]]; then
 fi
 
 trap - ERR
-log "deploy completed for $APP_ENV (branch: $BRANCH, port: $PROXY_PORT)"
+log "deploy completed for $APP_ENV (ref: ${RESOLVED_REF_KIND}:${RESOLVED_REF_NAME}, port: $PROXY_PORT)"

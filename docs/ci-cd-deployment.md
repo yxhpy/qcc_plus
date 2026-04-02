@@ -4,24 +4,33 @@
 
 ## 1. 概述
 
-- **CI/CD 架构**：代码推送到指定分支后，由 GitHub Actions 触发工作流，远程通过 SSH 登录目标服务器，调用 `scripts/deploy-server.sh` 使用对应的 `docker-compose.*.yml` 完成构建与发布。
+- **CI/CD 架构**：推送到 `test` 分支后，GitHub Actions 会自动部署测试环境；正式环境统一通过 GitHub Actions `workflow_dispatch` 手动触发，并传入要部署的 branch/tag。工作流会远程通过 SSH 登录目标服务器，调用 `scripts/deploy-server.sh` 使用对应的 `docker-compose.*.yml` 完成构建与发布。
 - **分支策略**：
-  - `test` → 测试环境（端口 8001 / MySQL 3308，容器前缀 `qcc_test_*`）。
-  - `prod` → 生产环境（端口 8000 / MySQL 3307，容器前缀 `qcc_prod_*`）。
+  - `test` → 测试环境（自动部署，端口 8001 / MySQL 3308，容器前缀 `qcc_test_*`）。
+  - `prod` → 生产候选分支（生产部署默认 ref，端口 8000 / MySQL 3307，容器前缀 `qcc_prod_*`）。
 - **部署流程图**：
 
 ```mermaid
 flowchart LR
-  dev((Developer))-- push test/prod -->GH[GitHub]
-  GH-- CI trigger -->A[GitHub Actions
-  build frontend]
-  A-- appleboy/ssh-action -->S[Target Server
+  dev((Developer))
+  dev-- push test -->GH[GitHub]
+  GH-- deploy-test.yml -->TA[GitHub Actions
+  Deploy Test]
+  TA-- ssh -->TS[Test Server
   /opt/qcc_plus]
-  S-- run -->D[scripts/deploy-server.sh
-  docker compose up]
-  D-- health check -->OK{{Healthy?}}
-  OK-- yes -->Done(Deploy success)
-  OK-- no -->RB[Rollback to previous image]
+  TS-- run ./scripts/deploy-server.sh test -->TD[Test Deploy]
+  TD-- health check -->TOK{{Healthy?}}
+  TOK-- yes -->TDone(Test success)
+  TOK-- no -->TRB[Rollback]
+
+  dev-- workflow_dispatch ref -->PA[GitHub Actions
+  Deploy Prod]
+  PA-- ssh -->PS[Prod Server
+  /opt/qcc_plus]
+  PS-- run ./scripts/deploy-server.sh prod ref -->PD[Prod Deploy]
+  PD-- health check -->POK{{Healthy?}}
+  POK-- yes -->PDone(Prod success)
+  POK-- no -->PRB[Rollback]
 ```
 
 > 截图建议：在文档中可插入 GitHub Actions 运行详情的截图（位置：GitHub 仓库 → Actions → Deploy Test/Prod → 最新一次运行）。
@@ -81,7 +90,7 @@ gh secret set APP_DIR --body "/opt/qcc_plus"
 
 | 项目 | 测试环境 | 生产环境 |
 | --- | --- | --- |
-| Git 分支 | `test` | `prod` |
+| 部署来源 | `test` 分支（自动） | `workflow_dispatch` 输入 `ref`（默认 `prod`，支持 branch/tag） |
 | Compose 文件 | `docker-compose.test.yml` | `docker-compose.prod.yml` |
 | Compose Project 名 | `qcc_test` | `qcc_prod` |
 | Proxy 端口 | 8001 | 8000 |
@@ -112,22 +121,35 @@ vim .env
 - `PROXY_MYSQL_DSN`：与 compose 中 MySQL 地址一致，如 `qcc:example@tcp(mysql:3306)/qcc_proxy?parseTime=true`。
 - `LISTEN_ADDR`：与对应端口保持一致（测试 `:8001`，生产 `:8000`）。
 
-## 5. 部署流程（自动）
+## 5. 部署流程
 
-- **触发条件**：向 `test` 或 `prod` 分支推送代码。
-- **流水线主要步骤**（见 `.github/workflows/deploy-*.yml`）：
+### 5.1 测试环境（自动）
+
+- **触发条件**：向 `test` 分支推送代码。
+- **流水线主要步骤**（见 `.github/workflows/deploy-test.yml`）：
   1) Checkout 代码；
   2) Node.js 20 + npm 缓存，前端 `npm ci && npm run build`；
   3) 通过 `appleboy/ssh-action@v1.2.0` SSH 到目标机；
-  4) 在服务器执行 `./scripts/deploy-server.sh <env>`；
-  5) GitHub Actions 侧进行 HTTP 健康检查（测试 `http://$TEST_HOST:8001/`，生产 `http://$PROD_HOST:8000/`）。
+  4) 在服务器执行 `./scripts/deploy-server.sh test`；
+  5) GitHub Actions 侧进行 HTTP 健康检查（`http://$TEST_HOST:8001/`）。
 
-### 5.1 健康检查机制
+### 5.2 生产环境（手动）
+
+- **统一入口**：GitHub 仓库 → Actions → `Deploy Prod` → `Run workflow`。
+- **必填参数**：`ref`，可填写 `prod`、`main` 或具体 tag（例如 `v1.12.1`）。
+- **流水线主要步骤**（见 `.github/workflows/deploy-prod.yml`）：
+  1) Checkout 指定 `ref`；
+  2) Node.js 20 + npm 缓存，前端 `npm ci && npm run build`；
+  3) 通过 `appleboy/ssh-action@v1.2.0` SSH 到目标机；
+  4) 在服务器执行 `./scripts/deploy-server.sh prod "$DEPLOY_REF"`；
+  5) GitHub Actions 侧进行 HTTP 健康检查（`http://$PROD_HOST:8000/`）。
+
+### 5.3 健康检查机制
 
 - `scripts/deploy-server.sh` 内置 `curl` 检测（默认 12 次、间隔 5 秒）对本机 `127.0.0.1:<port>/` 进行探活。
 - Actions 工作流在远端再次做 HTTP 状态码校验，非 2xx/3xx 会标记失败。
 
-### 5.2 回滚机制
+### 5.4 回滚机制
 
 - 部署脚本在执行前记录上一版代理镜像 ID，若失败会尝试 `docker tag` 回退并 `docker compose up --no-build` 重新拉起。
 - 若自动回滚仍异常，可在服务器执行：
@@ -137,24 +159,30 @@ vim .env
   docker compose -p qcc_prod -f docker-compose.prod.yml up -d --no-build
   ```
 
-## 6. 手动部署
+## 6. 服务器手动部署（兜底）
 
-在目标服务器执行（需已配置 .env 与权限）：
+在目标服务器执行（需已配置 `.env` 与权限）。部署脚本会自动 `reset/clean` 工作区、拉取远端并切换到目标 ref：
 
 ```bash
 cd /opt/qcc_plus
-git fetch --prune origin
-git checkout test   # 或 prod
-git pull --rebase origin test
 chmod +x scripts/deploy-server.sh
-./scripts/deploy-server.sh test   # 或 prod
+
+# 测试环境
+./scripts/deploy-server.sh test
+
+# 生产环境：默认部署 prod 分支
+./scripts/deploy-server.sh prod
+
+# 生产环境：部署指定分支或 tag
+./scripts/deploy-server.sh prod main
+./scripts/deploy-server.sh prod v1.12.1
 ```
 
-命令快捷方式：`./scripts/deploy-server.sh test` 或 `./scripts/deploy-server.sh prod`。
+正式环境的标准入口仍然是 GitHub Actions `workflow_dispatch`；服务器命令仅用于紧急排障或人工兜底。
 
 ## 7. 监控与故障排查
 
-- **GitHub Actions 日志**：仓库 → Actions → 对应工作流 → 运行记录 → 查看 `Deploy to test/prod server`、`Health check` 步骤输出。（可插入截图说明按钮位置）
+- **GitHub Actions 日志**：仓库 → Actions → 对应工作流 → 运行记录 → 查看 `Deploy to test/prod server`、`Health check` 步骤输出；生产环境关注手动运行的 `Deploy Prod` 记录。（可插入截图说明按钮位置）
 - **容器状态**：
   ```bash
   docker compose -p qcc_test -f docker-compose.test.yml ps
@@ -188,4 +216,4 @@ chmod +x scripts/deploy-server.sh
 
 ---
 
-按本指南配置后，推送到 `test` / `prod` 分支即可自动完成对应环境的构建与部署，出现异常时优先查看 Actions 日志与容器日志快速定位。
+按本指南配置后，推送到 `test` 分支会自动部署测试环境；正式环境不会在开发流程结束后自动发布，必须通过 GitHub Actions `Deploy Prod` 的 `workflow_dispatch` 手动触发。出现异常时优先查看 Actions 日志与容器日志快速定位。

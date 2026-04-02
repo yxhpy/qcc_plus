@@ -137,22 +137,28 @@ ls -lh dist/
 
 ## GitHub Actions 工作流
 
-GoReleaser 通过 GitHub Actions 自动运行（`.github/workflows/release.yml`）：
+GoReleaser 通过 GitHub Actions 运行（`.github/workflows/release.yml`），默认仍由版本 tag 自动触发，同时支持 `workflow_dispatch` 手动补触发：
 
 ```yaml
-# 触发条件：推送以 v 开头的 tag
+# 触发条件：推送以 v 开头的 tag，或手动指定已存在的版本 tag
 on:
   push:
     tags:
       - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 已存在的版本 tag（例如 v1.2.0、v1.2.0-rc.1）
+        required: true
 
 # 主要步骤：
-1. Checkout 代码（包含完整 git 历史）
-2. 设置 Go 环境
-3. 设置 Docker Buildx（多架构构建）
-4. 登录 Docker Hub
-5. 运行 GoReleaser
-6. 更新 Docker Hub 仓库信息
+1. Checkout 指定 ref（包含完整 git 历史）
+2. 拉取全部 tags 并校验当前 ref 对应已有版本 tag
+3. 设置 Go 环境
+4. 设置 Docker Buildx（多架构构建）
+5. 登录 Docker Hub
+6. 运行 GoReleaser
+7. 更新 Docker Hub 仓库信息
 ```
 
 ## 构建产物

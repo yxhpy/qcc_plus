@@ -32,6 +32,8 @@ GitHub Actions 自动完成：
 - 创建 GitHub Release 并上传构建产物
 - 更新 Docker Hub 仓库信息
 
+`release.yml` 默认由版本 tag 自动触发，同时支持 `workflow_dispatch` 手动补触发；手动模式仍应选择已存在的版本 tag。
+
 ## 发布流程
 
 ### 阶段 1: 测试环境验证
@@ -51,6 +53,10 @@ git push origin v1.3.0-beta.1  # 发布到 Docker Hub (Pre-release)
 ```bash
 git tag v1.x.x
 git push origin v1.x.x  # 发布到 Docker Hub + GitHub Release
+
+# 正式环境部署需单独手动触发
+# GitHub Actions -> Deploy Prod -> Run workflow
+# ref 推荐填写 v1.x.x
 ```
 
 ## 发布后更新

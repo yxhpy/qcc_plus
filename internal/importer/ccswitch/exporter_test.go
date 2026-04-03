@@ -226,8 +226,8 @@ func TestExportRoundTripViaImporter(t *testing.T) {
 	if providerName != "openai-node-backup" {
 		t.Fatalf("expected exported provider name openai-node-backup, got %s", providerName)
 	}
-	if providerAppType != "codex" {
-		t.Fatalf("expected exported provider app type codex, got %s", providerAppType)
+	if providerAppType != "openai" {
+		t.Fatalf("expected exported provider app type openai, got %s", providerAppType)
 	}
 
 	targetStore, err := store.OpenSQLite(targetPath)

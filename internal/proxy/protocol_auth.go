@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	defaultOpenAIHealthCheckModel = "gpt-5.1-codex-mini"
+	defaultOpenAIHealthCheckModel = "gpt-5.1-mini"
 	defaultGeminiHealthCheckModel = "gemini-2.5-flash"
 	legacyOpenAIHealthCheckModel  = "gpt-5.4"
 )

@@ -26,7 +26,7 @@ const (
 	defaultTargetSQLiteDBName = "qccplus.db"
 	defaultWeightOffset       = 1000
 	defaultClaudeHealthModel  = "claude-haiku-4-5-20251001"
-	defaultOpenAIHealthModel  = "gpt-5.1-codex-mini"
+	defaultOpenAIHealthModel  = "gpt-5.1-mini"
 	defaultGeminiHealthModel  = "gemini-2.5-flash"
 )
 
@@ -1038,8 +1038,6 @@ func detectProtocol(appType string, settings map[string]any, meta map[string]any
 	switch strings.ToLower(appType) {
 	case "claude":
 		return "claude"
-	case "codex":
-		return "openai"
 	case "gemini":
 		return "gemini"
 	case "openclaw":

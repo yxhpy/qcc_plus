@@ -55,14 +55,20 @@ func TestRunImportsProvidersPricingAndLogsIdempotently(t *testing.T) {
 		t.Fatalf("run importer: %v", err)
 	}
 
-	if summary.ProvidersImported != 4 {
-		t.Fatalf("expected 4 imported providers, got %d", summary.ProvidersImported)
+	if summary.ProvidersImported != 3 {
+		t.Fatalf("expected 3 imported providers, got %d", summary.ProvidersImported)
 	}
 	if summary.PricingImported != 1 {
 		t.Fatalf("expected 1 imported pricing row, got %d", summary.PricingImported)
 	}
-	if summary.LogsImported != 2 {
-		t.Fatalf("expected 2 imported logs, got %d", summary.LogsImported)
+	if summary.LogsImported != 1 {
+		t.Fatalf("expected 1 imported log, got %d", summary.LogsImported)
+	}
+	if summary.ProvidersSkipped != 1 {
+		t.Fatalf("expected 1 skipped provider, got %d", summary.ProvidersSkipped)
+	}
+	if summary.LogsSkippedNoProvider != 1 {
+		t.Fatalf("expected 1 log skipped for unsupported provider, got %d", summary.LogsSkippedNoProvider)
 	}
 
 	targetStore, err = store.OpenSQLite(targetPath)
@@ -75,8 +81,8 @@ func TestRunImportsProvidersPricingAndLogsIdempotently(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get nodes: %v", err)
 	}
-	if len(nodes) != 4 {
-		t.Fatalf("expected 4 nodes, got %d", len(nodes))
+	if len(nodes) != 3 {
+		t.Fatalf("expected 3 nodes, got %d", len(nodes))
 	}
 
 	nodeByID := make(map[string]store.NodeRecord)
@@ -84,15 +90,8 @@ func TestRunImportsProvidersPricingAndLogsIdempotently(t *testing.T) {
 		nodeByID[node.ID] = node
 	}
 
-	openAINode := nodeByID["ccswitch-codex-p-openai"]
-	if openAINode.SourceProtocol != "openai" {
-		t.Fatalf("expected openai protocol, got %s", openAINode.SourceProtocol)
-	}
-	if openAINode.HealthCheckModel != "gpt-5.4" {
-		t.Fatalf("expected openai health model gpt-5.4, got %s", openAINode.HealthCheckModel)
-	}
-	if openAINode.Requests != 1 || openAINode.FailCount != 0 {
-		t.Fatalf("unexpected openai node stats: requests=%d fail_count=%d", openAINode.Requests, openAINode.FailCount)
+	if _, ok := nodeByID["ccswitch-codex-p-openai"]; ok {
+		t.Fatal("expected codex provider to be skipped")
 	}
 
 	opencodeNode := nodeByID["ccswitch-opencode-p-opencode"]
@@ -118,8 +117,8 @@ func TestRunImportsProvidersPricingAndLogsIdempotently(t *testing.T) {
 	if err != nil {
 		t.Fatalf("query usage logs: %v", err)
 	}
-	if len(logs) != 2 {
-		t.Fatalf("expected 2 usage logs, got %d", len(logs))
+	if len(logs) != 1 {
+		t.Fatalf("expected 1 usage log, got %d", len(logs))
 	}
 
 	secondSummary, err := Run(ctx, Options{
@@ -130,16 +129,19 @@ func TestRunImportsProvidersPricingAndLogsIdempotently(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run importer second time: %v", err)
 	}
-	if secondSummary.LogsSkippedDuplicate != 2 {
-		t.Fatalf("expected 2 duplicate logs on second run, got %d", secondSummary.LogsSkippedDuplicate)
+	if secondSummary.LogsSkippedDuplicate != 1 {
+		t.Fatalf("expected 1 duplicate log on second run, got %d", secondSummary.LogsSkippedDuplicate)
+	}
+	if secondSummary.LogsSkippedNoProvider != 1 {
+		t.Fatalf("expected 1 unsupported-provider log on second run, got %d", secondSummary.LogsSkippedNoProvider)
 	}
 
 	total, err := targetStore.CountUsageLogs(ctx, store.QueryUsageParams{AccountID: "admin-test"})
 	if err != nil {
 		t.Fatalf("count usage logs: %v", err)
 	}
-	if total != 2 {
-		t.Fatalf("expected 2 usage logs after second run, got %d", total)
+	if total != 1 {
+		t.Fatalf("expected 1 usage log after second run, got %d", total)
 	}
 }
 

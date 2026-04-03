@@ -460,7 +460,7 @@ func ValidateHealthCheckResponse(statusCode int, body []byte) HealthCheckResult 
 			result.HasContent = true
 		}
 	}
-	// 检查 choices 字段（OpenAI/Codex）
+	// 检查 choices 字段（OpenAI）
 	if choices, ok := resp["choices"]; ok {
 		if arr, ok := choices.([]interface{}); ok && len(arr) > 0 {
 			result.HasContent = true

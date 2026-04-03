@@ -713,7 +713,7 @@ func inferExportStatusCode(logRecord store.UsageLogRecord) int {
 func exportAppType(sourceProtocol string) string {
 	switch strings.ToLower(strings.TrimSpace(sourceProtocol)) {
 	case "openai":
-		return "codex"
+		return "openai"
 	case "gemini":
 		return "gemini"
 	default:

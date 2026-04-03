@@ -200,15 +200,13 @@ const baseUrl = __BASE_URL__;
 const expectedVersion = __EXPECTED_VERSION__;
 const expectedChangelogHeading = __EXPECTED_CHANGELOG_HEADING__;
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
 async function waitForText(locator, expected, label) {
   for (let i = 0; i < 100; i += 1) {
     const text = ((await locator.textContent()) || '').trim();
     if (text === expected) {
       return text;
     }
-    await sleep(100);
+    await page.waitForTimeout(100);
   }
   const actual = ((await locator.textContent()) || '').trim();
   throw new Error(`${label} mismatch: expected "${expected}", got "${actual || '<empty>'}"`);
@@ -220,7 +218,7 @@ async function waitForContains(locator, expected, label) {
     if (text.includes(expected)) {
       return text;
     }
-    await sleep(100);
+    await page.waitForTimeout(100);
   }
   const actual = (await locator.textContent()) || '';
   throw new Error(`${label} did not include "${expected}". Actual content starts with: ${actual.slice(0, 160)}`);
@@ -228,7 +226,7 @@ async function waitForContains(locator, expected, label) {
 
 await page.waitForLoadState('domcontentloaded');
 
-const loginVersion = await waitForText(page.locator('.login-version'), expectedVersion, 'login version');
+const loginVersion = await waitForText(page.locator('.login-version-text').first(), expectedVersion, 'login version');
 
 await page.locator('input[name="username"]').fill('admin');
 await page.locator('input[name="password"]').fill('admin123');
@@ -237,7 +235,7 @@ await Promise.all([
   page.getByRole('button', { name: '继续' }).click(),
 ]);
 
-const sidebarVersion = await waitForText(page.locator('.sidebar-version'), expectedVersion, 'sidebar version');
+const sidebarVersion = await waitForText(page.locator('.sidebar-version-text'), expectedVersion, 'sidebar version');
 
 await Promise.all([
   page.waitForURL(/\/changelog$/),

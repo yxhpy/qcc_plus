@@ -171,7 +171,7 @@ export default function Login() {
             <div className="login-footer">
               <span>登录后 24 小时内保持会话，记得使用退出按钮主动登出。</span>
               <div className="login-version" title={versionTitle}>
-                {versionLabel}
+                <span className="login-version-text">{versionLabel}</span>
                 {version && <span className={`login-env-badge login-env-${environmentLabel}`}>{environmentLabel}</span>}
               </div>
             </div>
@@ -179,7 +179,7 @@ export default function Login() {
         </section>
       </div>
       <div className="login-mobile-version" title={versionTitle}>
-        {versionLabel}
+        <span className="login-version-text">{versionLabel}</span>
         {version && <span className={`login-env-badge login-env-${environmentLabel}`}>{environmentLabel}</span>}
       </div>
       <Toast message={toast?.message} type={toast?.type} />

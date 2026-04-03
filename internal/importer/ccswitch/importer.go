@@ -1029,15 +1029,23 @@ func detectProtocol(appType string, settings map[string]any, meta map[string]any
 		switch {
 		case strings.Contains(apiFormat, "anthropic"):
 			return "claude"
+		case strings.Contains(apiFormat, "codex"):
+			return "codex"
 		case strings.Contains(apiFormat, "openai"):
 			return "openai"
 		case strings.Contains(apiFormat, "gemini"):
 			return "gemini"
 		}
 	}
+	// Detect Codex via wire_api = "responses" in config string
+	if cfg := getString(settings, "config"); strings.Contains(strings.ToLower(cfg), `wire_api = "responses"`) {
+		return "codex"
+	}
 	switch strings.ToLower(appType) {
 	case "claude":
 		return "claude"
+	case "codex":
+		return "codex"
 	case "gemini":
 		return "gemini"
 	case "openclaw":

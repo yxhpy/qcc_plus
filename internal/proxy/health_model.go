@@ -31,6 +31,7 @@ const (
 	ModelFamilyClaude  ModelFamily = "claude"
 	ModelFamilyOpenAI  ModelFamily = "openai"
 	ModelFamilyGemini  ModelFamily = "gemini"
+	ModelFamilyCodex   ModelFamily = "codex"
 	ModelFamilyUnknown ModelFamily = "unknown"
 )
 
@@ -107,6 +108,28 @@ type HealthProbeSpec struct {
 
 func BuildHealthProbeSpec(sourceProtocol, model string) (HealthProbeSpec, error) {
 	switch sourceProtocol {
+	case SourceProtocolCodex:
+		effectiveModel := model
+		if effectiveModel == "" {
+			effectiveModel = "gpt-4.1-mini"
+		}
+		payload := map[string]any{
+			"model":      effectiveModel,
+			"input":      "ping",
+			"max_output_tokens": 1,
+		}
+		body, err := json.Marshal(payload)
+		if err != nil {
+			return HealthProbeSpec{}, err
+		}
+		return HealthProbeSpec{
+			Method: "POST",
+			Path:   "/v1/responses",
+			Headers: map[string]string{
+				"Content-Type": "application/json",
+			},
+			Body: body,
+		}, nil
 	case SourceProtocolOpenAI:
 		payload := map[string]any{
 			"model":      model,

@@ -260,6 +260,11 @@ func (p *Server) handler() http.Handler {
 			return
 		}
 
+		if normalizedCodexPath, ok := normalizeCodexIngressPath(path); ok && normalizedCodexPath == openAIModelsPath {
+			p.handleOpenAIModels(w, r)
+			return
+		}
+
 		ingressProtocol := detectIngressProtocol(path)
 		if path == "/v1/messages" || ingressProtocol != SourceProtocolClaude {
 			proxyKey := extractAPIKey(r)
@@ -364,13 +369,13 @@ func (p *Server) handler() http.Handler {
 							targetModel = requestModelID
 						}
 						reqForAttempt.URL.Path = geminiModelsPrefix + targetModel + geminiGenerateSuffix
-					} else if targetProtocol == SourceProtocolOpenAI {
+					} else if targetProtocol == SourceProtocolOpenAI || targetProtocol == SourceProtocolCodex {
 						reqForAttempt.URL.Path = rewriteIngressPathForUpstream(path, targetProtocol, requestModelID)
 					} else {
 						reqForAttempt.URL.Path = r.URL.Path
 					}
 				} else {
-					if targetProtocol == SourceProtocolGemini || targetProtocol == SourceProtocolOpenAI {
+					if targetProtocol == SourceProtocolGemini || targetProtocol == SourceProtocolOpenAI || targetProtocol == SourceProtocolCodex {
 						reqForAttempt.URL.Path = rewriteIngressPathForUpstream(path, targetProtocol, requestModelID)
 					} else {
 						reqForAttempt.URL.Path = r.URL.Path

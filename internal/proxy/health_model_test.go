@@ -12,6 +12,8 @@ func TestBuildHealthProbeSpec(t *testing.T) {
 	}{
 		{"claude", "claude", "claude-haiku-4-5-20251001", "/v1/messages", "anthropic-version"},
 		{"openai", "openai", "gpt-4o-mini", "/v1/chat/completions", "Content-Type"},
+		{"codex", "codex", "gpt-4.1-mini", "/v1/responses", "Content-Type"},
+		{"codex default model", "codex", "", "/v1/responses", "Content-Type"},
 		{"gemini default model", "gemini", "", "/v1beta/models/gemini-2.5-flash:generateContent", "Content-Type"},
 		{"gemini custom model", "gemini", "gemini-2.5-pro", "/v1beta/models/gemini-2.5-pro:generateContent", "Content-Type"},
 	}
@@ -46,6 +48,9 @@ func TestEffectiveHealthCheckModelForProtocol(t *testing.T) {
 		{"openai empty uses openai default", "openai", "", defaultOpenAIHealthCheckModel},
 		{"openai legacy claude default maps to openai default", "openai", defaultHealthCheckModel, defaultOpenAIHealthCheckModel},
 		{"openai legacy gpt-5.4 default maps to openai default", "openai", legacyOpenAIHealthCheckModel, defaultOpenAIHealthCheckModel},
+		{"codex empty uses codex default", "codex", "", defaultCodexHealthCheckModel},
+		{"codex legacy claude default maps to codex default", "codex", defaultHealthCheckModel, defaultCodexHealthCheckModel},
+		{"codex custom model preserved", "codex", "gpt-4.1-nano", "gpt-4.1-nano"},
 		{"gemini empty uses gemini default", "gemini", "", defaultGeminiHealthCheckModel},
 	}
 

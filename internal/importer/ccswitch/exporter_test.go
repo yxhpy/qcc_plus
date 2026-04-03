@@ -303,3 +303,24 @@ func TestExportRoundTripViaImporter(t *testing.T) {
 		t.Fatalf("expected 4 imported logs, got %d", len(importedLogs))
 	}
 }
+
+func TestExportAppTypeCodex(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		protocol string
+		want     string
+	}{
+		{"codex", "codex"},
+		{"openai", "openai"},
+		{"gemini", "gemini"},
+		{"claude", "claude"},
+		{"", "claude"},
+	}
+
+	for _, tc := range cases {
+		if got := exportAppType(tc.protocol); got != tc.want {
+			t.Fatalf("exportAppType(%q) = %q, want %q", tc.protocol, got, tc.want)
+		}
+	}
+}

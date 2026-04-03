@@ -6,12 +6,13 @@ const (
 	SourceProtocolClaude = "claude"
 	SourceProtocolOpenAI = "openai"
 	SourceProtocolGemini = "gemini"
+	SourceProtocolCodex  = "codex"
 )
 
 // NormalizedSourceProtocol returns a safe source protocol value.
 func NormalizedSourceProtocol(raw string) string {
 	switch raw {
-	case SourceProtocolOpenAI, SourceProtocolGemini:
+	case SourceProtocolOpenAI, SourceProtocolGemini, SourceProtocolCodex:
 		return raw
 	default:
 		return SourceProtocolClaude

@@ -7,6 +7,7 @@ import (
 
 const (
 	defaultOpenAIHealthCheckModel = "gpt-5.1-mini"
+	defaultCodexHealthCheckModel  = "gpt-4.1-mini"
 	defaultGeminiHealthCheckModel = "gemini-2.5-flash"
 	legacyOpenAIHealthCheckModel  = "gpt-5.4"
 )
@@ -25,7 +26,7 @@ func applyUpstreamAuthHeaders(req *http.Request, sourceProtocol, apiKey string) 
 	}
 
 	switch NormalizedSourceProtocol(sourceProtocol) {
-	case SourceProtocolOpenAI:
+	case SourceProtocolOpenAI, SourceProtocolCodex:
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 	case SourceProtocolGemini:
 		req.Header.Set("x-goog-api-key", apiKey)
@@ -39,6 +40,8 @@ func defaultHealthCheckModelForProtocol(sourceProtocol string) string {
 	switch NormalizedSourceProtocol(sourceProtocol) {
 	case SourceProtocolOpenAI:
 		return defaultOpenAIHealthCheckModel
+	case SourceProtocolCodex:
+		return defaultCodexHealthCheckModel
 	case SourceProtocolGemini:
 		return defaultGeminiHealthCheckModel
 	default:
@@ -52,6 +55,10 @@ func effectiveHealthCheckModelForProtocol(sourceProtocol, configuredModel string
 	case SourceProtocolOpenAI:
 		if model == "" || model == defaultHealthCheckModel || model == legacyOpenAIHealthCheckModel {
 			return defaultOpenAIHealthCheckModel
+		}
+	case SourceProtocolCodex:
+		if model == "" || model == defaultHealthCheckModel {
+			return defaultCodexHealthCheckModel
 		}
 	case SourceProtocolGemini:
 		if model == "" || model == defaultHealthCheckModel {

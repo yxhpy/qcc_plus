@@ -55,20 +55,20 @@ func TestRunImportsProvidersPricingAndLogsIdempotently(t *testing.T) {
 		t.Fatalf("run importer: %v", err)
 	}
 
-	if summary.ProvidersImported != 3 {
-		t.Fatalf("expected 3 imported providers, got %d", summary.ProvidersImported)
+	if summary.ProvidersImported != 4 {
+		t.Fatalf("expected 4 imported providers, got %d", summary.ProvidersImported)
 	}
 	if summary.PricingImported != 1 {
 		t.Fatalf("expected 1 imported pricing row, got %d", summary.PricingImported)
 	}
-	if summary.LogsImported != 1 {
-		t.Fatalf("expected 1 imported log, got %d", summary.LogsImported)
+	if summary.LogsImported != 2 {
+		t.Fatalf("expected 2 imported log, got %d", summary.LogsImported)
 	}
-	if summary.ProvidersSkipped != 1 {
-		t.Fatalf("expected 1 skipped provider, got %d", summary.ProvidersSkipped)
+	if summary.ProvidersSkipped != 0 {
+		t.Fatalf("expected 0 skipped provider, got %d", summary.ProvidersSkipped)
 	}
-	if summary.LogsSkippedNoProvider != 1 {
-		t.Fatalf("expected 1 log skipped for unsupported provider, got %d", summary.LogsSkippedNoProvider)
+	if summary.LogsSkippedNoProvider != 0 {
+		t.Fatalf("expected 0 log skipped for unsupported provider, got %d", summary.LogsSkippedNoProvider)
 	}
 
 	targetStore, err = store.OpenSQLite(targetPath)
@@ -81,8 +81,8 @@ func TestRunImportsProvidersPricingAndLogsIdempotently(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get nodes: %v", err)
 	}
-	if len(nodes) != 3 {
-		t.Fatalf("expected 3 nodes, got %d", len(nodes))
+	if len(nodes) != 4 {
+		t.Fatalf("expected 4 nodes, got %d", len(nodes))
 	}
 
 	nodeByID := make(map[string]store.NodeRecord)
@@ -90,8 +90,12 @@ func TestRunImportsProvidersPricingAndLogsIdempotently(t *testing.T) {
 		nodeByID[node.ID] = node
 	}
 
-	if _, ok := nodeByID["ccswitch-codex-p-openai"]; ok {
-		t.Fatal("expected codex provider to be skipped")
+	codexNode := nodeByID["ccswitch-codex-p-openai"]
+	if codexNode.ID == "" {
+		t.Fatal("expected codex provider to be imported")
+	}
+	if codexNode.SourceProtocol != "codex" {
+		t.Fatalf("expected codex provider source protocol = codex, got %s", codexNode.SourceProtocol)
 	}
 
 	opencodeNode := nodeByID["ccswitch-opencode-p-opencode"]
@@ -117,8 +121,8 @@ func TestRunImportsProvidersPricingAndLogsIdempotently(t *testing.T) {
 	if err != nil {
 		t.Fatalf("query usage logs: %v", err)
 	}
-	if len(logs) != 1 {
-		t.Fatalf("expected 1 usage log, got %d", len(logs))
+	if len(logs) != 2 {
+		t.Fatalf("expected 2 usage log, got %d", len(logs))
 	}
 
 	secondSummary, err := Run(ctx, Options{
@@ -129,19 +133,19 @@ func TestRunImportsProvidersPricingAndLogsIdempotently(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run importer second time: %v", err)
 	}
-	if secondSummary.LogsSkippedDuplicate != 1 {
-		t.Fatalf("expected 1 duplicate log on second run, got %d", secondSummary.LogsSkippedDuplicate)
+	if secondSummary.LogsSkippedDuplicate != 2 {
+		t.Fatalf("expected 2 duplicate log on second run, got %d", secondSummary.LogsSkippedDuplicate)
 	}
-	if secondSummary.LogsSkippedNoProvider != 1 {
-		t.Fatalf("expected 1 unsupported-provider log on second run, got %d", secondSummary.LogsSkippedNoProvider)
+	if secondSummary.LogsSkippedNoProvider != 0 {
+		t.Fatalf("expected 0 unsupported-provider log on second run, got %d", secondSummary.LogsSkippedNoProvider)
 	}
 
 	total, err := targetStore.CountUsageLogs(ctx, store.QueryUsageParams{AccountID: "admin-test"})
 	if err != nil {
 		t.Fatalf("count usage logs: %v", err)
 	}
-	if total != 1 {
-		t.Fatalf("expected 1 usage log after second run, got %d", total)
+	if total != 2 {
+		t.Fatalf("expected 2 usage log after second run, got %d", total)
 	}
 }
 
@@ -156,6 +160,29 @@ func TestDetectProtocolPrefersAnthropicEnv(t *testing.T) {
 
 	if got := detectProtocol("claude", settings, nil); got != "claude" {
 		t.Fatalf("detectProtocol() = %s, want claude", got)
+	}
+}
+
+func TestDetectProtocolCodex(t *testing.T) {
+	t.Parallel()
+
+	// appType = "codex" should return codex
+	if got := detectProtocol("codex", nil, nil); got != "codex" {
+		t.Fatalf("detectProtocol(codex) = %s, want codex", got)
+	}
+
+	// meta apiFormat = "codex" should return codex
+	meta := map[string]any{"apiFormat": "codex"}
+	if got := detectProtocol("", nil, meta); got != "codex" {
+		t.Fatalf("detectProtocol with codex meta = %s, want codex", got)
+	}
+
+	// config with wire_api = "responses" should return codex
+	settings := map[string]any{
+		"config": "model_provider = \"custom\"\nwire_api = \"responses\"\n",
+	}
+	if got := detectProtocol("", settings, nil); got != "codex" {
+		t.Fatalf("detectProtocol with responses wire_api = %s, want codex", got)
 	}
 }
 

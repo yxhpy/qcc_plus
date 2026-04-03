@@ -20,6 +20,19 @@ func trimProtocolPrefix(path, prefix string) string {
 	return path
 }
 
+func normalizeCodexIngressPath(path string) (string, bool) {
+	if path != "/codex" && !strings.HasPrefix(path, "/codex/") {
+		return "", false
+	}
+	trimmed := trimProtocolPrefix(path, "/codex")
+	switch trimmed {
+	case openAIResponsesPath, openAIModelsPath:
+		return trimmed, true
+	default:
+		return "", false
+	}
+}
+
 func normalizeOpenAIIngressPath(path string) (string, bool) {
 	trimmed := trimProtocolPrefix(path, "/openai")
 	switch trimmed {
@@ -49,6 +62,12 @@ func extractModelFromGeminiPath(path string) string {
 }
 
 func detectIngressProtocol(path string) string {
+	if _, ok := normalizeCodexIngressPath(path); ok {
+		return SourceProtocolCodex
+	}
+	if path == "/codex" || strings.HasPrefix(path, "/codex/") {
+		return SourceProtocolCodex
+	}
 	if _, ok := normalizeOpenAIIngressPath(path); ok {
 		return SourceProtocolOpenAI
 	}
@@ -66,6 +85,11 @@ func detectIngressProtocol(path string) string {
 
 func rewriteIngressPathForUpstream(originalPath, targetProtocol, requestModelID string) string {
 	switch NormalizedSourceProtocol(targetProtocol) {
+	case SourceProtocolCodex:
+		if normalized, ok := normalizeCodexIngressPath(originalPath); ok {
+			return normalized
+		}
+		return openAIResponsesPath
 	case SourceProtocolOpenAI:
 		if normalized, ok := normalizeOpenAIIngressPath(originalPath); ok {
 			return normalized

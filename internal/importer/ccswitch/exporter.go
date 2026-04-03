@@ -395,6 +395,17 @@ func buildExportSettings(node store.NodeRecord, baseURL, apiKey string) (string,
 	settings := map[string]any{}
 
 	switch protocol {
+	case "codex":
+		auth := map[string]string{}
+		if apiKey != "" {
+			auth["OPENAI_API_KEY"] = apiKey
+		}
+		settings["auth"] = auth
+		settings["config"] = fmt.Sprintf(
+			"model_provider = \"custom\"\nmodel = %q\n\n[model_providers]\n[model_providers.custom]\nname = \"custom\"\nwire_api = \"responses\"\nrequires_openai_auth = true\nbase_url = %q\n",
+			chooseNonEmpty(node.HealthCheckModel, defaultOpenAIHealthModel),
+			baseURL,
+		)
 	case "openai":
 		auth := map[string]string{}
 		if apiKey != "" {
@@ -445,6 +456,8 @@ func buildExportSettings(node store.NodeRecord, baseURL, apiKey string) (string,
 func buildExportMeta(node store.NodeRecord, keyName string) (string, error) {
 	apiFormat := "anthropic"
 	switch strings.ToLower(strings.TrimSpace(node.SourceProtocol)) {
+	case "codex":
+		apiFormat = "codex"
 	case "openai":
 		apiFormat = "openai"
 	case "gemini":
@@ -712,6 +725,8 @@ func inferExportStatusCode(logRecord store.UsageLogRecord) int {
 
 func exportAppType(sourceProtocol string) string {
 	switch strings.ToLower(strings.TrimSpace(sourceProtocol)) {
+	case "codex":
+		return "codex"
 	case "openai":
 		return "openai"
 	case "gemini":

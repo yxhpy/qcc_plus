@@ -201,28 +201,16 @@ func (p *Server) buildMonitorDashboardResponse(ctx context.Context, target *Acco
 	}
 
 	now := time.Now()
-	// 使用全量健康检查间隔来计算 stale 阈值，而不是单次探活间隔。
-	// 因为全量检查间隔可能是 5-10 分钟，如果用 2*healthEvery (60s) 作为阈值，
-	// 节点在两次全量检查之间必然被标记为 stale，导致状态显示不准确。
-	healthAllInterval := defaultHealthAllInterval
+	// 使用代理请求流量来推导健康状态，不再依赖主动探测
+	proxyStaleThreshold := 10 * time.Minute
 	if p.healthScheduler != nil {
-		healthAllInterval = p.healthScheduler.Interval()
+		proxyStaleThreshold = 2 * p.healthScheduler.Interval()
 	}
 	nodes := make([]MonitorNode, 0, len(snapshots))
 	for _, snap := range snapshots {
 		traffic := summarizeTraffic(snap.Metrics)
-		health := summarizeHealth(snap.Metrics, snap.Method, healthAllInterval, now)
-
-		status := "unknown"
-		if snap.Disabled {
-			status = "disabled"
-		} else if snap.Failed || health.Status == "down" {
-			status = "offline"
-		} else if health.Status == "stale" {
-			status = "degraded"
-		} else {
-			status = "online"
-		}
+		health := deriveHealthFromMetrics(snap.Metrics, proxyStaleThreshold, now)
+		status := deriveNodeStatusFromMetrics(snap, health)
 
 		lastError := snap.LastError
 		if lastError == "" {
@@ -325,6 +313,60 @@ func buildTrendPoints(records []store.MetricsRecord) []TrendPoint {
 		})
 	}
 	return points
+}
+
+// deriveHealthFromMetrics 从代理请求指标推导健康状态（不依赖主动探测）
+func deriveHealthFromMetrics(m metrics, staleThreshold time.Duration, now time.Time) HealthSummary {
+	status := "unknown"
+	if m.Requests > 0 {
+		if m.LastProxyRequestAt.IsZero() || now.Sub(m.LastProxyRequestAt) > staleThreshold {
+			status = "unknown"
+		} else if m.FailStreak > 0 {
+			status = "down"
+		} else {
+			status = "up"
+		}
+	}
+
+	var lastCheck *string
+	if !m.LastProxyRequestAt.IsZero() {
+		formatted := timeutil.FormatBeijingTime(m.LastProxyRequestAt)
+		lastCheck = &formatted
+	}
+
+	// 用代理请求的平均延迟作为 ping
+	var avgPingMs int64
+	if m.Requests > 0 {
+		totalDuration := m.FirstByteDur + m.StreamDur
+		avgPingMs = calculateAvgResponseTime(totalDuration.Milliseconds(), m.Requests)
+	}
+
+	lastErr := ""
+	if m.FailStreak > 0 {
+		lastErr = m.LastPingErr
+	}
+
+	return HealthSummary{
+		Status:      status,
+		LastCheckAt: lastCheck,
+		LastPingMs:  avgPingMs,
+		LastPingErr: lastErr,
+		CheckMethod: "proxy",
+	}
+}
+
+// deriveNodeStatusFromMetrics 基于代理请求指标判断节点综合状态
+func deriveNodeStatusFromMetrics(snap nodeSnapshot, health HealthSummary) string {
+	if snap.Disabled {
+		return "disabled"
+	}
+	if snap.Failed || health.Status == "down" {
+		return "offline"
+	}
+	if health.Status == "unknown" {
+		return "unknown"
+	}
+	return "online"
 }
 
 func summarizeTraffic(m metrics) ProxySummary {

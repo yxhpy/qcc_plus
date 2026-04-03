@@ -22,7 +22,7 @@ export default function NodeCard({ node, historyRefreshKey, healthEvent, shareTo
   const healthLabel: Record<string, string> = { up: '在线', down: '离线' }
   const rawHealthStatus = node.health?.status || 'down'
   const healthStatus = rawHealthStatus === 'up' ? 'up' : 'down'
-  const checkMethod = (node.health?.check_method || 'api').toUpperCase()
+  const checkMethod = node.health?.check_method?.toLowerCase() === 'proxy' ? '流量感知' : (node.health?.check_method || 'api').toUpperCase()
   const lastPing = Number(node.health?.last_ping_ms ?? 0)
   const lastCheckShort = node.health?.last_check_at
     ? node.health.last_check_at.replace(/^\d{4}年\d{2}月\d{2}日\s*/, '')
@@ -87,13 +87,13 @@ export default function NodeCard({ node, historyRefreshKey, healthEvent, shareTo
         )}
         {preference.showHealth && (
           <div className="metrics-row health">
-            <span className="row-label">探活</span>
+            <span className="row-label">流量感知</span>
             <span className={`metric health-${healthStatus}`}><strong>{healthLabel[healthStatus]}</strong></span>
             <span className="sep">|</span>
             <span className="metric"><strong>{lastPing || '--'}ms</strong></span>
             <span className="metric secondary">({checkMethod})</span>
             <span className="sep">|</span>
-            <span className="metric secondary">检查于 {lastCheckShort}</span>
+            <span className="metric secondary">更新于 {lastCheckShort}</span>
             {keyCount > 1 && (
               <>
                 <span className="sep">|</span>

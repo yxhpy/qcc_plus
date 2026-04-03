@@ -323,7 +323,7 @@ export default function Monitor({ shared = false }: MonitorProps) {
               </span>
             </label>
             <label className="setting-toggle">
-              <span>探活</span>
+              <span>流量感知</span>
               <span className="toggle-mini">
                 <input
                   type="checkbox"

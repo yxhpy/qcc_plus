@@ -97,6 +97,7 @@ func (p *Server) recordMetrics(ctx context.Context, nodeID string, start time.Ti
 		accountID = store.DefaultAccountID
 	}
 	node.Metrics.Requests++
+	node.Metrics.LastProxyRequestAt = start
 	if mw != nil && mw.firstWrite {
 		node.Metrics.FirstByteDur += mw.firstAt.Sub(start)
 		node.Metrics.StreamDur += mw.lastAt.Sub(mw.firstAt)

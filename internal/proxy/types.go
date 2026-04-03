@@ -105,9 +105,10 @@ type metrics struct {
 	TotalBytes        int64
 	LastPingMS        int64
 	LastPingErr       string
-	LastHealthCheckAt time.Time
-	FailCount         int64 // 总失败次数（非200）
-	FailStreak        int64 // 连续失败次数
+	LastHealthCheckAt  time.Time
+	LastProxyRequestAt time.Time // 最近一次代理请求时间
+	FailCount          int64     // 总失败次数（非200）
+	FailStreak         int64     // 连续失败次数
 }
 
 // usage 描述一次请求的 token 统计。

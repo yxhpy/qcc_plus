@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "lastScanned": 1772275467316,
+  "lastScanned": 1775233021612,
   "projectRoot": "/Users/yxhpy/Desktop/project/qcc_plus",
   "techStack": {
     "languages": [
@@ -46,7 +46,7 @@
       "path": "cccli",
       "purpose": null,
       "fileCount": 4,
-      "lastAccessed": 1772275467297,
+      "lastAccessed": 1775233021588,
       "keyFiles": [
         "assets.go",
         "system0_cli.txt",
@@ -58,34 +58,41 @@
       "path": "cmd",
       "purpose": null,
       "fileCount": 0,
-      "lastAccessed": 1772275467298,
+      "lastAccessed": 1775233021589,
+      "keyFiles": []
+    },
+    "data": {
+      "path": "data",
+      "purpose": "Data files",
+      "fileCount": 0,
+      "lastAccessed": 1775233021589,
       "keyFiles": []
     },
     "debugs": {
       "path": "debugs",
       "purpose": null,
       "fileCount": 0,
-      "lastAccessed": 1772275467298,
+      "lastAccessed": 1775233021590,
       "keyFiles": []
     },
     "docs": {
       "path": "docs",
       "purpose": "Documentation",
-      "fileCount": 13,
-      "lastAccessed": 1772275467298,
+      "fileCount": 32,
+      "lastAccessed": 1775233021591,
       "keyFiles": [
         "README.md",
+        "bugfix_failed_set_restore.md",
+        "ci-cd-deployment.md",
         "ci-cd-troubleshooting.md",
-        "cloudflare-tunnel.md",
-        "cost-first-node-switching.md",
-        "frontend-tech-stack.md"
+        "cli_health_check_implementation.md"
       ]
     },
     "frontend": {
       "path": "frontend",
       "purpose": null,
       "fileCount": 12,
-      "lastAccessed": 1772275467299,
+      "lastAccessed": 1775233021591,
       "keyFiles": [
         "README.md",
         "eslint.config.js",
@@ -98,48 +105,57 @@
       "path": "internal",
       "purpose": null,
       "fileCount": 0,
-      "lastAccessed": 1772275467299,
+      "lastAccessed": 1775233021591,
       "keyFiles": []
     },
     "npm-packages": {
       "path": "npm-packages",
       "purpose": null,
       "fileCount": 0,
-      "lastAccessed": 1772275467299,
+      "lastAccessed": 1775233021591,
+      "keyFiles": []
+    },
+    "output": {
+      "path": "output",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1775233021591,
       "keyFiles": []
     },
     "scripts": {
       "path": "scripts",
       "purpose": "Build/utility scripts",
-      "fileCount": 14,
-      "lastAccessed": 1772275467299,
+      "fileCount": 30,
+      "lastAccessed": 1775233021591,
       "keyFiles": [
         "build-frontend.sh",
         "build-npm-packages.sh",
-        "deploy-server.sh",
-        "diagnose-data.sh",
-        "docker-entrypoint.sh"
+        "checkpoint.py",
+        "deploy-prod-local.sh",
+        "deploy-server.sh"
       ]
     },
     "tests": {
       "path": "tests",
       "purpose": "Test files",
-      "fileCount": 0,
-      "lastAccessed": 1772275467300,
-      "keyFiles": []
+      "fileCount": 1,
+      "lastAccessed": 1775233021591,
+      "keyFiles": [
+        "deploy_script_test.sh"
+      ]
     },
     "verify": {
       "path": "verify",
       "purpose": null,
       "fileCount": 0,
-      "lastAccessed": 1772275467300,
+      "lastAccessed": 1775233021592,
       "keyFiles": []
     },
     "web": {
       "path": "web",
       "purpose": null,
       "fileCount": 1,
-      "lastAccessed": 1772275467300,
+      "lastAccessed": 1775233021592,
       "keyFiles": [
         "embed.go"
       ]
@@ -148,7 +164,7 @@
       "path": "website",
       "purpose": null,
       "fileCount": 12,
-      "lastAccessed": 1772275467300,
+      "lastAccessed": 1775233021592,
       "keyFiles": [
         "README.md",
         "eslint.config.mjs",
@@ -161,7 +177,7 @@
       "path": "docs/api",
       "purpose": "API routes",
       "fileCount": 1,
-      "lastAccessed": 1772275467301,
+      "lastAccessed": 1775233021592,
       "keyFiles": [
         "INDEX.md"
       ]
@@ -170,7 +186,7 @@
       "path": "frontend/dist",
       "purpose": "Distribution/build output",
       "fileCount": 7,
-      "lastAccessed": 1772275467302,
+      "lastAccessed": 1775233021592,
       "keyFiles": [
         "favicon.ico",
         "index.html",
@@ -181,14 +197,14 @@
       "path": "frontend/node_modules",
       "purpose": "Dependencies",
       "fileCount": 1,
-      "lastAccessed": 1772275467303,
+      "lastAccessed": 1775233021593,
       "keyFiles": []
     },
     "frontend/public": {
       "path": "frontend/public",
       "purpose": "Public files",
       "fileCount": 4,
-      "lastAccessed": 1772275467303,
+      "lastAccessed": 1775233021594,
       "keyFiles": [
         "favicon.ico",
         "qcc-icon-180.png",
@@ -199,7 +215,7 @@
       "path": "web/dist",
       "purpose": "Distribution/build output",
       "fileCount": 7,
-      "lastAccessed": 1772275467304,
+      "lastAccessed": 1775233021594,
       "keyFiles": [
         "favicon.ico",
         "index.html",
@@ -210,7 +226,7 @@
       "path": "website/app",
       "purpose": "Application code",
       "fileCount": 4,
-      "lastAccessed": 1772275467304,
+      "lastAccessed": 1775233021595,
       "keyFiles": [
         "favicon.ico",
         "globals.css",
@@ -221,129 +237,85 @@
       "path": "website/components",
       "purpose": "UI components",
       "fileCount": 0,
-      "lastAccessed": 1772275467305,
+      "lastAccessed": 1775233021595,
       "keyFiles": []
+    },
+    "website/lib": {
+      "path": "website/lib",
+      "purpose": "Library code",
+      "fileCount": 2,
+      "lastAccessed": 1775233021595,
+      "keyFiles": [
+        "constants.ts",
+        "utils.ts"
+      ]
     }
   },
   "hotPaths": [
     {
-      "path": ".",
-      "accessCount": 21,
-      "lastAccessed": 1772275745372,
-      "type": "directory"
-    },
-    {
-      "path": "internal/proxy/handler.go",
-      "accessCount": 3,
-      "lastAccessed": 1772275818734,
-      "type": "file"
-    },
-    {
-      "path": "frontend/src/components/Layout.tsx",
-      "accessCount": 3,
-      "lastAccessed": 1772275842996,
-      "type": "file"
-    },
-    {
       "path": "internal/version/version.go",
-      "accessCount": 2,
-      "lastAccessed": 1772275762540,
-      "type": "file"
-    },
-    {
-      "path": "internal/proxy",
-      "accessCount": 2,
-      "lastAccessed": 1772275949424,
-      "type": "directory"
-    },
-    {
-      "path": "frontend/package.json",
-      "accessCount": 1,
-      "lastAccessed": 1772275620225,
-      "type": "file"
-    },
-    {
-      "path": "website/package.json",
-      "accessCount": 1,
-      "lastAccessed": 1772275626031,
+      "accessCount": 4,
+      "lastAccessed": 1775233200375,
       "type": "file"
     },
     {
       "path": "internal/version/version_test.go",
-      "accessCount": 1,
-      "lastAccessed": 1772275670394,
-      "type": "file"
-    },
-    {
-      "path": "cmd",
-      "accessCount": 1,
-      "lastAccessed": 1772275763049,
-      "type": "directory"
-    },
-    {
-      "path": "cmd/cccli/main.go",
-      "accessCount": 1,
-      "lastAccessed": 1772275773184,
-      "type": "file"
-    },
-    {
-      "path": "frontend",
-      "accessCount": 1,
-      "lastAccessed": 1772275773431,
-      "type": "directory"
-    },
-    {
-      "path": "frontend/src/services/api.ts",
-      "accessCount": 1,
-      "lastAccessed": 1772275785129,
-      "type": "file"
-    },
-    {
-      "path": "frontend/src/pages/Login.tsx",
-      "accessCount": 1,
-      "lastAccessed": 1772275785143,
-      "type": "file"
-    },
-    {
-      "path": "frontend/src/hooks/useVersion.ts",
-      "accessCount": 1,
-      "lastAccessed": 1772275785182,
-      "type": "file"
-    },
-    {
-      "path": ".goreleaser.yml",
-      "accessCount": 1,
-      "lastAccessed": 1772275818730,
+      "accessCount": 2,
+      "lastAccessed": 1775233295319,
       "type": "file"
     },
     {
       "path": "Dockerfile",
-      "accessCount": 1,
-      "lastAccessed": 1772275834018,
+      "accessCount": 2,
+      "lastAccessed": 1775233295535,
       "type": "file"
     },
     {
-      "path": "npm-packages/@qccplus/cli/lib/commands/version.js",
+      "path": "scripts/deploy-test-local.sh",
+      "accessCount": 2,
+      "lastAccessed": 1775233295750,
+      "type": "file"
+    },
+    {
+      "path": "scripts/deploy-prod-local.sh",
+      "accessCount": 2,
+      "lastAccessed": 1775233295961,
+      "type": "file"
+    },
+    {
+      "path": "docker-compose.test.yml",
+      "accessCount": 2,
+      "lastAccessed": 1775233296169,
+      "type": "file"
+    },
+    {
+      "path": "docker-compose.prod.yml",
+      "accessCount": 2,
+      "lastAccessed": 1775233296377,
+      "type": "file"
+    },
+    {
+      "path": "frontend/src/hooks/useVersion.ts",
+      "accessCount": 2,
+      "lastAccessed": 1775233296594,
+      "type": "file"
+    },
+    {
+      "path": "frontend/src/components/Layout.tsx",
       "accessCount": 1,
-      "lastAccessed": 1772275834021,
+      "lastAccessed": 1775233071380,
+      "type": "file"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "accessCount": 1,
+      "lastAccessed": 1775233071442,
       "type": "file"
     },
     {
       "path": "frontend/src/components/Layout.css",
       "accessCount": 1,
-      "lastAccessed": 1772275843004,
-      "type": "file"
-    },
-    {
-      "path": "web",
-      "accessCount": 1,
-      "lastAccessed": 1772275843287,
-      "type": "directory"
-    },
-    {
-      "path": "web/embed.go",
-      "accessCount": 1,
-      "lastAccessed": 1772275948884,
+      "lastAccessed": 1775233114106,
       "type": "file"
     }
   ],

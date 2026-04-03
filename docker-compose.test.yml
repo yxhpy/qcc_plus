@@ -26,6 +26,7 @@ services:
         VERSION: ${VERSION:-dev}
         GIT_COMMIT: ${GIT_COMMIT:-unknown}
         BUILD_DATE: ${BUILD_DATE:-unknown}
+        ENVIRONMENT: ${ENVIRONMENT:-test}
     container_name: qcc_test_proxy
     restart: unless-stopped
     environment:

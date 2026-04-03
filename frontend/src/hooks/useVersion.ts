@@ -7,6 +7,7 @@ export interface VersionInfo {
   build_date: string
   build_date_beijing: string
   go_version: string
+  environment: string
 }
 
 interface UseVersionResult {

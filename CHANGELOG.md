@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+### 改进
+- **梳理版本环境数据链路**
+  - 后端版本信息新增 `environment` 字段，支持 `ldflags -> QCC_ENV -> dev` 的环境判定回退
+  - Docker 构建、测试/生产本地部署脚本与 compose 配置统一注入 `ENVIRONMENT`
+  - 管理端侧边栏底部版本区显示版本号与环境标识，便于快速区分 `test/prod/dev`
+
 ## [1.12.1] - 2026-02-28
 
 ### 文档

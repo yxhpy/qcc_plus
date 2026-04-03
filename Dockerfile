@@ -5,8 +5,9 @@ RUN go env -w GOPROXY=https://goproxy.cn,direct && go mod download
 ARG VERSION
 ARG GIT_COMMIT
 ARG BUILD_DATE
+ARG ENVIRONMENT
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
-    -ldflags "-X 'qcc_plus/internal/version.Version=${VERSION}' -X 'qcc_plus/internal/version.GitCommit=${GIT_COMMIT}' -X 'qcc_plus/internal/version.BuildDate=${BUILD_DATE}'" \
+    -ldflags "-X 'qcc_plus/internal/version.Version=${VERSION}' -X 'qcc_plus/internal/version.GitCommit=${GIT_COMMIT}' -X 'qcc_plus/internal/version.BuildDate=${BUILD_DATE}' -X 'qcc_plus/internal/version.Environment=${ENVIRONMENT}'" \
     -o /app/ccproxy ./cmd/cccli
 
 # 下载 cloudflared

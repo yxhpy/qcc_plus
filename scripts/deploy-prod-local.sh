@@ -61,7 +61,8 @@ fi
 VERSION="${VERSION:-$(git describe --tags --always --dirty 2>/dev/null || echo 'dev')}"
 GIT_COMMIT="${GIT_COMMIT:-$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')}"
 BUILD_DATE="${BUILD_DATE:-$(date -u +"%Y-%m-%dT%H:%M:%SZ")}"
-export VERSION GIT_COMMIT BUILD_DATE
+ENVIRONMENT="${ENVIRONMENT:-prod}"
+export VERSION GIT_COMMIT BUILD_DATE ENVIRONMENT
 
 log "resolved production mysql volume: $PROD_DB_VOLUME"
 if [[ -n "$PROD_DB_NAME" ]]; then

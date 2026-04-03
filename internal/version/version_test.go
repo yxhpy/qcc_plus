@@ -5,6 +5,58 @@ import (
 	"time"
 )
 
+func TestGetEnvironment(t *testing.T) {
+	originalEnvironment := Environment
+	defer func() {
+		Environment = originalEnvironment
+	}()
+
+	t.Run("prefers ldflags injected environment", func(t *testing.T) {
+		t.Setenv("QCC_ENV", "dev")
+		Environment = "prod"
+
+		if got := GetEnvironment(); got != "prod" {
+			t.Fatalf("GetEnvironment() = %s, want prod", got)
+		}
+		if !IsProduction() {
+			t.Fatal("IsProduction() = false, want true")
+		}
+		if IsDevelopment() {
+			t.Fatal("IsDevelopment() = true, want false")
+		}
+	})
+
+	t.Run("falls back to QCC_ENV when ldflags value is empty", func(t *testing.T) {
+		t.Setenv("QCC_ENV", "test")
+		Environment = ""
+
+		if got := GetEnvironment(); got != "test" {
+			t.Fatalf("GetEnvironment() = %s, want test", got)
+		}
+		if !IsTest() {
+			t.Fatal("IsTest() = false, want true")
+		}
+		if IsProduction() {
+			t.Fatal("IsProduction() = true, want false")
+		}
+	})
+
+	t.Run("defaults to dev when all sources are unset", func(t *testing.T) {
+		t.Setenv("QCC_ENV", "")
+		Environment = "   "
+
+		if got := GetEnvironment(); got != "dev" {
+			t.Fatalf("GetEnvironment() = %s, want dev", got)
+		}
+		if !IsDevelopment() {
+			t.Fatal("IsDevelopment() = false, want true")
+		}
+		if IsTest() {
+			t.Fatal("IsTest() = true, want false")
+		}
+	})
+}
+
 func TestGetFormattedBuildDate(t *testing.T) {
 	// Save original values
 	originalBuildDate := BuildDate
@@ -68,6 +120,7 @@ func TestGetVersionInfo(t *testing.T) {
 	originalGitCommit := GitCommit
 	originalBuildDate := BuildDate
 	originalGoVersion := GoVersion
+	originalEnvironment := Environment
 	originalResolveBuildInfo := resolveBuildInfo
 	originalResolveFallbackVersion := resolveFallbackVersion
 
@@ -76,6 +129,7 @@ func TestGetVersionInfo(t *testing.T) {
 		GitCommit = originalGitCommit
 		BuildDate = originalBuildDate
 		GoVersion = originalGoVersion
+		Environment = originalEnvironment
 		resolveBuildInfo = originalResolveBuildInfo
 		resolveFallbackVersion = originalResolveFallbackVersion
 	}()
@@ -87,6 +141,7 @@ func TestGetVersionInfo(t *testing.T) {
 		GitCommit = "abc123"
 		BuildDate = "2026-02-03T12:30:45Z"
 		GoVersion = "go1.21.0"
+		Environment = "test"
 
 		info := GetVersionInfo()
 
@@ -105,15 +160,20 @@ func TestGetVersionInfo(t *testing.T) {
 		if info.GoVersion != "go1.21.0" {
 			t.Errorf("GoVersion = %s, want go1.21.0", info.GoVersion)
 		}
+		if info.Environment != "test" {
+			t.Errorf("Environment = %s, want test", info.Environment)
+		}
 	})
 
 	t.Run("returns dev version info", func(t *testing.T) {
+		t.Setenv("QCC_ENV", "")
 		resolveBuildInfo = func() string { return "" }
 		resolveFallbackVersion = func() string { return "" }
 		Version = "dev"
 		GitCommit = ""
 		BuildDate = "dev"
 		GoVersion = "go1.21.0"
+		Environment = ""
 
 		info := GetVersionInfo()
 
@@ -123,15 +183,20 @@ func TestGetVersionInfo(t *testing.T) {
 		if info.BuildDateBeijing != "开发版本" {
 			t.Errorf("BuildDateBeijing = %s, want 开发版本", info.BuildDateBeijing)
 		}
+		if info.Environment != "dev" {
+			t.Errorf("Environment = %s, want dev", info.Environment)
+		}
 	})
 
 	t.Run("handles empty values", func(t *testing.T) {
+		t.Setenv("QCC_ENV", "")
 		resolveBuildInfo = func() string { return "" }
 		resolveFallbackVersion = func() string { return "" }
 		Version = ""
 		GitCommit = ""
 		BuildDate = ""
 		GoVersion = ""
+		Environment = ""
 
 		info := GetVersionInfo()
 
@@ -141,20 +206,28 @@ func TestGetVersionInfo(t *testing.T) {
 		if info.BuildDateBeijing != "未知" {
 			t.Errorf("BuildDateBeijing = %s, want 未知", info.BuildDateBeijing)
 		}
+		if info.Environment != "dev" {
+			t.Errorf("Environment = %s, want dev", info.Environment)
+		}
 	})
 
 	t.Run("falls back to changelog version when build version is unset", func(t *testing.T) {
+		t.Setenv("QCC_ENV", "prod")
 		resolveBuildInfo = func() string { return "" }
 		resolveFallbackVersion = func() string { return "1.12.1" }
 		Version = "dev"
 		GitCommit = "abc123"
 		BuildDate = "2026-02-03T12:30:45Z"
 		GoVersion = "go1.21.0"
+		Environment = ""
 
 		info := GetVersionInfo()
 
 		if info.Version != "v1.12.1" {
 			t.Errorf("Version = %s, want v1.12.1", info.Version)
+		}
+		if info.Environment != "prod" {
+			t.Errorf("Environment = %s, want prod", info.Environment)
 		}
 	})
 
@@ -228,6 +301,7 @@ func TestVersionVariables(t *testing.T) {
 		_ = GitCommit
 		_ = BuildDate
 		_ = GoVersion
+		_ = Environment
 	})
 
 	t.Run("GoVersion is set from runtime", func(t *testing.T) {
@@ -246,10 +320,14 @@ func TestInfoStruct(t *testing.T) {
 			BuildDate:        "2026-02-03T12:00:00Z",
 			BuildDateBeijing: "2026年02月03日 20时00分00秒",
 			GoVersion:        "go1.21.0",
+			Environment:      "prod",
 		}
 
 		if info.Version != "v1.0.0" {
 			t.Errorf("Version = %s, want v1.0.0", info.Version)
+		}
+		if info.Environment != "prod" {
+			t.Errorf("Environment = %s, want prod", info.Environment)
 		}
 	})
 }

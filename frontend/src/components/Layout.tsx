@@ -196,6 +196,16 @@ const navItems: NavItem[] = [
 
 const SIDEBAR_STORAGE_KEY = 'qcc-sidebar-collapsed'
 
+function formatVersionLabel(rawVersion?: string) {
+  if (!rawVersion) return 'v-'
+  return rawVersion.startsWith('v') ? rawVersion : `v${rawVersion}`
+}
+
+function normalizeEnvironment(rawEnvironment?: string) {
+  const normalized = rawEnvironment?.trim().toLowerCase()
+  return normalized || 'dev'
+}
+
 export default function Layout({ children }: { children: ReactNode }) {
   const { logout, user } = useAuth()
   const { version } = useVersion()
@@ -275,6 +285,11 @@ export default function Layout({ children }: { children: ReactNode }) {
 
   const themeIcon = theme === 'system' ? icons.system : resolvedTheme === 'dark' ? icons.moon : icons.sun
   const themeLabel = theme === 'system' ? '跟随系统' : resolvedTheme === 'dark' ? '深色' : '浅色'
+  const versionLabel = formatVersionLabel(version?.version)
+  const environmentLabel = normalizeEnvironment(version?.environment)
+  const versionTitle = version
+    ? `版本: ${versionLabel}\n环境: ${environmentLabel}\ncommit: ${version.git_commit || '--'}\nbuild (BJ): ${version.build_date_beijing || '--'}`
+    : '正在加载版本信息...'
 
   return (
     <div className={`layout ${collapsed ? 'sidebar-collapsed' : ''}`}>
@@ -326,9 +341,10 @@ export default function Layout({ children }: { children: ReactNode }) {
             {!collapsed && <span className="sidebar-label">退出登录</span>}
           </button>
 
-          {!collapsed && version && (
-            <div className="sidebar-version">
-              {version.version.startsWith('v') ? version.version : `v${version.version}`}
+          {version && (
+            <div className="sidebar-version" title={versionTitle}>
+              <span className="sidebar-version-text">{versionLabel}</span>
+              <span className={`sidebar-env-badge sidebar-env-${environmentLabel}`}>{environmentLabel}</span>
             </div>
           )}
         </div>

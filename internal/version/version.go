@@ -15,10 +15,11 @@ import (
 
 // Version information injected at build time via -ldflags.
 var (
-	Version   = "dev"
-	GitCommit = ""
-	BuildDate = ""
-	GoVersion = runtime.Version()
+	Version     = "dev"
+	GitCommit   = ""
+	BuildDate   = ""
+	GoVersion   = runtime.Version()
+	Environment = ""
 )
 
 var (
@@ -38,7 +39,29 @@ type Info struct {
 	BuildDate        string `json:"build_date"`
 	BuildDateBeijing string `json:"build_date_beijing"`
 	GoVersion        string `json:"go_version"`
+	Environment      string `json:"environment"`
 }
+
+// GetEnvironment returns the current environment identifier.
+// Priority: ldflags injection > QCC_ENV env var > "dev" default.
+func GetEnvironment() string {
+	if env := strings.TrimSpace(Environment); env != "" {
+		return env
+	}
+	if env := strings.TrimSpace(os.Getenv("QCC_ENV")); env != "" {
+		return env
+	}
+	return "dev"
+}
+
+// IsDevelopment returns true if the current environment is "dev".
+func IsDevelopment() bool { return GetEnvironment() == "dev" }
+
+// IsTest returns true if the current environment is "test".
+func IsTest() bool { return GetEnvironment() == "test" }
+
+// IsProduction returns true if the current environment is "prod".
+func IsProduction() bool { return GetEnvironment() == "prod" }
 
 // GetFormattedBuildDate returns the build time formatted in Beijing time.
 // BuildDate is expected to be an RFC3339 string in UTC set at build time.
@@ -140,5 +163,6 @@ func GetVersionInfo() Info {
 		BuildDate:        BuildDate,
 		BuildDateBeijing: GetFormattedBuildDate(),
 		GoVersion:        GoVersion,
+		Environment:      GetEnvironment(),
 	}
 }

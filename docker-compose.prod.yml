@@ -26,6 +26,7 @@ services:
         VERSION: ${VERSION:-dev}
         GIT_COMMIT: ${GIT_COMMIT:-unknown}
         BUILD_DATE: ${BUILD_DATE:-unknown}
+        ENVIRONMENT: ${ENVIRONMENT:-prod}
     container_name: qcc_prod_proxy
     restart: unless-stopped
     volumes:

@@ -253,6 +253,12 @@
   },
   "hotPaths": [
     {
+      "path": "internal/proxy",
+      "accessCount": 5,
+      "lastAccessed": 1775243557311,
+      "type": "directory"
+    },
+    {
       "path": "internal/version/version.go",
       "accessCount": 4,
       "lastAccessed": 1775233200375,
@@ -265,6 +271,24 @@
       "type": "file"
     },
     {
+      "path": "internal/proxy/metrics.go",
+      "accessCount": 4,
+      "lastAccessed": 1775243414693,
+      "type": "file"
+    },
+    {
+      "path": "internal/proxy/types.go",
+      "accessCount": 4,
+      "lastAccessed": 1775243414745,
+      "type": "directory"
+    },
+    {
+      "path": "frontend/src/components/NodeCard.tsx",
+      "accessCount": 4,
+      "lastAccessed": 1775243500185,
+      "type": "file"
+    },
+    {
       "path": "frontend/src/hooks/useVersion.ts",
       "accessCount": 3,
       "lastAccessed": 1775234623300,
@@ -274,6 +298,12 @@
       "path": "frontend/src/pages/Login.css",
       "accessCount": 3,
       "lastAccessed": 1775234782355,
+      "type": "file"
+    },
+    {
+      "path": "internal/proxy/api_monitor.go",
+      "accessCount": 3,
+      "lastAccessed": 1775243445905,
       "type": "file"
     },
     {
@@ -325,6 +355,12 @@
       "type": "file"
     },
     {
+      "path": "frontend/src/pages/Monitor.tsx",
+      "accessCount": 2,
+      "lastAccessed": 1775243473912,
+      "type": "file"
+    },
+    {
       "path": "CHANGELOG.md",
       "accessCount": 1,
       "lastAccessed": 1775233071442,
@@ -341,6 +377,12 @@
       "accessCount": 1,
       "lastAccessed": 1775234623202,
       "type": "file"
+    },
+    {
+      "path": "internal/proxy/health.go",
+      "accessCount": 1,
+      "lastAccessed": 1775243316716,
+      "type": "directory"
     }
   ],
   "userDirectives": []

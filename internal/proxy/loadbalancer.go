@@ -209,15 +209,36 @@ func (ns *NodeScorer) RecordLatency(nodeID string, latencyMs int64) {
 
 // IncrActiveConn 增加活跃连接数
 func (ns *NodeScorer) IncrActiveConn(nodeID string) {
+	ns.TryAcquireConn(nodeID, 0)
+}
+
+func (ns *NodeScorer) getActiveConnCounter(nodeID string) *int64 {
 	ns.mu.Lock()
+	defer ns.mu.Unlock()
 	c, ok := ns.activeConns[nodeID]
 	if !ok {
 		var v int64
 		c = &v
 		ns.activeConns[nodeID] = c
 	}
-	ns.mu.Unlock()
-	atomic.AddInt64(c, 1)
+	return c
+}
+
+func (ns *NodeScorer) TryAcquireConn(nodeID string, limit int) bool {
+	c := ns.getActiveConnCounter(nodeID)
+	if limit <= 0 {
+		atomic.AddInt64(c, 1)
+		return true
+	}
+	for {
+		current := atomic.LoadInt64(c)
+		if current >= int64(limit) {
+			return false
+		}
+		if atomic.CompareAndSwapInt64(c, current, current+1) {
+			return true
+		}
+	}
 }
 
 // DecrActiveConn 减少活跃连接数
@@ -285,6 +306,13 @@ func (ns *NodeScorer) GetActiveConns(nodeID string) int64 {
 		return 0
 	}
 	return atomic.LoadInt64(c)
+}
+
+func (ns *NodeScorer) AtConcurrencyLimit(nodeID string, limit int) bool {
+	if limit <= 0 {
+		return false
+	}
+	return ns.GetActiveConns(nodeID) >= int64(limit)
 }
 
 // GetEffectiveWeight 获取节点的有效权重

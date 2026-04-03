@@ -16,10 +16,12 @@ type nodeMutationRequest struct {
 	APIKeys           *[]NamedAPIKey      `json:"api_keys"`
 	Name              string              `json:"name"`
 	Weight            int                 `json:"weight"`
+	MaxConcurrency    *int                `json:"max_concurrency"`
 	HealthCheckMethod *string             `json:"health_check_method"`
 	HealthCheckModel  *string             `json:"health_check_model"`
 	ModelMapping      *map[string]string  `json:"model_mapping"`
 	SourceProtocol    *string             `json:"source_protocol"`
+	WireAPI           *string             `json:"wire_api"`
 	AuthProfile       *string             `json:"auth_profile"`
 	Capabilities      *string             `json:"capabilities"`
 }
@@ -74,8 +76,10 @@ func (p *Server) handleNodes(w http.ResponseWriter, r *http.Request) {
 			derefString(req.HealthCheckModel),
 			derefStringMap(req.ModelMapping),
 			derefString(req.SourceProtocol),
+			derefString(req.WireAPI),
 			derefString(req.AuthProfile),
 			derefString(req.Capabilities),
+			derefInt(req.MaxConcurrency),
 		)
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
@@ -119,8 +123,10 @@ func (p *Server) handleNodes(w http.ResponseWriter, r *http.Request) {
 			req.HealthCheckModel,
 			req.ModelMapping,
 			req.SourceProtocol,
+			req.WireAPI,
 			req.AuthProfile,
 			req.Capabilities,
+			req.MaxConcurrency,
 		); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return
@@ -342,6 +348,7 @@ func (p *Server) buildNodeView(acc *Account, n *Node, includeSecrets bool) map[s
 		"health_check_model":    healthModel,
 		"model_mapping":         n.ModelMapping,
 		"source_protocol":       protocol,
+		"wire_api":              normalizeNodeWireAPI(protocol, n.WireAPI),
 		"auth_profile":          n.AuthProfile,
 		"capabilities":          n.Capabilities,
 		"status":                nodeStatus,
@@ -370,6 +377,7 @@ func (p *Server) buildNodeView(acc *Account, n *Node, includeSecrets bool) map[s
 		"first_byte_ms":         n.Metrics.FirstByteDur.Milliseconds(),
 		"avg_recv_ms_per_token": avgPerToken,
 		"weight":                n.Weight,
+		"max_concurrency":       n.MaxConcurrency,
 		"failed":                n.Failed,
 		"disabled":              n.Disabled,
 		"last_error":            n.LastError,
@@ -391,6 +399,13 @@ func derefString(v *string) string {
 func derefStringMap(v *map[string]string) map[string]string {
 	if v == nil {
 		return nil
+	}
+	return *v
+}
+
+func derefInt(v *int) int {
+	if v == nil {
+		return 0
 	}
 	return *v
 }

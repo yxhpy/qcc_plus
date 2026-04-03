@@ -24,10 +24,12 @@ type NodeRecord struct {
 	HealthCheckModel  string
 	ModelMapping      string // JSON 格式的模型映射，如 {"claude-sonnet-4-20250514":"claude-sonnet-4-5-20250929"}
 	SourceProtocol    string // 节点源协议：claude/openai/gemini
+	WireAPI           string // OpenAI/Codex 上游接口：responses/chat_completions
 	AuthProfile       string // JSON 格式的鉴权配置
 	Capabilities      string // JSON 格式的能力声明
 	AccountID         string
 	Weight            int
+	MaxConcurrency    int
 	Failed            bool
 	Disabled          bool
 	LastError         string

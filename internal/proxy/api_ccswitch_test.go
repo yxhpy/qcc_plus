@@ -195,7 +195,7 @@ func TestHandleCCSwitchImportAndExport(t *testing.T) {
 			{Name: "primary", Key: "sk-export-primary"},
 		}, 1, HealthCheckMethodAPI, "claude-haiku-4-5-20251001", map[string]string{
 			"claude-haiku-4-5-20251001": "vendor-haiku",
-		}, SourceProtocolClaude, "", "")
+		}, SourceProtocolClaude, "", "", "", 0)
 		if err != nil {
 			t.Fatalf("add export node: %v", err)
 		}

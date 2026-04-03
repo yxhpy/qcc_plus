@@ -49,7 +49,7 @@ func TestOpenAIProtocol_E2E(t *testing.T) {
 		WithListenAddr(listener.Addr().String()))
 
 	acc, _ := srv.createAccount("test", "client-key", "pw", false)
-	srv.addNodeWithMethod(acc, "openai-node", up.URL, "sk-test-key", 1, HealthCheckMethodHEAD, "", nil, SourceProtocolOpenAI, "", "")
+	srv.addNodeWithMethod(acc, "openai-node", up.URL, "sk-test-key", 1, HealthCheckMethodHEAD, "", nil, SourceProtocolOpenAI, "", "", "", 0)
 
 	go http.Serve(listener, srv.Handler())
 
@@ -107,7 +107,7 @@ func TestGeminiProtocol_E2E(t *testing.T) {
 		WithListenAddr(listener.Addr().String()))
 
 	acc, _ := srv.createAccount("test", "client-key", "pw", false)
-	srv.addNodeWithMethod(acc, "gemini-node", up.URL, "AIza-test-key", 1, HealthCheckMethodHEAD, "", nil, SourceProtocolGemini, "", "")
+	srv.addNodeWithMethod(acc, "gemini-node", up.URL, "AIza-test-key", 1, HealthCheckMethodHEAD, "", nil, SourceProtocolGemini, "", "", "", 0)
 
 	go http.Serve(listener, srv.Handler())
 
@@ -160,7 +160,7 @@ func TestClaudeProtocol_E2E(t *testing.T) {
 		WithListenAddr(listener.Addr().String()))
 
 	acc, _ := srv.createAccount("test", "client-key", "pw", false)
-	srv.addNodeWithMethod(acc, "claude-node", up.URL, "sk-ant-test", 1, HealthCheckMethodHEAD, "", nil, SourceProtocolClaude, "", "")
+	srv.addNodeWithMethod(acc, "claude-node", up.URL, "sk-ant-test", 1, HealthCheckMethodHEAD, "", nil, SourceProtocolClaude, "", "", "", 0)
 
 	go http.Serve(listener, srv.Handler())
 
@@ -334,8 +334,8 @@ func TestProtocolIsolation(t *testing.T) {
 		WithListenAddr(listener.Addr().String()))
 
 	acc, _ := srv.createAccount("test", "client-key", "pw", false)
-	srv.addNodeWithMethod(acc, "claude-node", claudeUp.URL, "key1", 1, HealthCheckMethodHEAD, "", nil, SourceProtocolClaude, "", "")
-	srv.addNodeWithMethod(acc, "openai-node", openaiUp.URL, "key2", 2, HealthCheckMethodHEAD, "", nil, SourceProtocolOpenAI, "", "")
+	srv.addNodeWithMethod(acc, "claude-node", claudeUp.URL, "key1", 1, HealthCheckMethodHEAD, "", nil, SourceProtocolClaude, "", "", "", 0)
+	srv.addNodeWithMethod(acc, "openai-node", openaiUp.URL, "key2", 2, HealthCheckMethodHEAD, "", nil, SourceProtocolOpenAI, "", "", "", 0)
 
 	go http.Serve(listener, srv.Handler())
 

@@ -30,10 +30,12 @@ interface EditForm {
   name: string
   base_url: string
   weight: string
+  max_concurrency: string
   api_keys: EditKeyForm[]
   health_check_method: 'api' | 'head' | 'cli'
   health_check_model: string
   source_protocol: 'claude' | 'openai' | 'gemini'
+  wire_api: 'chat_completions' | 'responses'
   auth_profile: string
   capabilities: string
   model_mapping: EditMappingForm[]
@@ -79,8 +81,18 @@ const defaultImportForm = (): CCSwitchImportForm => ({
 })
 
 const protocolLockedHealthMethod = (protocol: ProtocolTab | SourceProtocol) => {
-  if (protocol === 'openai' || protocol === 'gemini') return 'api' as const
+  if (protocol === 'gemini') return 'api' as const
   return null
+}
+
+const getHealthMethodChoices = (protocol: ProtocolTab | SourceProtocol) => {
+  if (protocol === 'openai') {
+    return healthMethodOptions.filter((item) => item.value !== 'cli')
+  }
+  if (protocol === 'gemini') {
+    return healthMethodOptions.filter((item) => item.value === 'api')
+  }
+  return healthMethodOptions
 }
 
 const requiresApiKey = (method?: 'api' | 'head' | 'cli') => method === 'api' || method === 'cli'
@@ -104,6 +116,10 @@ const getDisplayHealthCheckModel = (protocol?: ProtocolTab | SourceProtocol, mod
   return normalizeHealthCheckModel((protocol || 'claude') as SupportedSourceProtocol, model)
 }
 
+const getDefaultWireAPI = (protocol?: ProtocolTab | SourceProtocol): EditForm['wire_api'] => {
+  return protocol === 'openai' ? 'responses' : 'responses'
+}
+
 const displayNodeKeyName = (nodeName: string, keyName: string) => {
   const trimmedNode = nodeName.trim()
   const trimmedKey = keyName.trim()
@@ -116,10 +132,12 @@ const buildEmptyEditForm = (protocol: SourceProtocol = 'claude'): EditForm => ({
   name: '',
   base_url: '',
   weight: '1',
+  max_concurrency: '0',
   api_keys: [makeKeyRow()],
   health_check_method: protocolLockedHealthMethod(protocol) || 'api',
   health_check_model: getDefaultHealthCheckModel(protocol),
   source_protocol: protocol,
+  wire_api: getDefaultWireAPI(protocol),
   auth_profile: '',
   capabilities: '',
   model_mapping: [],
@@ -135,10 +153,12 @@ const buildEditFormFromNode = (node: Node): EditForm => {
     name: node.name || '',
     base_url: node.base_url || '',
     weight: String(node.weight || 1),
+    max_concurrency: String(node.max_concurrency || 0),
     api_keys: apiKeys.length > 0 ? apiKeys : [makeKeyRow()],
     health_check_method: protocolLockedHealthMethod(protocol) || node.health_check_method || 'api',
     health_check_model: getDisplayHealthCheckModel(protocol, node.health_check_model),
     source_protocol: protocol,
+    wire_api: protocol === 'openai' ? (node.wire_api || getDefaultWireAPI(protocol)) : getDefaultWireAPI(protocol),
     auth_profile: node.auth_profile || '',
     capabilities: node.capabilities || '',
     model_mapping: mapping,
@@ -179,6 +199,7 @@ export default function Nodes() {
   const isNodeModalOpen = isCreateModalOpen || isEditing
   const healthCheckModelListId = 'health-check-model-options'
   const healthCheckModelChoices = getHealthCheckModelOptions(editForm.source_protocol)
+  const healthMethodChoices = getHealthMethodChoices(editForm.source_protocol)
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type })
@@ -321,6 +342,7 @@ export default function Nodes() {
         source_protocol: nextProtocol,
         health_check_method: protocolLockedHealthMethod(nextProtocol) || prev.health_check_method,
         health_check_model: nextHealthCheckModel,
+        wire_api: nextProtocol === 'openai' ? prev.wire_api || getDefaultWireAPI(nextProtocol) : getDefaultWireAPI(nextProtocol),
       }
     })
   }
@@ -377,6 +399,11 @@ export default function Nodes() {
       showToast('权重需为正整数', 'error')
       return
     }
+    const maxConcurrency = parseInt(editForm.max_concurrency || '0', 10)
+    if (!Number.isInteger(maxConcurrency) || maxConcurrency < 0) {
+      showToast('最大并发需为大于等于 0 的整数，0 表示不限制', 'error')
+      return
+    }
 
     const lockedMethod = protocolLockedHealthMethod(editForm.source_protocol)
     const healthMethod = lockedMethod || editForm.health_check_method || 'api'
@@ -402,10 +429,12 @@ export default function Nodes() {
         name: editForm.name.trim(),
         base_url: editForm.base_url.trim(),
         weight,
+        max_concurrency: maxConcurrency,
         api_keys: apiKeys,
         health_check_method: healthMethod,
         health_check_model: healthModel,
         source_protocol: editForm.source_protocol,
+        wire_api: editForm.source_protocol === 'openai' ? editForm.wire_api : undefined,
         auth_profile: editForm.auth_profile.trim() || undefined,
         capabilities: editForm.capabilities.trim() || undefined,
         model_mapping: mappingObj,
@@ -869,8 +898,10 @@ export default function Nodes() {
               {renderStat('健康检查', formatHealthMethod(detailNode.health_check_method))}
               {renderStat('健康检查模型', getDisplayHealthCheckModel(detailNode.source_protocol, detailNode.health_check_model))}
               {renderStat('权重', detailNode.weight ?? '-')}
+              {renderStat('最大并发', detailNode.max_concurrency ?? 0)}
               {renderStat('状态', statusInfo(detailNode).label)}
               {renderStat('源协议', detailNode.source_protocol || 'claude')}
+              {renderStat('Codex 接口', detailNode.wire_api || '-')}
               {renderStat('Auth Profile', detailNode.auth_profile || '-')}
               {renderStat('Capabilities', detailNode.capabilities || '-')}
               {detailNode.is_active && renderStat('选中', '当前活跃节点')}
@@ -879,6 +910,7 @@ export default function Nodes() {
             <div className="node-stats">
               {renderStat('最后健康检查', formatDateTime(detailNode.last_health_check_at))}
               {renderStat('Ping 延迟 (ms)', detailNode.last_ping_ms ?? '-')}
+              {renderStat('当前活跃连接', detailNode.active_conns ?? 0)}
               {renderStat('Key 数量', detailNode.key_count ?? 0)}
               {renderStat('可用 Key', detailNode.active_key_count ?? 0)}
             </div>
@@ -980,6 +1012,16 @@ export default function Nodes() {
                 <span className="weight-hint">值越小优先级越高</span>
               </label>
               <label>
+                最大并发
+                <input
+                  type="number"
+                  min={0}
+                  value={editForm.max_concurrency}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, max_concurrency: e.target.value }))}
+                />
+	                <span className="weight-hint">0 表示不限制；达到上限后该节点暂不接新请求</span>
+              </label>
+              <label>
                 源协议类型
                 <select
                   value={editForm.source_protocol}
@@ -997,18 +1039,33 @@ export default function Nodes() {
                   onChange={(e) => setEditForm((prev) => ({ ...prev, health_check_method: e.target.value as EditForm['health_check_method'] }))}
                   disabled={!!protocolLockedHealthMethod(editForm.source_protocol)}
                 >
-                  {healthMethodOptions.map((opt) => (
+                  {healthMethodChoices.map((opt) => (
                     <option key={opt.value} value={opt.value}>
                       {opt.label}
                     </option>
                   ))}
                 </select>
                 <span className="weight-hint">
-                  {protocolLockedHealthMethod(editForm.source_protocol)
-                    ? 'OpenAI/Gemini 协议固定为 API 健康检查'
-                    : 'API/CLI 需要有效的 API Key，CLI 需 Docker'}
+                  {editForm.source_protocol === 'openai'
+                    ? 'Codex 节点支持 API/HEAD；遇到供应商不兼容健康探测时可切到 HEAD'
+                    : protocolLockedHealthMethod(editForm.source_protocol)
+                      ? 'Gemini 协议固定为 API 健康检查'
+                      : 'API/CLI 需要有效的 API Key，CLI 需 Docker'}
                 </span>
               </label>
+              {editForm.source_protocol === 'openai' && (
+                <label>
+                  Codex 接口
+                  <select
+                    value={editForm.wire_api}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, wire_api: e.target.value as EditForm['wire_api'] }))}
+                  >
+                    <option value="responses">Responses</option>
+                    <option value="chat_completions">Chat Completions</option>
+                  </select>
+                  <span className="weight-hint">健康检查优先按这里选的 OpenAI 接口探测；借鉴 cc-switch，默认走 Responses</span>
+                </label>
+              )}
               <label>
                 健康检查模型
                 <div className="combobox-field">

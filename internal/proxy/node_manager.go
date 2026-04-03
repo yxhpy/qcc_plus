@@ -14,15 +14,15 @@ import (
 
 // 添加新节点（默认账号）。
 func (p *Server) addNode(name, rawURL, apiKey string, weight int) (*Node, error) {
-	return p.addNodeWithMethod(p.defaultAccount, name, rawURL, apiKey, weight, "", "", nil, "", "", "")
+	return p.addNodeWithMethod(p.defaultAccount, name, rawURL, apiKey, weight, "", "", nil, "", "", "", "", 0)
 }
 
 // 添加指定账号的节点。
 func (p *Server) addNodeToAccount(acc *Account, name, rawURL, apiKey string, weight int) (*Node, error) {
-	return p.addNodeWithMethod(acc, name, rawURL, apiKey, weight, "", "", nil, "", "", "")
+	return p.addNodeWithMethod(acc, name, rawURL, apiKey, weight, "", "", nil, "", "", "", "", 0)
 }
 
-func (p *Server) addNodeWithMethodAndKeys(acc *Account, name, rawURL, apiKey string, keyItems []NamedAPIKey, weight int, healthMethod string, healthModel string, modelMapping map[string]string, sourceProtocol string, authProfile string, capabilities string) (*Node, error) {
+func (p *Server) addNodeWithMethodAndKeys(acc *Account, name, rawURL, apiKey string, keyItems []NamedAPIKey, weight int, healthMethod string, healthModel string, modelMapping map[string]string, sourceProtocol string, wireAPI string, authProfile string, capabilities string, maxConcurrency int) (*Node, error) {
 	normalized := normalizeNamedAPIKeys(keyItems)
 	rawAPIKey := strings.TrimSpace(apiKey)
 	rawConfig := ""
@@ -31,7 +31,7 @@ func (p *Server) addNodeWithMethodAndKeys(acc *Account, name, rawURL, apiKey str
 		rawConfig = encodeNamedAPIKeys(normalized)
 	}
 
-	node, err := p.addNodeWithMethod(acc, name, rawURL, rawAPIKey, weight, healthMethod, healthModel, modelMapping, sourceProtocol, authProfile, capabilities)
+	node, err := p.addNodeWithMethod(acc, name, rawURL, rawAPIKey, weight, healthMethod, healthModel, modelMapping, sourceProtocol, wireAPI, authProfile, capabilities, maxConcurrency)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +54,7 @@ func (p *Server) addNodeWithMethodAndKeys(acc *Account, name, rawURL, apiKey str
 }
 
 // 添加指定账号的节点并自定义健康检查方式。
-func (p *Server) addNodeWithMethod(acc *Account, name, rawURL, apiKey string, weight int, healthMethod string, healthModel string, modelMapping map[string]string, sourceProtocol string, authProfile string, capabilities string) (*Node, error) {
+func (p *Server) addNodeWithMethod(acc *Account, name, rawURL, apiKey string, weight int, healthMethod string, healthModel string, modelMapping map[string]string, sourceProtocol string, wireAPI string, authProfile string, capabilities string, maxConcurrency int) (*Node, error) {
 	if acc == nil {
 		return nil, errors.New("account required")
 	}
@@ -76,15 +76,16 @@ func (p *Server) addNodeWithMethod(acc *Account, name, rawURL, apiKey string, we
 		healthMethod = defaultHealthCheckMethod
 	}
 	protocol := chooseNonEmpty(sourceProtocol, SourceProtocolClaude)
-	healthMethod = normalizeHealthCheckMethod(healthMethod)
+	healthMethod = normalizeHealthCheckMethodForProtocol(protocol, healthMethod)
 	model := effectiveHealthCheckModelForProtocol(protocol, healthModel)
-	if fixedMethod, fixed := protocolFixedHealthCheckMethod(protocol); fixed {
-		healthMethod = fixedMethod
-	}
+	wireAPI = normalizeNodeWireAPI(protocol, wireAPI)
 	if healthMethodRequiresAPIKey(healthMethod) && apiKey == "" {
 		// CLI/API 探活都需要密钥，缺失时统一降级到 HEAD，保证可用性。
 		p.logger.Printf("health check mode %s requires api key, fallback to head for node %s", healthMethod, name)
 		healthMethod = HealthCheckMethodHEAD
+	}
+	if maxConcurrency < 0 {
+		maxConcurrency = 0
 	}
 	id := fmt.Sprintf("n-%d", time.Now().UnixNano())
 	node := &Node{
@@ -95,11 +96,13 @@ func (p *Server) addNodeWithMethod(acc *Account, name, rawURL, apiKey string, we
 		HealthCheckModel:  model,
 		ModelMapping:      modelMapping,
 		SourceProtocol:    protocol,
+		WireAPI:           wireAPI,
 		AuthProfile:       authProfile,
 		Capabilities:      capabilities,
 		AccountID:         acc.ID,
 		CreatedAt:         time.Now(),
 		Weight:            weight,
+		MaxConcurrency:    maxConcurrency,
 	}
 	applyNodeKeyState(node, apiKey, "")
 
@@ -135,11 +138,11 @@ func (p *Server) addNodeWithMethod(acc *Account, name, rawURL, apiKey string, we
 	return node, nil
 }
 
-func (p *Server) updateNode(id, name, rawURL string, apiKey *string, weight int, healthMethod *string, healthModel *string, modelMapping *map[string]string, sourceProtocol *string, authProfile *string, capabilities *string) error {
-	return p.updateNodeWithKeys(id, name, rawURL, apiKey, nil, weight, healthMethod, healthModel, modelMapping, sourceProtocol, authProfile, capabilities)
+func (p *Server) updateNode(id, name, rawURL string, apiKey *string, weight int, healthMethod *string, healthModel *string, modelMapping *map[string]string, sourceProtocol *string, wireAPI *string, authProfile *string, capabilities *string, maxConcurrency *int) error {
+	return p.updateNodeWithKeys(id, name, rawURL, apiKey, nil, weight, healthMethod, healthModel, modelMapping, sourceProtocol, wireAPI, authProfile, capabilities, maxConcurrency)
 }
 
-func (p *Server) updateNodeWithKeys(id, name, rawURL string, apiKey *string, apiKeys []NamedAPIKey, weight int, healthMethod *string, healthModel *string, modelMapping *map[string]string, sourceProtocol *string, authProfile *string, capabilities *string) error {
+func (p *Server) updateNodeWithKeys(id, name, rawURL string, apiKey *string, apiKeys []NamedAPIKey, weight int, healthMethod *string, healthModel *string, modelMapping *map[string]string, sourceProtocol *string, wireAPI *string, authProfile *string, capabilities *string, maxConcurrency *int) error {
 	if rawURL == "" {
 		return errors.New("base_url required")
 	}
@@ -171,8 +174,10 @@ func (p *Server) updateNodeWithKeys(id, name, rawURL string, apiKey *string, api
 	desiredMethod := n.HealthCheckMethod
 	desiredProtocol := chooseNonEmpty(n.SourceProtocol, SourceProtocolClaude)
 	desiredModel := effectiveHealthCheckModelForProtocol(desiredProtocol, n.HealthCheckModel)
+	desiredWireAPI := normalizeNodeWireAPI(desiredProtocol, n.WireAPI)
 	desiredAuthProfile := n.AuthProfile
 	desiredCapabilities := n.Capabilities
+	desiredMaxConcurrency := n.MaxConcurrency
 	if healthMethod != nil {
 		desiredMethod = *healthMethod
 	}
@@ -183,20 +188,29 @@ func (p *Server) updateNodeWithKeys(id, name, rawURL string, apiKey *string, api
 		desiredProtocol = chooseNonEmpty(*sourceProtocol, SourceProtocolClaude)
 		desiredModel = effectiveHealthCheckModelForProtocol(desiredProtocol, desiredModel)
 	}
+	if wireAPI != nil {
+		desiredWireAPI = normalizeNodeWireAPI(desiredProtocol, *wireAPI)
+	}
 	if authProfile != nil {
 		desiredAuthProfile = *authProfile
 	}
 	if capabilities != nil {
 		desiredCapabilities = *capabilities
 	}
-	desiredMethod = normalizeHealthCheckMethod(desiredMethod)
-	if fixedMethod, fixed := protocolFixedHealthCheckMethod(desiredProtocol); fixed {
-		desiredMethod = fixedMethod
+	if maxConcurrency != nil {
+		desiredMaxConcurrency = *maxConcurrency
+	}
+	desiredMethod = normalizeHealthCheckMethodForProtocol(desiredProtocol, desiredMethod)
+	if sourceProtocol != nil && wireAPI == nil {
+		desiredWireAPI = normalizeNodeWireAPI(desiredProtocol, desiredWireAPI)
 	}
 	if healthMethodRequiresAPIKey(desiredMethod) && newAPIKey == "" {
 		// CLI/API 探活需要密钥，缺失时统一降级为 HEAD。
 		p.logger.Printf("health check mode %s requires api key, fallback to head for node %s", desiredMethod, n.Name)
 		desiredMethod = HealthCheckMethodHEAD
+	}
+	if desiredMaxConcurrency < 0 {
+		desiredMaxConcurrency = 0
 	}
 	oldWeight := n.Weight
 	if name != "" {
@@ -208,8 +222,10 @@ func (p *Server) updateNodeWithKeys(id, name, rawURL string, apiKey *string, api
 	n.HealthCheckMethod = desiredMethod
 	n.HealthCheckModel = desiredModel
 	n.SourceProtocol = desiredProtocol
+	n.WireAPI = desiredWireAPI
 	n.AuthProfile = desiredAuthProfile
 	n.Capabilities = desiredCapabilities
+	n.MaxConcurrency = desiredMaxConcurrency
 	if modelMapping != nil {
 		n.ModelMapping = *modelMapping
 	}
@@ -279,11 +295,13 @@ func (p *Server) copyNode(id string) (*Node, error) {
 	healthMethod := original.HealthCheckMethod
 	healthModel := original.HealthCheckModel
 	sourceProtocol := original.SourceProtocol
+	wireAPI := original.WireAPI
 	authProfile := original.AuthProfile
 	capabilities := original.Capabilities
+	maxConcurrency := original.MaxConcurrency
 	p.mu.RUnlock()
 
-	copied, err := p.addNodeWithMethodAndKeys(acc, name, rawURL, original.APIKey, apiKeys, nextWeight, healthMethod, healthModel, modelMapping, sourceProtocol, authProfile, capabilities)
+	copied, err := p.addNodeWithMethodAndKeys(acc, name, rawURL, original.APIKey, apiKeys, nextWeight, healthMethod, healthModel, modelMapping, sourceProtocol, wireAPI, authProfile, capabilities, maxConcurrency)
 	if err != nil {
 		return nil, err
 	}
@@ -439,6 +457,9 @@ func (p *Server) selectHealthyNodeExcluding(acc *Account, skipNodes map[string]b
 	var modelFailedCandidates []*Node // 模型失败但节点本身健康的候选（fallback）
 	for id, n := range acc.Nodes {
 		if n.Failed || n.Disabled || p.isInFailedSet(acc, id) {
+			continue
+		}
+		if p.nodeScorer != nil && p.nodeScorer.AtConcurrencyLimit(id, n.MaxConcurrency) {
 			continue
 		}
 		if requiredProtocol != "" && NormalizedSourceProtocol(n.SourceProtocol) != requiredProtocol {

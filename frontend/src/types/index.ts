@@ -17,10 +17,12 @@ export interface Node {
   name: string;
   base_url: string;
   weight: number;
+  max_concurrency?: number;
   health_check_method?: 'api' | 'head' | 'cli';
   health_check_model?: string;
   model_mapping?: Record<string, string>; // 模型映射：请求模型 -> 转发模型
   source_protocol?: 'claude' | 'openai' | 'gemini';
+  wire_api?: 'chat_completions' | 'responses';
   auth_profile?: string;
   capabilities?: string;
   api_key?: string;

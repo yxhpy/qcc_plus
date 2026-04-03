@@ -6,9 +6,29 @@ const (
 	openAIChatCompletionsPath = "/v1/chat/completions"
 	openAIResponsesPath       = "/v1/responses"
 	openAIModelsPath          = "/v1/models"
+	openAIWireAPIChat         = "chat_completions"
+	openAIWireAPIResponses    = "responses"
 	geminiModelsPrefix        = "/v1beta/models/"
 	geminiGenerateSuffix      = ":generateContent"
 )
+
+func normalizeOpenAIWireAPI(raw string) string {
+	switch strings.TrimSpace(strings.ToLower(raw)) {
+	case "chat/completions", "chat-completions", openAIWireAPIChat:
+		return openAIWireAPIChat
+	case openAIWireAPIResponses:
+		return openAIWireAPIResponses
+	default:
+		return openAIWireAPIResponses
+	}
+}
+
+func defaultOpenAIUpstreamPath(wireAPI string) string {
+	if normalizeOpenAIWireAPI(wireAPI) == openAIWireAPIChat {
+		return openAIChatCompletionsPath
+	}
+	return openAIResponsesPath
+}
 
 func trimProtocolPrefix(path, prefix string) string {
 	if path == prefix {

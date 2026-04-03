@@ -672,6 +672,7 @@ func buildNodeRecord(provider sourceProvider, accountID string, order int, weigh
 		HealthCheckModel:  extractHealthModel(protocol, settings, modelMapping),
 		ModelMapping:      modelMappingJSON,
 		SourceProtocol:    protocol,
+		WireAPI:           extractWireAPI(protocol, settings),
 		AccountID:         accountID,
 		Weight:            providerWeight(provider, order, weightOffset),
 		Failed:            provider.Health.Valid && !provider.Health.IsHealthy,
@@ -768,6 +769,9 @@ func mergeImportedNodeRecord(dst *store.NodeRecord, src store.NodeRecord) {
 	}
 	if dst.SourceProtocol == "" {
 		dst.SourceProtocol = src.SourceProtocol
+	}
+	if dst.WireAPI == "" {
+		dst.WireAPI = src.WireAPI
 	}
 	if dst.AuthProfile == "" {
 		dst.AuthProfile = src.AuthProfile
@@ -947,6 +951,7 @@ func buildOrphanNodes(logRows []sourceLog, imported map[string]importedNode, acc
 			HealthCheckMethod: "head",
 			HealthCheckModel:  defaultHealthModelForProtocol(protocol),
 			SourceProtocol:    protocol,
+			WireAPI:           extractWireAPI(protocol, nil),
 			AccountID:         accountID,
 			Weight:            weightOffset + 10000 + order,
 			Disabled:          true,
@@ -1152,6 +1157,23 @@ func extractHealthModel(protocol string, settings map[string]any, modelMapping m
 		}
 		return defaultClaudeHealthModel
 	}
+}
+
+func extractWireAPI(protocol string, settings map[string]any) string {
+	if protocol != "openai" {
+		return ""
+	}
+	if cfg := getString(settings, "config"); cfg != "" {
+		if wireAPI := lookupTOMLString(cfg, "wire_api"); wireAPI != "" {
+			switch strings.TrimSpace(strings.ToLower(wireAPI)) {
+			case "chat/completions", "chat-completions", "chat_completions":
+				return "chat_completions"
+			case "responses":
+				return "responses"
+			}
+		}
+	}
+	return "responses"
 }
 
 func extractModelMapping(protocol string, settings map[string]any) map[string]string {

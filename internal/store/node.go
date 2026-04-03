@@ -7,6 +7,17 @@ import (
 	"time"
 )
 
+func normalizeStoredOpenAIWireAPI(raw string) string {
+	switch strings.TrimSpace(strings.ToLower(raw)) {
+	case "chat/completions", "chat-completions", "chat_completions":
+		return "chat_completions"
+	case "responses":
+		return "responses"
+	default:
+		return "responses"
+	}
+}
+
 func (s *Store) UpsertNode(ctx context.Context, r NodeRecord) error {
 	r.AccountID = normalizeAccount(r.AccountID)
 	if r.HealthCheckMethod == "" {
@@ -17,6 +28,14 @@ func (s *Store) UpsertNode(ctx context.Context, r NodeRecord) error {
 	}
 	if r.SourceProtocol == "" {
 		r.SourceProtocol = "claude"
+	}
+	if r.SourceProtocol == "openai" {
+		r.WireAPI = normalizeStoredOpenAIWireAPI(r.WireAPI)
+	} else {
+		r.WireAPI = ""
+	}
+	if r.MaxConcurrency < 0 {
+		r.MaxConcurrency = 0
 	}
 	if r.CreatedAt.IsZero() {
 		r.CreatedAt = time.Now()
@@ -34,8 +53,8 @@ func (s *Store) UpsertNode(ctx context.Context, r NodeRecord) error {
 	}
 
 	if s.IsSQLite() {
-		query := `INSERT INTO nodes (id,name,base_url,api_key,health_check_method,health_check_model,model_mapping,source_protocol,auth_profile,capabilities,account_id,weight,failed,disabled,last_error,created_at,requests,fail_count,fail_streak,total_bytes,total_input,total_output,stream_dur_ms,first_byte_ms,last_ping_ms,last_ping_err,last_health_check_at)
-			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+		query := `INSERT INTO nodes (id,name,base_url,api_key,health_check_method,health_check_model,model_mapping,source_protocol,wire_api,auth_profile,capabilities,account_id,weight,max_concurrency,failed,disabled,last_error,created_at,requests,fail_count,fail_streak,total_bytes,total_input,total_output,stream_dur_ms,first_byte_ms,last_ping_ms,last_ping_err,last_health_check_at)
+			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 			ON CONFLICT(id) DO UPDATE SET
 				name=excluded.name,
 				base_url=excluded.base_url,
@@ -44,10 +63,12 @@ func (s *Store) UpsertNode(ctx context.Context, r NodeRecord) error {
 				health_check_model=excluded.health_check_model,
 				model_mapping=excluded.model_mapping,
 				source_protocol=excluded.source_protocol,
+				wire_api=excluded.wire_api,
 				auth_profile=excluded.auth_profile,
 				capabilities=excluded.capabilities,
 				account_id=excluded.account_id,
 				weight=excluded.weight,
+				max_concurrency=excluded.max_concurrency,
 				failed=excluded.failed,
 				disabled=excluded.disabled,
 				last_error=excluded.last_error,
@@ -62,10 +83,10 @@ func (s *Store) UpsertNode(ctx context.Context, r NodeRecord) error {
 				last_ping_ms=excluded.last_ping_ms,
 				last_ping_err=excluded.last_ping_err,
 				last_health_check_at=excluded.last_health_check_at`
-		args := []interface{}{r.ID, r.Name, r.BaseURL, r.APIKey, r.HealthCheckMethod, r.HealthCheckModel, r.ModelMapping, r.SourceProtocol, r.AuthProfile, r.Capabilities, r.AccountID, r.Weight, r.Failed, r.Disabled, r.LastError, r.CreatedAt, r.Requests, r.FailCount, r.FailStreak, r.TotalBytes, r.TotalInput, r.TotalOutput, r.StreamDurMs, r.FirstByteMs, r.LastPingMs, r.LastPingErr, healthAt}
+		args := []interface{}{r.ID, r.Name, r.BaseURL, r.APIKey, r.HealthCheckMethod, r.HealthCheckModel, r.ModelMapping, r.SourceProtocol, r.WireAPI, r.AuthProfile, r.Capabilities, r.AccountID, r.Weight, r.MaxConcurrency, r.Failed, r.Disabled, r.LastError, r.CreatedAt, r.Requests, r.FailCount, r.FailStreak, r.TotalBytes, r.TotalInput, r.TotalOutput, r.StreamDurMs, r.FirstByteMs, r.LastPingMs, r.LastPingErr, healthAt}
 		if hasAPIKeyConfig {
-			query = `INSERT INTO nodes (id,name,base_url,api_key,api_key_config,health_check_method,health_check_model,model_mapping,source_protocol,auth_profile,capabilities,account_id,weight,failed,disabled,last_error,created_at,requests,fail_count,fail_streak,total_bytes,total_input,total_output,stream_dur_ms,first_byte_ms,last_ping_ms,last_ping_err,last_health_check_at)
-				VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+			query = `INSERT INTO nodes (id,name,base_url,api_key,api_key_config,health_check_method,health_check_model,model_mapping,source_protocol,wire_api,auth_profile,capabilities,account_id,weight,max_concurrency,failed,disabled,last_error,created_at,requests,fail_count,fail_streak,total_bytes,total_input,total_output,stream_dur_ms,first_byte_ms,last_ping_ms,last_ping_err,last_health_check_at)
+				VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 				ON CONFLICT(id) DO UPDATE SET
 					name=excluded.name,
 					base_url=excluded.base_url,
@@ -75,10 +96,12 @@ func (s *Store) UpsertNode(ctx context.Context, r NodeRecord) error {
 					health_check_model=excluded.health_check_model,
 					model_mapping=excluded.model_mapping,
 					source_protocol=excluded.source_protocol,
+					wire_api=excluded.wire_api,
 					auth_profile=excluded.auth_profile,
 					capabilities=excluded.capabilities,
 					account_id=excluded.account_id,
 					weight=excluded.weight,
+					max_concurrency=excluded.max_concurrency,
 					failed=excluded.failed,
 					disabled=excluded.disabled,
 					last_error=excluded.last_error,
@@ -93,12 +116,12 @@ func (s *Store) UpsertNode(ctx context.Context, r NodeRecord) error {
 					last_ping_ms=excluded.last_ping_ms,
 					last_ping_err=excluded.last_ping_err,
 					last_health_check_at=excluded.last_health_check_at`
-			args = []interface{}{r.ID, r.Name, r.BaseURL, r.APIKey, r.APIKeyConfig, r.HealthCheckMethod, r.HealthCheckModel, r.ModelMapping, r.SourceProtocol, r.AuthProfile, r.Capabilities, r.AccountID, r.Weight, r.Failed, r.Disabled, r.LastError, r.CreatedAt, r.Requests, r.FailCount, r.FailStreak, r.TotalBytes, r.TotalInput, r.TotalOutput, r.StreamDurMs, r.FirstByteMs, r.LastPingMs, r.LastPingErr, healthAt}
+			args = []interface{}{r.ID, r.Name, r.BaseURL, r.APIKey, r.APIKeyConfig, r.HealthCheckMethod, r.HealthCheckModel, r.ModelMapping, r.SourceProtocol, r.WireAPI, r.AuthProfile, r.Capabilities, r.AccountID, r.Weight, r.MaxConcurrency, r.Failed, r.Disabled, r.LastError, r.CreatedAt, r.Requests, r.FailCount, r.FailStreak, r.TotalBytes, r.TotalInput, r.TotalOutput, r.StreamDurMs, r.FirstByteMs, r.LastPingMs, r.LastPingErr, healthAt}
 		}
 		_, err = s.db.ExecContext(ctx, query, args...)
 	} else {
-		query := `INSERT INTO nodes (id,name,base_url,api_key,health_check_method,health_check_model,model_mapping,source_protocol,auth_profile,capabilities,account_id,weight,failed,disabled,last_error,created_at,requests,fail_count,fail_streak,total_bytes,total_input,total_output,stream_dur_ms,first_byte_ms,last_ping_ms,last_ping_err,last_health_check_at)
-			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+		query := `INSERT INTO nodes (id,name,base_url,api_key,health_check_method,health_check_model,model_mapping,source_protocol,wire_api,auth_profile,capabilities,account_id,weight,max_concurrency,failed,disabled,last_error,created_at,requests,fail_count,fail_streak,total_bytes,total_input,total_output,stream_dur_ms,first_byte_ms,last_ping_ms,last_ping_err,last_health_check_at)
+			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 			ON DUPLICATE KEY UPDATE
 				name=VALUES(name),
 				base_url=VALUES(base_url),
@@ -107,10 +130,12 @@ func (s *Store) UpsertNode(ctx context.Context, r NodeRecord) error {
 				health_check_model=VALUES(health_check_model),
 				model_mapping=VALUES(model_mapping),
 				source_protocol=VALUES(source_protocol),
+				wire_api=VALUES(wire_api),
 				auth_profile=VALUES(auth_profile),
 				capabilities=VALUES(capabilities),
 				account_id=VALUES(account_id),
 				weight=VALUES(weight),
+				max_concurrency=VALUES(max_concurrency),
 				failed=VALUES(failed),
 				disabled=VALUES(disabled),
 				last_error=VALUES(last_error),
@@ -125,10 +150,10 @@ func (s *Store) UpsertNode(ctx context.Context, r NodeRecord) error {
 				last_ping_ms=VALUES(last_ping_ms),
 				last_ping_err=VALUES(last_ping_err),
 				last_health_check_at=VALUES(last_health_check_at)`
-		args := []interface{}{r.ID, r.Name, r.BaseURL, r.APIKey, r.HealthCheckMethod, r.HealthCheckModel, r.ModelMapping, r.SourceProtocol, r.AuthProfile, r.Capabilities, r.AccountID, r.Weight, r.Failed, r.Disabled, r.LastError, r.CreatedAt, r.Requests, r.FailCount, r.FailStreak, r.TotalBytes, r.TotalInput, r.TotalOutput, r.StreamDurMs, r.FirstByteMs, r.LastPingMs, r.LastPingErr, healthAt}
+		args := []interface{}{r.ID, r.Name, r.BaseURL, r.APIKey, r.HealthCheckMethod, r.HealthCheckModel, r.ModelMapping, r.SourceProtocol, r.WireAPI, r.AuthProfile, r.Capabilities, r.AccountID, r.Weight, r.MaxConcurrency, r.Failed, r.Disabled, r.LastError, r.CreatedAt, r.Requests, r.FailCount, r.FailStreak, r.TotalBytes, r.TotalInput, r.TotalOutput, r.StreamDurMs, r.FirstByteMs, r.LastPingMs, r.LastPingErr, healthAt}
 		if hasAPIKeyConfig {
-			query = `INSERT INTO nodes (id,name,base_url,api_key,api_key_config,health_check_method,health_check_model,model_mapping,source_protocol,auth_profile,capabilities,account_id,weight,failed,disabled,last_error,created_at,requests,fail_count,fail_streak,total_bytes,total_input,total_output,stream_dur_ms,first_byte_ms,last_ping_ms,last_ping_err,last_health_check_at)
-				VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+			query = `INSERT INTO nodes (id,name,base_url,api_key,api_key_config,health_check_method,health_check_model,model_mapping,source_protocol,wire_api,auth_profile,capabilities,account_id,weight,max_concurrency,failed,disabled,last_error,created_at,requests,fail_count,fail_streak,total_bytes,total_input,total_output,stream_dur_ms,first_byte_ms,last_ping_ms,last_ping_err,last_health_check_at)
+				VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 				ON DUPLICATE KEY UPDATE
 					name=VALUES(name),
 					base_url=VALUES(base_url),
@@ -138,10 +163,12 @@ func (s *Store) UpsertNode(ctx context.Context, r NodeRecord) error {
 					health_check_model=VALUES(health_check_model),
 					model_mapping=VALUES(model_mapping),
 					source_protocol=VALUES(source_protocol),
+					wire_api=VALUES(wire_api),
 					auth_profile=VALUES(auth_profile),
 					capabilities=VALUES(capabilities),
 					account_id=VALUES(account_id),
 					weight=VALUES(weight),
+					max_concurrency=VALUES(max_concurrency),
 					failed=VALUES(failed),
 					disabled=VALUES(disabled),
 					last_error=VALUES(last_error),
@@ -156,7 +183,7 @@ func (s *Store) UpsertNode(ctx context.Context, r NodeRecord) error {
 					last_ping_ms=VALUES(last_ping_ms),
 					last_ping_err=VALUES(last_ping_err),
 					last_health_check_at=VALUES(last_health_check_at)`
-			args = []interface{}{r.ID, r.Name, r.BaseURL, r.APIKey, r.APIKeyConfig, r.HealthCheckMethod, r.HealthCheckModel, r.ModelMapping, r.SourceProtocol, r.AuthProfile, r.Capabilities, r.AccountID, r.Weight, r.Failed, r.Disabled, r.LastError, r.CreatedAt, r.Requests, r.FailCount, r.FailStreak, r.TotalBytes, r.TotalInput, r.TotalOutput, r.StreamDurMs, r.FirstByteMs, r.LastPingMs, r.LastPingErr, healthAt}
+			args = []interface{}{r.ID, r.Name, r.BaseURL, r.APIKey, r.APIKeyConfig, r.HealthCheckMethod, r.HealthCheckModel, r.ModelMapping, r.SourceProtocol, r.WireAPI, r.AuthProfile, r.Capabilities, r.AccountID, r.Weight, r.MaxConcurrency, r.Failed, r.Disabled, r.LastError, r.CreatedAt, r.Requests, r.FailCount, r.FailStreak, r.TotalBytes, r.TotalInput, r.TotalOutput, r.StreamDurMs, r.FirstByteMs, r.LastPingMs, r.LastPingErr, healthAt}
 		}
 		_, err = s.db.ExecContext(ctx, query, args...)
 	}
@@ -213,10 +240,12 @@ func (s *Store) nodeSelectList(ctx context.Context) (string, error) {
 		"health_check_model",
 		"COALESCE(model_mapping, '') AS model_mapping",
 		"COALESCE(source_protocol, '') AS source_protocol",
+		"COALESCE(wire_api, '') AS wire_api",
 		"COALESCE(auth_profile, '') AS auth_profile",
 		"COALESCE(capabilities, '') AS capabilities",
 		"account_id",
 		"weight",
+		"max_concurrency",
 		"failed",
 		"disabled",
 		"COALESCE(last_error, '') AS last_error",
@@ -258,10 +287,12 @@ func scanNodeRecord(scanner interface {
 		&r.HealthCheckModel,
 		&r.ModelMapping,
 		&r.SourceProtocol,
+		&r.WireAPI,
 		&r.AuthProfile,
 		&r.Capabilities,
 		&r.AccountID,
 		&r.Weight,
+		&r.MaxConcurrency,
 		&r.Failed,
 		&r.Disabled,
 		&r.LastError,
@@ -288,6 +319,9 @@ func scanNodeRecord(scanner interface {
 	}
 	if r.SourceProtocol == "" {
 		r.SourceProtocol = "claude"
+	}
+	if r.SourceProtocol == "openai" {
+		r.WireAPI = normalizeStoredOpenAIWireAPI(r.WireAPI)
 	}
 	if lastHealthAt.Valid {
 		r.LastHealthCheckAt = lastHealthAt.Time

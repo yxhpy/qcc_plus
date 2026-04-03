@@ -173,7 +173,7 @@ func TestGetVersionInfo(t *testing.T) {
 		}
 	})
 
-	t.Run("falls back to changelog version when build version is git describe output", func(t *testing.T) {
+	t.Run("uses git describe output when build version is available", func(t *testing.T) {
 		resolveBuildInfo = func() string { return "" }
 		resolveFallbackVersion = func() string { return "1.12.1" }
 		Version = "v1.11.0-17-g2ba0fec"
@@ -183,12 +183,12 @@ func TestGetVersionInfo(t *testing.T) {
 
 		info := GetVersionInfo()
 
-		if info.Version != "v1.12.1" {
-			t.Errorf("Version = %s, want v1.12.1", info.Version)
+		if info.Version != "v1.11.0-17-g2ba0fec" {
+			t.Errorf("Version = %s, want v1.11.0-17-g2ba0fec", info.Version)
 		}
 	})
 
-	t.Run("falls back to changelog version when build version is dirty git describe output", func(t *testing.T) {
+	t.Run("uses dirty git describe output when build version is available", func(t *testing.T) {
 		resolveBuildInfo = func() string { return "" }
 		resolveFallbackVersion = func() string { return "1.12.1" }
 		Version = "v1.11.0-17-g2ba0fec-dirty"
@@ -198,8 +198,8 @@ func TestGetVersionInfo(t *testing.T) {
 
 		info := GetVersionInfo()
 
-		if info.Version != "v1.12.1" {
-			t.Errorf("Version = %s, want v1.12.1", info.Version)
+		if info.Version != "v1.11.0-17-g2ba0fec-dirty" {
+			t.Errorf("Version = %s, want v1.11.0-17-g2ba0fec-dirty", info.Version)
 		}
 	})
 }

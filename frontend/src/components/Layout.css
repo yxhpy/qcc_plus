@@ -195,6 +195,15 @@
   border: 1px solid var(--color-border-default);
   border-radius: var(--radius-md);
   background: var(--color-bg-card);
+  text-decoration: none;
+  color: inherit;
+  transition: all var(--transition-fast);
+  cursor: pointer;
+}
+
+.sidebar-version:hover {
+  background: var(--color-hover);
+  border-color: var(--color-primary);
 }
 
 .sidebar-version-text {

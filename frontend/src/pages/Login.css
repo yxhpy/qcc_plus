@@ -374,6 +374,40 @@ body:has(.login-page) #root {
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
   cursor: help;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.login-env-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.4;
+  text-transform: lowercase;
+}
+
+.login-env-dev {
+  background: color-mix(in srgb, var(--color-primary) 14%, transparent);
+  border-color: color-mix(in srgb, var(--color-primary) 28%, transparent);
+  color: var(--color-primary);
+}
+
+.login-env-test {
+  background: var(--color-warning-bg);
+  border-color: var(--color-warning-border);
+  color: var(--color-warning-text);
+}
+
+.login-env-prod {
+  background: var(--color-success-bg);
+  border-color: var(--color-success-border);
+  color: var(--color-success-text);
 }
 
 .login-mobile-version {
@@ -385,6 +419,8 @@ body:has(.login-page) #root {
   color: var(--color-text-muted);
   cursor: help;
   z-index: 10;
+  align-items: center;
+  gap: 6px;
 }
 
 /* ── Responsive ── */
@@ -414,7 +450,7 @@ body:has(.login-page) #root {
   }
 
   .login-mobile-version {
-    display: block;
+    display: flex;
   }
 
   .login-footer .login-version {

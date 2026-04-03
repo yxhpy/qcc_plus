@@ -77,8 +77,9 @@ export default function Login() {
       ? 'v...'
       : 'v-'
   const buildDateBeijing = version?.build_date_beijing || '--'
+  const environmentLabel = version?.environment?.trim().toLowerCase() || 'dev'
   const versionTitle = version
-    ? `commit: ${version.git_commit}\nbuild (BJ): ${buildDateBeijing}\nbuild (UTC): ${version.build_date || '--'}\ngo: ${version.go_version}`
+    ? `commit: ${version.git_commit}\n环境: ${environmentLabel}\nbuild (BJ): ${buildDateBeijing}\nbuild (UTC): ${version.build_date || '--'}\ngo: ${version.go_version}`
     : versionError
       ? `版本获取失败：${versionError.message}`
       : '正在加载版本信息...'
@@ -171,6 +172,7 @@ export default function Login() {
               <span>登录后 24 小时内保持会话，记得使用退出按钮主动登出。</span>
               <div className="login-version" title={versionTitle}>
                 {versionLabel}
+                {version && <span className={`login-env-badge login-env-${environmentLabel}`}>{environmentLabel}</span>}
               </div>
             </div>
           </div>
@@ -178,6 +180,7 @@ export default function Login() {
       </div>
       <div className="login-mobile-version" title={versionTitle}>
         {versionLabel}
+        {version && <span className={`login-env-badge login-env-${environmentLabel}`}>{environmentLabel}</span>}
       </div>
       <Toast message={toast?.message} type={toast?.type} />
     </div>

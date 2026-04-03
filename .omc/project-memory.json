@@ -259,6 +259,24 @@
       "type": "file"
     },
     {
+      "path": "frontend/src/pages/Login.tsx",
+      "accessCount": 4,
+      "lastAccessed": 1775234656287,
+      "type": "file"
+    },
+    {
+      "path": "frontend/src/hooks/useVersion.ts",
+      "accessCount": 3,
+      "lastAccessed": 1775234623300,
+      "type": "file"
+    },
+    {
+      "path": "frontend/src/pages/Login.css",
+      "accessCount": 3,
+      "lastAccessed": 1775234782355,
+      "type": "file"
+    },
+    {
       "path": "internal/version/version_test.go",
       "accessCount": 2,
       "lastAccessed": 1775233295319,
@@ -295,15 +313,15 @@
       "type": "file"
     },
     {
-      "path": "frontend/src/hooks/useVersion.ts",
+      "path": "frontend/src/components/Layout.css",
       "accessCount": 2,
-      "lastAccessed": 1775233296594,
+      "lastAccessed": 1775234623132,
       "type": "file"
     },
     {
       "path": "frontend/src/components/Layout.tsx",
-      "accessCount": 1,
-      "lastAccessed": 1775233071380,
+      "accessCount": 2,
+      "lastAccessed": 1775234623242,
       "type": "file"
     },
     {
@@ -313,9 +331,15 @@
       "type": "file"
     },
     {
-      "path": "frontend/src/components/Layout.css",
+      "path": "frontend/src/pages/ChangelogPage.tsx",
       "accessCount": 1,
-      "lastAccessed": 1775233114106,
+      "lastAccessed": 1775234623152,
+      "type": "file"
+    },
+    {
+      "path": "frontend/src/pages/ChangelogPage.css",
+      "accessCount": 1,
+      "lastAccessed": 1775234623202,
       "type": "file"
     }
   ],

@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown'
 import type { Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import api from '../services/api'
+import { useVersion } from '../hooks/useVersion'
 
 import './ChangelogPage.css'
 
@@ -32,6 +33,7 @@ export default function ChangelogPage() {
   const [content, setContent] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const { version, loading: versionLoading } = useVersion()
 
   const fetchChangelog = async () => {
     setLoading(true)
@@ -56,6 +58,13 @@ export default function ChangelogPage() {
     return '更新日志'
   }, [loading, error])
 
+  const versionLabel = version
+    ? (version.version.startsWith('v') ? version.version : `v${version.version}`)
+    : versionLoading
+      ? 'v...'
+      : 'v-'
+  const environmentLabel = version?.environment?.trim().toLowerCase() || 'dev'
+
   return (
     <div className="changelog-page">
       <div className="changelog-header">
@@ -69,6 +78,14 @@ export default function ChangelogPage() {
           <p className="changelog-sub">追踪版本变更与新功能，保持与后端发布同步。</p>
         </div>
         <div className="changelog-actions">
+          <div className="changelog-version-badge">
+            <span className="changelog-version-text">{versionLabel}</span>
+            {version && (
+              <span className={`changelog-env-badge changelog-env-${environmentLabel}`}>
+                {environmentLabel}
+              </span>
+            )}
+          </div>
           <button className="btn-refresh" type="button" onClick={fetchChangelog} disabled={loading}>
             {loading ? '加载中...' : '重新加载'}
           </button>

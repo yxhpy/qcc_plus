@@ -342,10 +342,10 @@ export default function Layout({ children }: { children: ReactNode }) {
           </button>
 
           {version && (
-            <div className="sidebar-version" title={versionTitle}>
+            <Link to="/changelog" className="sidebar-version" title={versionTitle}>
               <span className="sidebar-version-text">{versionLabel}</span>
               <span className={`sidebar-env-badge sidebar-env-${environmentLabel}`}>{environmentLabel}</span>
-            </div>
+            </Link>
           )}
         </div>
       </aside>

@@ -241,7 +241,11 @@ export default function Accounts() {
                         </button>
                       ) : null}
                     </td>
-                    <td>{acc.is_admin ? '管理员' : '普通'}</td>
+                    <td>
+                      <span className={`badge ${acc.is_admin ? 'badge--admin' : 'badge--normal'}`}>
+                        {acc.is_admin ? '管理员' : '普通'}
+                      </span>
+                    </td>
                     <td>
                       <div className="table-actions">
                         <button className="btn ghost" type="button" onClick={() => handleEdit(acc)}>

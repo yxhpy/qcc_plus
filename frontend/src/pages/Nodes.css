@@ -123,7 +123,7 @@
 .import-summary-bar {
   margin-top: 8px;
   padding: 8px 12px;
-  border-radius: var(--radius-xl);
+  border-radius: 8px;
   background: color-mix(in srgb, var(--color-primary) 8%, var(--color-bg-card));
   border: 1px solid color-mix(in srgb, var(--color-primary) 20%, var(--color-border-default));
   color: var(--color-text-secondary);
@@ -133,7 +133,9 @@
 /* Table */
 .table-wrapper {
   overflow-x: auto;
-  border-radius: var(--radius-xl);
+  border-radius: 8px;
+  border: 1px solid var(--color-border-default);
+  overflow: hidden;
   animation: fadeIn 0.8s ease-out 0.2s both;
 }
 
@@ -144,12 +146,12 @@ table {
 }
 
 table tr {
-  height: 36px;
+  height: 44px;
 }
 
 th {
   text-align: left;
-  padding: 6px 8px;
+  padding: 12px;
   color: var(--color-text-muted);
   font-weight: 600;
   font-size: 12px;
@@ -158,15 +160,15 @@ th {
   border-bottom: 1px solid var(--color-divider);
   white-space: nowrap;
   background: var(--color-bg-card);
-  height: 36px;
+  height: 44px;
 }
 
 td {
-  padding: 6px 8px;
+  padding: 12px;
   color: var(--color-text-primary);
   border-bottom: 1px solid var(--color-divider);
   transition: background 0.2s ease;
-  height: 36px;
+  height: 44px;
   line-height: 1.3;
 }
 
@@ -189,12 +191,12 @@ tr:last-child td {
 }
 
 .drag-handle {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 10px;
+  border-radius: 8px;
   border: 1px dashed var(--color-border-default);
   background: var(--color-bg-card);
   color: var(--color-text-secondary);
@@ -254,9 +256,9 @@ tbody tr.dragging td {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
-  border-radius: 20px;
-  font-size: 11px;
+  padding: 5px 14px;
+  border-radius: 999px;
+  font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -452,7 +454,7 @@ tbody tr.dragging td {
 .key-list-card {
   background: var(--color-bg-card);
   border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-xl);
+  border-radius: 8px;
   padding: 12px;
   margin-top: 8px;
 }
@@ -581,8 +583,8 @@ tbody tr.dragging td {
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 10px;
   background: var(--color-bg-card);
-  padding: 10px;
-  border-radius: var(--radius-xl);
+  padding: 12px;
+  border-radius: 8px;
   margin-bottom: var(--spacing-4);
   border: 1px solid var(--color-border-default);
 }
@@ -602,7 +604,7 @@ tbody tr.dragging td {
 }
 
 .stat-value {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 600;
   color: var(--color-text-primary);
   font-family: 'JetBrains Mono', 'Consolas', monospace;
@@ -698,9 +700,9 @@ tbody tr.dragging td {
 .active-badge {
   display: inline-flex;
   align-items: center;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 10px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.8px;
   text-transform: uppercase;
@@ -712,8 +714,8 @@ tbody tr.dragging td {
 .error-severity-tag {
   display: inline-block;
   font-size: 11px;
-  padding: 1px 6px;
-  border-radius: 4px;
+  padding: 2px 10px;
+  border-radius: 999px;
   margin-top: 3px;
   font-weight: 500;
   background: var(--color-bg-secondary, #f0f0f0);
@@ -738,10 +740,10 @@ tbody tr.dragging td {
 .active-conns-badge {
   display: inline-block;
   margin-left: 6px;
-  padding: 0 5px;
+  padding: 2px 8px;
   font-size: 11px;
   line-height: 18px;
-  border-radius: 9px;
+  border-radius: 999px;
   background: var(--color-primary-bg, #eff6ff);
   color: var(--color-primary, #2563eb);
   font-weight: 600;

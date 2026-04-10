@@ -17,8 +17,8 @@
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 16px;
+  margin-bottom: 20px;
 }
 
 .monitor-header h1 {
@@ -37,7 +37,7 @@
 .monitor-header-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
@@ -204,18 +204,18 @@
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 6px;
+  gap: 16px;
+  margin-top: 20px;
   align-items: stretch;
 }
 
 .stat-card.glass {
   background: var(--color-bg-card);
   border: 1px solid var(--color-border-default);
-  border-radius: var(--card-radius);
-  padding: 10px;
+  border-radius: 12px;
+  padding: 16px;
   display: grid;
-  gap: 6px;
+  gap: 10px;
   min-height: 110px;
 }
 
@@ -236,8 +236,8 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
-  border-radius: 10px;
+  padding: 4px 12px;
+  border-radius: 999px;
   font-weight: 700;
   font-size: 12px;
 }
@@ -263,16 +263,16 @@
 .nodes-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 10px;
+  gap: 16px;
 }
 
 .monitor-card {
   background: var(--color-bg-card);
   border: 1px solid var(--color-border-default);
-  border-radius: var(--card-radius);
-  padding: 12px;
+  border-radius: 12px;
+  padding: 16px;
   display: grid;
-  gap: 8px;
+  gap: 12px;
   transition: border-color var(--transition-normal);
 }
 
@@ -284,12 +284,12 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 10px;
+  gap: 14px;
 }
 
 .monitor-card-title {
   display: grid;
-  gap: 6px;
+  gap: 8px;
 }
 
 .node-name {
@@ -309,7 +309,7 @@
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  border-radius: 12px;
+  border-radius: 999px;
   font-weight: 700;
   font-size: 12px;
   text-transform: uppercase;
@@ -352,16 +352,16 @@
 .monitor-metrics {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
+  gap: 12px;
 }
 
 .metric {
   background: color-mix(in srgb, var(--color-text-primary) 3%, transparent);
   border: 1px solid var(--color-divider);
-  border-radius: var(--radius-xl);
-  padding: 8px;
+  border-radius: 12px;
+  padding: 12px;
   display: grid;
-  gap: 4px;
+  gap: 6px;
 }
 
 .metric .label {
@@ -387,7 +387,7 @@
   justify-content: space-between;
   font-size: 12px;
   color: color-mix(in srgb, var(--color-text-primary) 60%, transparent);
-  gap: 10px;
+  gap: 14px;
   flex-wrap: wrap;
 }
 
@@ -396,14 +396,15 @@
   color: var(--color-danger-text);
   background: var(--color-danger-bg);
   border: 1px solid var(--color-danger-border);
-  border-radius: 10px;
-  padding: 8px 10px;
+  border-radius: 12px;
+  padding: 10px 14px;
   word-break: break-all;
 }
 
 .monitor-chart {
   border: 1px solid var(--color-divider);
-  padding-top: 8px;
+  border-radius: 12px;
+  padding: 12px 12px 4px;
 }
 
 .trend-chart {
@@ -439,7 +440,7 @@
 }
 
 .empty {
-  padding: 18px;
+  padding: 24px;
   color: color-mix(in srgb, var(--color-text-primary) 60%, transparent);
 }
 
@@ -470,7 +471,7 @@
 
 .share-list {
   display: grid;
-  gap: var(--spacing-2);
+  gap: 10px;
 }
 
 .share-row {
@@ -478,10 +479,11 @@
   grid-template-columns: 1.6fr 0.6fr 0.8fr 0.8fr;
   align-items: center;
   gap: var(--spacing-2);
-  padding: var(--spacing-3);
+  padding: 10px 16px;
+  min-height: 44px;
   background: color-mix(in srgb, var(--color-text-primary) 3%, transparent);
   border: 1px solid var(--color-divider);
-  border-radius: var(--radius-xl);
+  border-radius: 12px;
   color: color-mix(in srgb, var(--color-text-primary) 85%, transparent);
 }
 

@@ -36,17 +36,17 @@
 
   /* Radius */
   --radius-none: 0px;
-  --radius-sm: 2px;
-  --radius-md: 4px;
-  --radius-lg: 6px;
-  --radius-xl: 8px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
   --radius-full: 9999px;
 
-  /* Shadow - 极简风格，减少视觉噪音 */
+  /* Shadow - 多层精致阴影，Linear/Vercel 风格 */
   --shadow-none: none;
-  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
-  --shadow-md: 0 1px 3px rgba(15, 23, 42, 0.06);
-  --shadow-lg: 0 2px 6px rgba(15, 23, 42, 0.08);
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.02);
+  --shadow-md: 0 2px 4px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.06);
+  --shadow-lg: 0 4px 8px rgba(15, 23, 42, 0.04), 0 12px 32px rgba(15, 23, 42, 0.08);
 
   /* Border */
   --border-width-hairline: 1px;
@@ -136,26 +136,26 @@
   --button-height-sm: 28px;
   --button-height-lg: 40px;
   --button-height: 32px;
-  --button-padding-x: 10px;
-  --button-padding-y: 6px;
+  --button-padding-x: 14px;
+  --button-padding-y: 8px;
   --button-gap: 6px;
-  --button-radius: 4px;
+  --button-radius: 6px;
   --button-typography-size: 13px;
   --button-typography-weight: 600;
   --button-transition-duration: 200ms;
   --button-transition-easing: cubic-bezier(0.4, 0, 0.2, 1);
 
-  --card-radius: 6px;
-  --card-padding: 12px;
+  --card-radius: 12px;
+  --card-padding: 20px;
 
   --sidebar-width-collapsed: 72px;
-  --sidebar-width-expanded: 256px;
+  --sidebar-width-expanded: 260px;
 
-  --table-radius: 4px;
-  --table-padding: 8px;
-  --table-row-height: 36px;
+  --table-radius: 8px;
+  --table-padding: 12px;
+  --table-row-height: 44px;
 
-  --input-radius: 4px;
+  --input-radius: 8px;
   --input-height: 32px;
   --input-padding-x: 10px;
   --input-padding-y: 6px;
@@ -178,7 +178,7 @@
   --color-text-inverse: #FFFFFF;
 
   /* Background */
-  --color-bg-page: #F8FAFC;
+  --color-bg-page: #FAFAFA;
   --color-bg-card: #FFFFFF;
   --color-bg-elevated: #FFFFFF;
   --color-bg-overlay: rgba(15, 23, 42, 0.48);
@@ -243,10 +243,10 @@
   /* Card */
   --card-bg: #FFFFFF;
   --card-text: #0F172A;
-  --card-border: #E2E8F0;
+  --card-border: #F0F0F0;
   --card-shadow: none;
   --card-elevated-bg: #FFFFFF;
-  --card-elevated-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  --card-elevated-shadow: 0 2px 4px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.06);
 
   /* Sidebar */
   --sidebar-bg: #FFFFFF;
@@ -285,14 +285,14 @@
   --color-text-inverse: #0F172A;
 
   /* Background */
-  --color-bg-page: #0B1220;
-  --color-bg-card: #0F172A;
-  --color-bg-elevated: #111827;
+  --color-bg-page: #09090B;
+  --color-bg-card: #0F0F12;
+  --color-bg-elevated: #131316;
   --color-bg-overlay: rgba(0, 0, 0, 0.55);
 
   /* State colors */
   --color-success-bg: #054F31;
-  --color-success-text: #D1FADF;
+  --color-success-text: #D1FADR;
   --color-success-border: #027A48;
   --color-info-bg: #1E3A8A;
   --color-info-text: #DBEAFE;
@@ -310,9 +310,9 @@
   --color-focus-ring: #60A5FA;
 
   /* Border & divider */
-  --color-border-default: #334155;
+  --color-border-default: #27272A;
   --color-border-focus: #60A5FA;
-  --color-divider: #334155;
+  --color-divider: #27272A;
 
   /* Brand / primary */
   --color-primary: #60A5FA;
@@ -329,11 +329,11 @@
   --button-primary-disabled-text: #475569;
   --button-primary-focus-ring: 0 0 0 3px #60A5FA;
 
-  --button-secondary-bg: #0F172A;
+  --button-secondary-bg: #0F0F12;
   --button-secondary-text: #F8FAFC;
-  --button-secondary-border: #334155;
-  --button-secondary-hover-bg: #111827;
-  --button-secondary-active-bg: #0B1220;
+  --button-secondary-border: #27272A;
+  --button-secondary-hover-bg: #131316;
+  --button-secondary-active-bg: #09090B;
   --button-secondary-disabled-bg: #1E293B;
   --button-secondary-disabled-text: #475569;
   --button-secondary-focus-ring: 0 0 0 3px #60A5FA;
@@ -348,34 +348,34 @@
   --button-ghost-focus-ring: 0 0 0 3px #60A5FA;
 
   /* Card */
-  --card-bg: #0F172A;
+  --card-bg: #0F0F12;
   --card-text: #F8FAFC;
-  --card-border: #1E293B;
+  --card-border: #1A1A1E;
   --card-shadow: none;
-  --card-elevated-bg: #111827;
-  --card-elevated-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  --card-elevated-bg: #131316;
+  --card-elevated-shadow: 0 2px 4px rgba(0, 0, 0, 0.1), 0 8px 24px rgba(0, 0, 0, 0.15);
 
   /* Sidebar */
-  --sidebar-bg: #0F172A;
+  --sidebar-bg: #0F0F12;
   --sidebar-text: #F8FAFC;
-  --sidebar-border: #334155;
+  --sidebar-border: #27272A;
   --sidebar-active-item-bg: rgba(59, 130, 246, 0.16);
   --sidebar-active-item-text: #FFFFFF;
 
   /* Table */
-  --table-header-bg: #111827;
+  --table-header-bg: #131316;
   --table-header-text: #CBD5E1;
   --table-row-hover-bg: rgba(59, 130, 246, 0.12);
   --table-row-active-bg: rgba(59, 130, 246, 0.18);
-  --table-border: #334155;
-  --table-divider: #334155;
+  --table-border: #27272A;
+  --table-divider: #27272A;
 
   /* Input */
-  --input-bg: #0F172A;
+  --input-bg: #0F0F12;
   --input-text: #F8FAFC;
   --input-placeholder: #64748B;
-  --input-border: #334155;
-  --input-hover-border: #334155;
+  --input-border: #27272A;
+  --input-hover-border: #27272A;
   --input-focus-border: #60A5FA;
   --input-disabled-bg: #1E293B;
   --input-disabled-text: #475569;

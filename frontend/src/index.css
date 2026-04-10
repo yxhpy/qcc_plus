@@ -28,7 +28,8 @@ body {
 h1 {
   font-size: var(--font-size-page-title);
   line-height: 1.3;
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-bold, 700);
+  letter-spacing: -0.02em;
   margin: 0 0 var(--spacing-3) 0;
 }
 
@@ -60,20 +61,28 @@ button,
   background-color: var(--color-bg-card);
   color: var(--color-text-primary);
   cursor: pointer;
-  transition: border-color var(--transition-normal), color var(--transition-normal), background-color var(--transition-normal);
+  transition: all var(--transition-normal) var(--easing-out);
 }
 
 button:hover,
 .btn:hover {
   border-color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
+}
+
+button:active,
+.btn:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-none);
 }
 
 button:focus,
 button:focus-visible,
 .btn:focus,
 .btn:focus-visible {
-  outline: 3px solid var(--color-focus-ring);
-  outline-offset: 1px;
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-focus-ring);
 }
 
 button.small,
@@ -89,6 +98,51 @@ button.large,
   padding: 10px 16px;
 }
 
+/* Primary button variant */
+.btn-primary,
+button.btn-primary {
+  background: var(--button-primary-bg);
+  color: var(--button-primary-text);
+  border: none;
+  background-image: linear-gradient(
+    180deg,
+    var(--button-primary-bg) 0%,
+    var(--button-primary-hover-bg) 100%
+  );
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.btn-primary:hover,
+button.btn-primary:hover {
+  background: var(--button-primary-hover-bg);
+  background-image: linear-gradient(
+    180deg,
+    var(--button-primary-hover-bg) 0%,
+    var(--button-primary-active-bg) 100%
+  );
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transform: translateY(-1px);
+  border-color: transparent;
+}
+
+.btn-primary:active,
+button.btn-primary:active {
+  background: var(--button-primary-active-bg);
+  background-image: none;
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.15);
+  transform: translateY(0);
+}
+
+.btn-primary:focus,
+.btn-primary:focus-visible,
+button.btn-primary:focus,
+button.btn-primary:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-focus-ring);
+}
+
 /* Global input compactness */
 input,
 select,
@@ -101,6 +155,22 @@ textarea {
   background: var(--color-bg-card);
   color: var(--color-text-primary);
   box-sizing: border-box;
+  transition: border-color var(--transition-normal),
+    box-shadow var(--transition-normal);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--input-placeholder);
+  opacity: 0.55;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--input-focus-border);
+  box-shadow: 0 0 0 3px var(--color-focus-ring);
+  outline: none;
 }
 
 select {
@@ -113,6 +183,13 @@ textarea {
 }
 
 /* Table compactness */
+table {
+  border-radius: var(--table-radius);
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+}
+
 table th,
 table td {
   padding: var(--table-padding);
@@ -121,29 +198,37 @@ table td {
 
 table th {
   font-weight: var(--font-weight-semibold);
+  background-color: var(--table-header-bg);
+  color: var(--table-header-text);
+  text-align: left;
 }
 
 table tr {
   height: var(--table-row-height);
+  transition: background-color var(--transition-fast) var(--easing-out);
+}
+
+table tbody tr:hover {
+  background-color: var(--table-row-hover-bg);
 }
 
 /* Scrollbar styling */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--color-bg-card);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-divider);
-  border-radius: var(--radius-md);
+  background: var(--color-border-default);
+  border-radius: var(--radius-full);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-border-default);
+  background: var(--color-text-muted);
 }
 
 /* Recovery Badge - global reusable style */
@@ -158,9 +243,9 @@ table tr {
   font-size: 10px;
   font-weight: 600;
   line-height: 1;
-  color: #fff;
-  background: var(--color-danger-500, #EF4444);
-  border-radius: 8px;
+  color: var(--color-text-inverse);
+  background: var(--color-danger-500);
+  border-radius: var(--radius-full);
   cursor: pointer;
   vertical-align: middle;
 }

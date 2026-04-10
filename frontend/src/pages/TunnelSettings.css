@@ -1,114 +1,114 @@
 .tunnel-page {
-	padding: 16px;
-	display: flex;
-	flex-direction: column;
-	gap: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .tunnel-header h1 {
-	margin: 0 0 4px 0;
+  margin: 0 0 8px 0;
 }
 
 .tunnel-header .sub {
-	margin: 0;
-	color: var(--color-text-secondary);
+  margin: 0;
+  color: var(--color-text-secondary);
 }
 
 .tunnel-status-line {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	margin-bottom: 10px;
-	flex-wrap: wrap;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
 }
 
 .status-badge {
-	padding: 4px 10px;
-	border-radius: 12px;
-	font-size: 13px;
-	font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .status-badge.ok {
-	background: var(--color-success-bg);
-	color: var(--color-success-text);
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
 }
 
 .status-badge.error {
-	background: var(--color-danger-bg);
-	color: var(--color-danger-text);
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
 }
 
 .status-badge.muted {
-	background: var(--color-bg-elevated);
-	color: var(--color-text-secondary);
+  background: var(--color-bg-elevated);
+  color: var(--color-text-secondary);
 }
 
 .public-url {
-	color: var(--color-primary);
-	text-decoration: none;
-	word-break: break-all;
+  color: var(--color-primary);
+  text-decoration: none;
+  word-break: break-all;
 }
 
 .last-error {
-	color: var(--color-danger-text);
-	font-size: 13px;
+  color: var(--color-danger-text);
+  font-size: 13px;
 }
 
 .spacer {
-	flex: 1;
+  flex: 1;
 }
 
 .tunnel-grid {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-	gap: 10px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
 }
 
 .tunnel-grid label {
-	display: flex;
-	flex-direction: column;
-	gap: 6px;
-	font-weight: 600;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-weight: 600;
 }
 
 .tunnel-grid input[type='text'],
 .tunnel-grid input[type='password'] {
-	padding: var(--input-padding-y) var(--input-padding-x);
-	border-radius: var(--input-radius);
-	border: 1px solid var(--color-border-default);
-	font-size: var(--font-size-body);
-	height: var(--input-height);
-	background: var(--color-bg-elevated);
-	color: var(--color-text-primary);
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border-default);
+  font-size: var(--font-size-body);
+  height: var(--input-height);
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
 }
 
 .zone-field {
-	display: flex;
-	align-items: center;
-	gap: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .zone-field .btn {
-	white-space: nowrap;
+  white-space: nowrap;
 }
 
 .toggle-line {
-	flex-direction: row !important;
-	align-items: center;
-	gap: 8px;
-	font-weight: 500;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
 }
 
 .hint {
-	font-weight: 400;
-	color: var(--color-text-muted);
+  font-weight: 400;
+  color: var(--color-text-muted);
 }
 
 .tunnel-actions {
-	margin-top: 12px;
-	display: flex;
-	gap: 10px;
-	justify-content: flex-end;
-	flex-wrap: wrap;
+  margin-top: 16px;
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
 }

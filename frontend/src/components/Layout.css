@@ -3,7 +3,7 @@
   display: grid;
   grid-template-columns: var(--sidebar-width-expanded) 1fr;
   min-height: 100vh;
-  transition: grid-template-columns var(--transition-normal) var(--easing-out);
+  transition: grid-template-columns var(--transition-slow) var(--easing-out);
 }
 
 .layout.sidebar-collapsed {
@@ -20,7 +20,7 @@
   position: sticky;
   top: 0;
   overflow: hidden;
-  transition: width var(--transition-normal) var(--easing-out);
+  transition: width var(--transition-slow) var(--easing-out);
 }
 
 /* 侧边栏头部 */
@@ -28,9 +28,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--spacing-3) var(--spacing-3);
+  padding: var(--spacing-3) var(--spacing-4);
   border-bottom: 1px solid var(--color-divider);
-  min-height: 56px;
+  min-height: 60px;
 }
 
 .sidebar-brand {
@@ -39,6 +39,7 @@
   color: var(--color-text-primary);
   white-space: nowrap;
   overflow: hidden;
+  letter-spacing: -0.01em;
 }
 
 .sidebar-toggle {
@@ -52,7 +53,7 @@
   color: var(--color-text-muted);
   border-radius: var(--radius-md);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all var(--transition-fast) var(--easing-out);
 }
 
 .sidebar-toggle:hover {
@@ -64,11 +65,11 @@
 .sidebar-nav {
   flex: 1;
   overflow-y: auto;
-  padding: var(--spacing-2) 0;
+  padding: var(--spacing-3) 0;
 }
 
 .sidebar-group {
-  padding: var(--spacing-1) var(--spacing-2);
+  padding: var(--spacing-1) var(--spacing-3);
 }
 
 .sidebar-group-title {
@@ -76,8 +77,8 @@
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: var(--spacing-2) var(--spacing-2);
+  letter-spacing: 0.06em;
+  padding: var(--spacing-3) var(--spacing-3) var(--spacing-1);
   margin-bottom: var(--spacing-1);
 }
 
@@ -85,17 +86,21 @@
 .sidebar-link {
   display: flex;
   align-items: center;
-  gap: var(--spacing-2);
-  padding: var(--spacing-2) var(--spacing-2);
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-3);
+  margin: 2px 0;
   color: var(--color-text-secondary);
   text-decoration: none;
   border-radius: var(--radius-md);
-  transition: all var(--transition-fast);
+  transition: background var(--transition-fast) var(--easing-out),
+              color var(--transition-fast) var(--easing-out),
+              box-shadow var(--transition-fast) var(--easing-out);
   cursor: pointer;
   border: none;
   background: transparent;
   width: 100%;
   font-size: var(--font-size-sm);
+  position: relative;
 }
 
 .sidebar-link:hover {
@@ -107,6 +112,7 @@
   background: var(--sidebar-active-item-bg);
   color: var(--sidebar-active-item-text);
   font-weight: var(--font-weight-medium);
+  box-shadow: inset 3px 0 0 0 var(--color-primary);
 }
 
 .sidebar-icon {
@@ -132,7 +138,7 @@
 /* 底部区域 */
 .sidebar-footer {
   border-top: 1px solid var(--color-divider);
-  padding: var(--spacing-2);
+  padding: var(--spacing-3);
   display: flex;
   flex-direction: column;
   gap: var(--spacing-1);
@@ -141,15 +147,15 @@
 .sidebar-theme-btn {
   display: flex;
   align-items: center;
-  gap: var(--spacing-2);
-  padding: var(--spacing-2);
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-3);
   color: var(--color-text-secondary);
   border: none;
   background: transparent;
   border-radius: var(--radius-md);
   cursor: pointer;
   font-size: var(--font-size-sm);
-  transition: all var(--transition-fast);
+  transition: all var(--transition-fast) var(--easing-out);
 }
 
 .sidebar-theme-btn:hover {
@@ -158,10 +164,10 @@
 }
 
 .sidebar-user {
-  padding: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
   display: flex;
   align-items: center;
-  gap: var(--spacing-2);
+  gap: var(--spacing-3);
 }
 
 .sidebar-user-name {
@@ -173,9 +179,10 @@
 .sidebar-user-badge {
   font-size: var(--font-size-xs);
   color: var(--color-primary);
-  background: var(--color-hover);
-  padding: 2px 6px;
+  background: var(--sidebar-active-item-bg);
+  padding: 2px 8px;
   border-radius: var(--radius-sm);
+  font-weight: var(--font-weight-medium);
 }
 
 .sidebar-logout {
@@ -187,17 +194,19 @@
 }
 
 .sidebar-version {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-muted);
+  font-size: 11px;
+  color: var(--color-text-disabled);
   text-align: center;
-  padding: var(--spacing-1);
+  padding: var(--spacing-2) var(--spacing-1) var(--spacing-3);
+  letter-spacing: 0.02em;
+  user-select: none;
 }
 
 /* 主内容区 */
 .layout-main {
   background: var(--color-bg-page);
   min-height: 100vh;
-  padding: var(--spacing-4);
+  padding: var(--spacing-8);
   overflow-x: hidden;
 }
 
@@ -208,7 +217,7 @@
 }
 
 .sidebar-collapsed .sidebar-group {
-  padding: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-1);
 }
 
 .sidebar-collapsed .sidebar-link {

@@ -7,8 +7,8 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 16px;
+  margin-bottom: 24px;
 }
 
 .breadcrumb {
@@ -50,15 +50,15 @@
 
 .changelog-actions {
   display: flex;
-  gap: 0.75rem;
+  gap: 12px;
 }
 
 .btn-refresh {
   border: 1px solid var(--color-border-default);
   background: var(--color-primary);
   color: var(--color-text-inverse);
-  padding: 0.6rem 1.2rem;
-  border-radius: 10px;
+  padding: 12px;
+  border-radius: 12px;
   font-weight: 600;
   transition: all var(--transition-normal) ease;
 }
@@ -77,7 +77,7 @@
   background: var(--color-bg-card);
   border: 1px solid var(--color-border-default);
   border-radius: 12px;
-  padding: 1rem;
+  padding: 16px;
   min-height: 36vh;
 }
 
@@ -90,8 +90,8 @@
   color: var(--color-danger-text);
   background: var(--color-danger-bg);
   border: 1px solid var(--color-danger-border);
-  padding: 0.9rem 1rem;
-  border-radius: 10px;
+  padding: 16px;
+  border-radius: 12px;
 }
 
 .changelog-markdown {
@@ -137,17 +137,17 @@
 
 .changelog-markdown blockquote {
   margin: 1rem 0;
-  padding: 0.9rem 1rem;
+  padding: 16px;
   border-left: 3px solid var(--color-primary);
   background: var(--color-bg-card);
   color: var(--color-text-secondary);
-  border-radius: 10px;
+  border-radius: 12px;
 }
 
 .code-block {
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-border-default);
-  padding: 1rem;
+  padding: 16px;
   border-radius: 12px;
   overflow-x: auto;
   margin: 1rem 0;
@@ -155,15 +155,15 @@
 
 .code-block code {
   color: var(--color-text-primary);
-  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-family: var(--font-family-mono);
   font-size: 0.95rem;
 }
 
 .inline-code {
   background: var(--color-bg-elevated);
-  padding: 0.2rem 0.45rem;
-  border-radius: 6px;
-  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-family: var(--font-family-mono);
   font-size: 0.95rem;
 }
 
@@ -173,14 +173,14 @@
   margin: 1rem 0;
   font-size: 0.95rem;
   background: var(--color-bg-card);
-  border-radius: 10px;
+  border-radius: 12px;
   overflow: hidden;
 }
 
 .changelog-markdown th,
 .changelog-markdown td {
   border: 1px solid var(--color-divider);
-  padding: 0.75rem;
+  padding: 12px;
   text-align: left;
 }
 

@@ -16,21 +16,21 @@
 }
 
 .settings-header {
-  margin-bottom: 12px;
+  margin-bottom: 24px;
   animation: fadeIn 0.6s ease-out;
 }
 
 .settings-header h1 {
   font-size: var(--font-size-page-title);
   font-weight: var(--font-weight-semibold);
-  margin: 0 0 4px 0;
+  margin: 0 0 6px 0;
   color: var(--color-text-primary);
 }
 
 .settings-header .sub {
   color: var(--color-text-secondary);
   font-size: var(--font-size-subtitle);
-  margin: 0 0 8px;
+  margin: 0 0 12px;
   font-weight: 300;
 }
 
@@ -38,7 +38,7 @@
 .settings-form {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 16px;
   align-items: center;
   animation: fadeIn 0.8s ease-out 0.1s both;
 }
@@ -47,12 +47,12 @@
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   font-size: var(--font-size-small);
   color: var(--color-text-secondary);
   font-weight: 500;
   flex: 1;
-  min-width: 240px;
+  min-width: 260px;
 }
 
 .settings-form .label-title {
@@ -65,12 +65,12 @@
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-border-default);
   color: var(--color-text-primary);
-  padding: 8px 10px;
-  height: 36px;
-  border-radius: var(--radius-xl);
+  padding: 8px 14px;
+  height: 40px;
+  border-radius: 12px;
   outline: none;
   font-size: var(--font-size-body);
-  width: 140px;
+  width: 160px;
   box-sizing: border-box;
   transition: all var(--transition-normal) cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -96,12 +96,12 @@
 .notice {
   font-size: var(--font-size-small);
   color: var(--color-text-secondary);
-  padding: var(--spacing-4);
+  padding: 20px;
   background: var(--color-bg-card);
-  border-radius: var(--radius-xl);
+  border-radius: 12px;
   border: 1px dashed var(--color-border-default);
-  line-height: 1.6;
-  margin-top: var(--spacing-4);
+  line-height: 1.7;
+  margin-top: 20px;
   animation: fadeIn 1s ease-out 0.2s both;
   position: relative;
   overflow: hidden;
@@ -122,9 +122,9 @@
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 14px;
   flex-wrap: wrap;
-  margin-bottom: 10px;
+  margin-bottom: 18px;
 }
 
 .toolbar label {
@@ -141,8 +141,8 @@
   border: 1px solid var(--color-border-default);
   color: var(--color-text-primary);
   padding: var(--input-padding-y) var(--input-padding-x);
-  height: var(--input-height);
-  border-radius: var(--radius-xl);
+  height: 40px;
+  border-radius: 12px;
   outline: none;
   font-size: var(--font-size-body);
   transition: all var(--transition-normal) ease;
@@ -238,6 +238,10 @@
     font-size: var(--font-size-page-title);
   }
 
+  .settings-header {
+    margin-bottom: 18px;
+  }
+
   .settings-form label {
     min-width: 100%;
   }
@@ -249,7 +253,7 @@
 
   .notice {
     font-size: var(--font-size-caption);
-    padding: var(--spacing-3);
+    padding: 16px;
   }
 }
 
@@ -257,5 +261,9 @@
   .btn {
     padding: var(--button-padding-y) var(--button-padding-x);
     font-size: var(--button-typography-size);
+  }
+
+  .settings-header {
+    margin-bottom: 14px;
   }
 }

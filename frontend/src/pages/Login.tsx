@@ -55,57 +55,79 @@ export default function Login() {
 
   return (
     <div className="login-page">
-      <div className="login-container">
-        <div className="login-header">
-          <img src={loginIcon} alt="QCC Plus Logo" className="login-icon" />
-          <div className="login-title">
+      {/* Left Panel — Branding */}
+      <div className="login-brand-panel">
+        <div className="login-grid-decoration" />
+        <div className="login-brand-content">
+          <img src={loginIcon} alt="QCC Plus" className="login-brand-logo" />
+          <h1>QCC Plus</h1>
+          <p>高性能 AI 代理网关，为 Claude Code CLI 提供多租户、多节点管理能力。</p>
+          <div className="login-features">
+            <span className="login-feature-pill">多租户</span>
+            <span className="login-feature-pill">负载均衡</span>
+            <span className="login-feature-pill">实时监控</span>
+            <span className="login-feature-pill">密钥管理</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Right Panel — Form */}
+      <div className="login-form-panel">
+        <div className="login-container">
+          <div className="login-header">
             <h1>欢迎回来</h1>
-            <p className="sub">登录 QCC Plus 管理后台</p>
+            <p className="sub">登录到管理后台</p>
+          </div>
+
+          {error && <div className="error-message">{error}</div>}
+
+          <form className="login-form" onSubmit={handleSubmit}>
+            <div className="form-group">
+              <label className="form-label">账号名称</label>
+              <input
+                className="form-input"
+                name="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="输入账号名称"
+                autoComplete="username"
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">密码</label>
+              <input
+                className="form-input"
+                name="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="输入密码"
+                autoComplete="current-password"
+                required
+              />
+            </div>
+
+            <button
+              className={`btn-submit ${loading ? 'loading' : ''}`}
+              type="submit"
+              disabled={loading}
+            >
+              {loading ? '登录中...' : '继续'}
+            </button>
+          </form>
+
+          <div className="login-footer">
+            登录后 24 小时内保持会话，记得使用退出按钮主动登出。
           </div>
         </div>
 
-        {error && <div className="error-message">{error}</div>}
-
-        <form className="login-form" onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label className="form-label">账号名称</label>
-            <input
-              className="form-input"
-              name="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="输入账号名称"
-              autoComplete="username"
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">密码</label>
-            <input
-              className="form-input"
-              name="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="输入密码"
-              autoComplete="current-password"
-              required
-            />
-          </div>
-
-          <button className="btn-submit" type="submit" disabled={loading}>
-            {loading ? '登录中...' : '继续'}
-          </button>
-        </form>
-
-        <div className="login-footer">
-          登录后 24 小时内保持会话，记得使用退出按钮主动登出。
+        <div className="login-version" title={versionTitle}>
+          {versionLabel}
         </div>
       </div>
-      <div className="login-version" title={versionTitle}>
-        {versionLabel}
-      </div>
+
       <Toast message={toast?.message} type={toast?.type} />
     </div>
   )

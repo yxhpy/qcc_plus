@@ -3,14 +3,24 @@ package proxy
 import "strings"
 
 const (
-	openAIChatCompletionsPath = "/v1/chat/completions"
-	openAIResponsesPath       = "/v1/responses"
-	openAIModelsPath          = "/v1/models"
-	openAIWireAPIChat         = "chat_completions"
-	openAIWireAPIResponses    = "responses"
-	geminiModelsPrefix        = "/v1beta/models/"
-	geminiGenerateSuffix      = ":generateContent"
+	openAIChatCompletionsPath    = "/v1/chat/completions"
+	openAIResponsesPath          = "/v1/responses"
+	openAIResponsesCompactPath   = "/v1/responses/compact"
+	openAIModelsPath             = "/v1/models"
+	openAIWireAPIChat            = "chat_completions"
+	openAIWireAPIResponses       = "responses"
+	geminiModelsPrefix           = "/v1beta/models/"
+	geminiGenerateSuffix         = ":generateContent"
 )
+
+// deduplicateV1Prefix removes duplicate /v1 prefixes from a path (e.g. /v1/v1/chat -> /v1/chat).
+// This mirrors cc-switch's while url.contains("/v1/v1") loop for robustness.
+func deduplicateV1Prefix(path string) string {
+	for strings.Contains(path, "/v1/v1") {
+		path = strings.ReplaceAll(path, "/v1/v1", "/v1")
+	}
+	return path
+}
 
 func normalizeOpenAIWireAPI(raw string) string {
 	switch strings.TrimSpace(strings.ToLower(raw)) {
@@ -43,7 +53,7 @@ func trimProtocolPrefix(path, prefix string) string {
 func normalizeOpenAIIngressPath(path string) (string, bool) {
 	trimmed := trimProtocolPrefix(path, "/openai")
 	switch trimmed {
-	case openAIChatCompletionsPath, openAIResponsesPath, openAIModelsPath:
+	case openAIChatCompletionsPath, openAIResponsesPath, openAIResponsesCompactPath, openAIModelsPath:
 		return trimmed, true
 	default:
 		return "", false
@@ -102,4 +112,14 @@ func rewriteIngressPathForUpstream(originalPath, targetProtocol, requestModelID 
 	default:
 		return originalPath
 	}
+}
+
+// isResponsesCompactPath checks if the path is the OpenAI responses compact endpoint.
+func isResponsesCompactPath(path string) bool {
+	return path == openAIResponsesCompactPath || strings.HasPrefix(path, openAIResponsesCompactPath+"/")
+}
+
+// isResponsesPath checks if the path is any OpenAI responses endpoint (regular or compact).
+func isResponsesPath(path string) bool {
+	return path == openAIResponsesPath || strings.HasPrefix(path, openAIResponsesPath+"/")
 }

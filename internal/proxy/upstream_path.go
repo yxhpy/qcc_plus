@@ -37,9 +37,9 @@ func joinUpstreamPath(basePath, requestPath string) string {
 	}
 
 	if req == "/" {
-		return base
+		return deduplicateV1Prefix(base)
 	}
-	return base + req
+	return deduplicateV1Prefix(base + req)
 }
 
 func buildHealthProbeURL(baseURL, requestPath string) string {

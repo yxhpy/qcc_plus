@@ -6,19 +6,21 @@ func TestBuildHealthProbeSpec(t *testing.T) {
 	tests := []struct {
 		name       string
 		source     string
+		wireAPI    string
 		model      string
 		wantPath   string
 		wantHdrKey string
 	}{
-		{"claude", "claude", "claude-haiku-4-5-20251001", "/v1/messages", "anthropic-version"},
-		{"openai", "openai", "gpt-4o-mini", "/v1/chat/completions", "Content-Type"},
-		{"gemini default model", "gemini", "", "/v1beta/models/gemini-2.5-flash:generateContent", "Content-Type"},
-		{"gemini custom model", "gemini", "gemini-2.5-pro", "/v1beta/models/gemini-2.5-pro:generateContent", "Content-Type"},
+		{"claude", "claude", "", "claude-haiku-4-5-20251001", "/v1/messages", "anthropic-version"},
+		{"openai responses default", "openai", "", "gpt-4o-mini", "/v1/responses", "Content-Type"},
+		{"openai chat completions", "openai", "chat_completions", "gpt-4o-mini", "/v1/chat/completions", "Content-Type"},
+		{"gemini default model", "gemini", "", "", "/v1beta/models/gemini-2.5-flash:generateContent", "Content-Type"},
+		{"gemini custom model", "gemini", "", "gemini-2.5-pro", "/v1beta/models/gemini-2.5-pro:generateContent", "Content-Type"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			spec, err := BuildHealthProbeSpec(tt.source, tt.model)
+			spec, err := BuildHealthProbeSpec(tt.source, tt.wireAPI, tt.model)
 			if err != nil {
 				t.Fatalf("BuildHealthProbeSpec error: %v", err)
 			}
@@ -30,6 +32,29 @@ func TestBuildHealthProbeSpec(t *testing.T) {
 			}
 			if len(spec.Body) == 0 {
 				t.Fatal("expected non-empty body")
+			}
+		})
+	}
+}
+
+func TestNormalizeHealthCheckMethodForProtocol(t *testing.T) {
+	tests := []struct {
+		name     string
+		protocol string
+		method   string
+		want     string
+	}{
+		{"openai keeps head", SourceProtocolOpenAI, HealthCheckMethodHEAD, HealthCheckMethodHEAD},
+		{"openai converts cli to api", SourceProtocolOpenAI, HealthCheckMethodCLI, HealthCheckMethodAPI},
+		{"gemini forces api", SourceProtocolGemini, HealthCheckMethodHEAD, HealthCheckMethodAPI},
+		{"claude keeps cli", SourceProtocolClaude, HealthCheckMethodCLI, HealthCheckMethodCLI},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := normalizeHealthCheckMethodForProtocol(tt.protocol, tt.method)
+			if got != tt.want {
+				t.Fatalf("normalizeHealthCheckMethodForProtocol(%q, %q) = %q, want %q", tt.protocol, tt.method, got, tt.want)
 			}
 		})
 	}

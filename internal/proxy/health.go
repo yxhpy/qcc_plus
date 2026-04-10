@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	HealthCheckMethodAPI   = "api"   // POST /v1/messages
+	HealthCheckMethodAPI   = "api"   // 协议感知的 API 探活请求
 	HealthCheckMethodHEAD  = "head"  // HEAD 请求
 	HealthCheckMethodCLI   = "cli"   // Claude Code CLI 无头模式
 	HealthCheckMethodProxy = "proxy" // 通过代理请求的健康信号
@@ -263,7 +263,7 @@ func (p *Server) checkModelRecovery(acc *Account, node *Node, modelID string) {
 	}
 
 	// 构造协议感知的健康检查请求（按节点 source_protocol 选择路径和请求体）
-	spec, err := BuildHealthProbeSpec(NormalizedSourceProtocol(node.SourceProtocol), probeModelID)
+	spec, err := BuildHealthProbeSpec(NormalizedSourceProtocol(node.SourceProtocol), node.NormalizedWireAPI(), probeModelID)
 	if err != nil {
 		p.logger.Printf("[model-recovery] build probe spec failed for model %s (probe=%s): %v", modelID, probeModelID, err)
 		return
@@ -589,12 +589,19 @@ func normalizeHealthCheckMethod(method string) string {
 	}
 }
 
-func protocolFixedHealthCheckMethod(protocol string) (string, bool) {
-	p := NormalizedSourceProtocol(protocol)
-	if p == SourceProtocolOpenAI || p == SourceProtocolGemini {
-		return HealthCheckMethodAPI, true
+func normalizeHealthCheckMethodForProtocol(protocol string, method string) string {
+	normalized := normalizeHealthCheckMethod(method)
+	switch NormalizedSourceProtocol(protocol) {
+	case SourceProtocolOpenAI:
+		if normalized == HealthCheckMethodCLI {
+			return HealthCheckMethodAPI
+		}
+	case SourceProtocolGemini:
+		if normalized != HealthCheckMethodAPI {
+			return HealthCheckMethodAPI
+		}
 	}
-	return "", false
+	return normalized
 }
 
 func healthMethodRequiresAPIKey(method string) bool {
@@ -618,8 +625,8 @@ func (p *Server) healthCheckViaAPI(ctx context.Context, node Node) (bool, string
 	// 应用节点模型映射
 	model = node.MapModel(model)
 
-	// 构造协议感知的健康检查请求（当前默认仍走 claude，可扩展 openai/gemini）
-	spec, err := BuildHealthProbeSpec(NormalizedSourceProtocol(node.SourceProtocol), model)
+	// 构造协议感知的健康检查请求（Claude/OpenAI/Gemini 各自选择对应探活路径）
+	spec, err := BuildHealthProbeSpec(NormalizedSourceProtocol(node.SourceProtocol), node.NormalizedWireAPI(), model)
 	if err != nil {
 		return false, fmt.Sprintf("build health probe spec failed: %v", err), 0
 	}

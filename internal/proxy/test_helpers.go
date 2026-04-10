@@ -16,7 +16,7 @@ func (p *Server) TestAddNode(accountID, name, baseURL, apiKey, healthMethod stri
 	if acc == nil {
 		return nil, fmt.Errorf("account %s not found", accountID)
 	}
-	return p.addNodeWithMethod(acc, name, baseURL, apiKey, weight, healthMethod, "", nil, "", "", "")
+	return p.addNodeWithMethod(acc, name, baseURL, apiKey, weight, healthMethod, "", nil, "", "", "", "", 0)
 }
 
 // TestAccount 返回测试用账号句柄。

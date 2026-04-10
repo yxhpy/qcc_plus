@@ -15,9 +15,8 @@ func (p *Server) nodeFromRecord(rec store.NodeRecord) *Node {
 	healthMethod := normalizeHealthCheckMethod(chooseNonEmpty(rec.HealthCheckMethod, defaultHealthCheckMethod))
 	protocol := chooseNonEmpty(rec.SourceProtocol, SourceProtocolClaude)
 	healthModel := effectiveHealthCheckModelForProtocol(protocol, rec.HealthCheckModel)
-	if fixedMethod, fixed := protocolFixedHealthCheckMethod(protocol); fixed {
-		healthMethod = fixedMethod
-	}
+	healthMethod = normalizeHealthCheckMethodForProtocol(protocol, healthMethod)
+	wireAPI := normalizeNodeWireAPI(protocol, rec.WireAPI)
 
 	joinedAPIKey, keyItems, keyRotator := buildNodeKeyState(rec.APIKey, rec.APIKeyConfig)
 	if healthMethodRequiresAPIKey(healthMethod) && joinedAPIKey == "" {
@@ -39,11 +38,13 @@ func (p *Server) nodeFromRecord(rec store.NodeRecord) *Node {
 		HealthCheckModel:  healthModel,
 		ModelMapping:      decodeModelMapping(rec.ModelMapping),
 		SourceProtocol:    protocol,
+		WireAPI:           wireAPI,
 		AuthProfile:       rec.AuthProfile,
 		Capabilities:      rec.Capabilities,
 		AccountID:         rec.AccountID,
 		CreatedAt:         rec.CreatedAt,
 		Weight:            rec.Weight,
+		MaxConcurrency:    rec.MaxConcurrency,
 		Failed:            rec.Failed,
 		Disabled:          rec.Disabled,
 		LastError:         rec.LastError,

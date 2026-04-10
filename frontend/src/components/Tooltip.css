@@ -6,10 +6,10 @@
 
 .tooltip-content {
   position: absolute;
-  background: #1f2937;
-  color: #ffffff;
-  padding: 8px 12px;
-  border-radius: 6px;
+  background: var(--color-gray-800, #1f2937);
+  color: var(--color-text-inverse, #ffffff);
+  padding: 12px;
+  border-radius: 12px;
   min-width: 120px;
   max-width: 300px;
   width: max-content;
@@ -23,7 +23,7 @@
   transition: opacity 200ms ease, transform 200ms ease;
   font-size: 13px;
   line-height: 1.4;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--color-border-default, rgba(255, 255, 255, 0.1));
   text-align: left;
 }
 
@@ -85,7 +85,7 @@
   left: 50%;
   transform: translateX(-50%);
   border-width: 6px 6px 0 6px;
-  border-color: #1f2937 transparent transparent transparent;
+  border-color: var(--color-gray-800, #1f2937) transparent transparent transparent;
 }
 
 .tooltip-bottom .tooltip-arrow {
@@ -93,7 +93,7 @@
   left: 50%;
   transform: translateX(-50%);
   border-width: 0 6px 6px 6px;
-  border-color: transparent transparent #1f2937 transparent;
+  border-color: transparent transparent var(--color-gray-800, #1f2937) transparent;
 }
 
 .tooltip-left .tooltip-arrow {
@@ -101,7 +101,7 @@
   top: 50%;
   transform: translateY(-50%);
   border-width: 6px 0 6px 6px;
-  border-color: transparent transparent transparent #1f2937;
+  border-color: transparent transparent transparent var(--color-gray-800, #1f2937);
 }
 
 .tooltip-right .tooltip-arrow {
@@ -109,5 +109,5 @@
   top: 50%;
   transform: translateY(-50%);
   border-width: 6px 6px 6px 0;
-  border-color: transparent #1f2937 transparent transparent;
+  border-color: transparent var(--color-gray-800, #1f2937) transparent transparent;
 }

@@ -13,7 +13,7 @@
 .claude-config-page {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-3);
+  gap: 16px;
   color: var(--color-text-primary);
   animation: fadeIn 0.6s ease-out;
 }
@@ -22,14 +22,14 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: var(--spacing-4);
-  margin-bottom: var(--spacing-3);
+  gap: 16px;
+  margin-bottom: 24px;
 }
 
 .claude-config-header h1 {
   font-size: var(--font-size-page-title);
   font-weight: var(--font-weight-semibold);
-  margin: 0 0 var(--spacing-1) 0;
+  margin: 0 0 8px 0;
   color: var(--color-text-primary);
 }
 
@@ -43,7 +43,7 @@
 .header-actions {
   display: flex;
   align-items: center;
-  gap: var(--spacing-2);
+  gap: 12px;
   flex-wrap: wrap;
   justify-content: flex-end;
 }
@@ -51,9 +51,9 @@
 .pill {
   display: inline-flex;
   align-items: center;
-  gap: var(--spacing-2);
-  padding: var(--spacing-2) var(--spacing-3);
-  border-radius: var(--radius-full);
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 999px;
   background: var(--color-info-bg);
   color: var(--color-info-text);
   font-size: var(--font-size-caption);
@@ -82,13 +82,13 @@
 }
 
 .btn.small {
-  padding: 4px 10px;
+  padding: 6px 12px;
   height: auto;
   font-size: var(--font-size-small);
 }
 
 .btn.large {
-  padding: 10px 20px;
+  padding: 12px 24px;
   height: auto;
   font-size: var(--font-size-body);
 }
@@ -131,7 +131,8 @@
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-border-default);
   color: var(--color-text-primary);
-  border-radius: var(--radius-xl);
+  border-radius: 12px;
+  padding: 12px;
 }
 
 :root[data-theme="dark"] .install-card {
@@ -141,9 +142,9 @@
 .install-top {
   display: flex;
   justify-content: space-between;
-  gap: var(--spacing-4);
+  gap: 16px;
   align-items: center;
-  margin-bottom: var(--spacing-3);
+  margin-bottom: 16px;
 }
 
 .eyebrow {
@@ -162,7 +163,7 @@
   font-size: var(--font-size-xl);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
-  margin-top: var(--spacing-1);
+  margin-top: 8px;
 }
 
 .install-card .title-line {
@@ -172,23 +173,23 @@
 .install-actions {
   display: flex;
   align-items: center;
-  gap: var(--spacing-2);
+  gap: 12px;
   flex-wrap: wrap;
   justify-content: flex-end;
 }
 
 .tabs {
   display: inline-flex;
-  gap: var(--spacing-1);
+  gap: 8px;
   background: transparent;
-  border-radius: var(--radius-xl);
+  border-radius: 12px;
   overflow: visible;
 }
 
 .tab {
   height: 36px;
-  padding: var(--spacing-2) var(--spacing-4);
-  border-radius: var(--radius-xl);
+  padding: 8px 16px;
+  border-radius: 999px;
   border: 1px solid var(--color-border-default);
   background: var(--color-bg-elevated);
   color: var(--color-text-secondary);
@@ -213,11 +214,11 @@
 .command-block {
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-xl);
-  padding: var(--spacing-4);
+  border-radius: 12px;
+  padding: 16px;
   display: flex;
   align-items: flex-start;
-  gap: var(--spacing-4);
+  gap: 16px;
   flex-wrap: wrap;
 }
 
@@ -234,7 +235,7 @@
 .command-meta {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-2);
+  gap: 8px;
   min-width: 180px;
 }
 
@@ -242,8 +243,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: var(--spacing-2) var(--spacing-3);
-  border-radius: var(--radius-lg);
+  padding: 6px 12px;
+  border-radius: 999px;
   font-size: var(--font-size-caption);
   color: var(--color-text-primary);
   background: var(--color-bg-card);
@@ -260,7 +261,7 @@
 .config-grid {
   display: grid;
   grid-template-columns: 1.05fr 1fr;
-  gap: var(--spacing-3);
+  gap: 16px;
   align-items: start;
 }
 
@@ -271,13 +272,13 @@
 .integration-guide-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: var(--spacing-3);
+  gap: 16px;
 }
 
 .integration-guide-card {
   border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-xl);
-  padding: var(--spacing-4);
+  border-radius: 12px;
+  padding: 16px;
   background: var(--color-bg-elevated);
 }
 
@@ -285,12 +286,12 @@
   font-family: var(--font-family-mono);
   font-size: var(--font-size-small);
   color: var(--color-primary);
-  margin-bottom: var(--spacing-2);
+  margin-bottom: 8px;
   word-break: break-all;
 }
 
 .integration-note {
-  margin: 0 0 var(--spacing-2);
+  margin: 0 0 8px;
   color: var(--color-text-secondary);
   line-height: 1.6;
 }
@@ -298,13 +299,13 @@
 .integration-hint {
   font-size: var(--font-size-small);
   color: var(--color-text-secondary);
-  margin-bottom: var(--spacing-2);
+  margin-bottom: 8px;
 }
 
 .integration-code {
   margin: 0;
-  padding: var(--spacing-3);
-  border-radius: var(--radius-lg);
+  padding: 12px;
+  border-radius: 12px;
   background: var(--color-bg-card);
   border: 1px solid var(--color-border-default);
   font-family: var(--font-family-mono);
@@ -317,21 +318,23 @@
 .config-card,
 .preview-card {
   background: var(--color-bg-card);
+  border-radius: 12px;
+  padding: 12px;
 }
 
 .section-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--spacing-3);
+  margin-bottom: 16px;
 }
 
 .section-head.compact {
-  margin-top: var(--spacing-4);
+  margin-top: 16px;
 }
 
 .section-title {
-  margin: var(--spacing-1) 0 0;
+  margin: 8px 0 0;
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
@@ -339,20 +342,20 @@
 
 .tiny-actions {
   display: flex;
-  gap: var(--spacing-2);
+  gap: 8px;
   align-items: center;
 }
 
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--spacing-3);
+  gap: 16px;
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-2);
+  gap: 8px;
   font-size: var(--font-size-small);
 }
 
@@ -368,7 +371,7 @@
   border: 1px solid var(--color-border-default);
   color: var(--color-text-primary);
   padding: var(--input-padding-y) var(--input-padding-x);
-  border-radius: var(--radius-xl);
+  border-radius: 12px;
   transition: all var(--transition-normal) var(--easing-in-out);
 }
 
@@ -398,14 +401,14 @@
 .perm-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--spacing-3);
+  gap: 16px;
 }
 
 .preview-card .json-preview {
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-xl);
-  padding: var(--spacing-3);
+  border-radius: 12px;
+  padding: 12px;
   min-height: 240px;
   max-height: 420px;
   overflow: auto;
@@ -421,7 +424,7 @@
 }
 
 .footnote {
-  margin-top: var(--spacing-3);
+  margin-top: 16px;
   font-size: var(--font-size-caption);
   color: var(--color-text-muted);
 }
@@ -429,8 +432,8 @@
 .footnote code {
   font-family: var(--font-family-mono);
   background: var(--color-bg-elevated);
-  padding: 2px 6px;
-  border-radius: var(--radius-sm);
+  padding: 2px 8px;
+  border-radius: 999px;
   font-size: var(--font-size-caption);
 }
 
@@ -438,8 +441,8 @@
   background: var(--color-info-bg);
   border: 1px solid var(--color-info-border);
   color: var(--color-info-text);
-  padding: var(--spacing-3) var(--spacing-4);
-  border-radius: var(--radius-xl);
+  padding: 12px 16px;
+  border-radius: 12px;
   text-align: center;
   font-size: var(--font-size-small);
 }

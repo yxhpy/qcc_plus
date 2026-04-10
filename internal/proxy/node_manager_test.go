@@ -66,8 +66,8 @@ func TestAddNode(t *testing.T) {
 		}
 	})
 
-	t.Run("openai protocol forces api health method", func(t *testing.T) {
-		node, err := srv.addNodeWithMethod(acc, "openai-node", "http://openai.example.com", "key", 1, HealthCheckMethodCLI, "", nil, SourceProtocolOpenAI, "", "")
+	t.Run("openai protocol converts cli health method to api", func(t *testing.T) {
+		node, err := srv.addNodeWithMethod(acc, "openai-node", "http://openai.example.com", "key", 1, HealthCheckMethodCLI, "", nil, SourceProtocolOpenAI, "", "", "", 0)
 		if err != nil {
 			t.Fatalf("addNodeWithMethod failed: %v", err)
 		}
@@ -76,8 +76,28 @@ func TestAddNode(t *testing.T) {
 		}
 	})
 
+	t.Run("openai protocol allows explicit head health method", func(t *testing.T) {
+		node, err := srv.addNodeWithMethod(acc, "openai-head-node", "http://openai.example.com", "key", 1, HealthCheckMethodHEAD, "", nil, SourceProtocolOpenAI, "", "", "", 0)
+		if err != nil {
+			t.Fatalf("addNodeWithMethod failed: %v", err)
+		}
+		if node.HealthCheckMethod != HealthCheckMethodHEAD {
+			t.Fatalf("expected health method %s for openai protocol, got %s", HealthCheckMethodHEAD, node.HealthCheckMethod)
+		}
+	})
+
+	t.Run("openai protocol defaults wire api to responses", func(t *testing.T) {
+		node, err := srv.addNodeWithMethod(acc, "openai-wire-node", "http://openai.example.com", "key", 1, HealthCheckMethodHEAD, "", nil, SourceProtocolOpenAI, "", "", "", 0)
+		if err != nil {
+			t.Fatalf("addNodeWithMethod failed: %v", err)
+		}
+		if node.WireAPI != openAIWireAPIResponses {
+			t.Fatalf("expected wire api %s for openai protocol, got %s", openAIWireAPIResponses, node.WireAPI)
+		}
+	})
+
 	t.Run("gemini protocol forces api health method", func(t *testing.T) {
-		node, err := srv.addNodeWithMethod(acc, "gemini-node", "http://gemini.example.com", "key", 1, HealthCheckMethodHEAD, "", nil, SourceProtocolGemini, "", "")
+		node, err := srv.addNodeWithMethod(acc, "gemini-node", "http://gemini.example.com", "key", 1, HealthCheckMethodHEAD, "", nil, SourceProtocolGemini, "", "", "", 0)
 		if err != nil {
 			t.Fatalf("addNodeWithMethod failed: %v", err)
 		}
@@ -85,6 +105,45 @@ func TestAddNode(t *testing.T) {
 			t.Fatalf("expected health method %s for gemini protocol, got %s", HealthCheckMethodAPI, node.HealthCheckMethod)
 		}
 	})
+}
+
+func TestSelectHealthyNodeExcludingSkipsConcurrencyLimitedNodes(t *testing.T) {
+	srv := buildServerNoWarmup(t, NewBuilder().WithUpstream("http://example.com"))
+
+	acc, err := srv.createAccount("test-account", "test-proxy", "test123", false)
+	if err != nil {
+		t.Fatalf("create account: %v", err)
+	}
+
+	primary, err := srv.addNodeWithMethod(acc, "primary", "http://primary.example.com", "key", 1, HealthCheckMethodHEAD, "", nil, SourceProtocolOpenAI, "", "", "", 1)
+	if err != nil {
+		t.Fatalf("add primary node: %v", err)
+	}
+	secondary, err := srv.addNodeWithMethod(acc, "secondary", "http://secondary.example.com", "key", 2, HealthCheckMethodHEAD, "", nil, SourceProtocolOpenAI, "", "", "", 1)
+	if err != nil {
+		t.Fatalf("add secondary node: %v", err)
+	}
+
+	if ok := srv.nodeScorer.TryAcquireConn(primary.ID, primary.MaxConcurrency); !ok {
+		t.Fatal("expected to acquire first primary connection")
+	}
+
+	selected := srv.selectHealthyNodeExcluding(acc, nil, "", "", "", true)
+	if selected == nil || selected.ID != secondary.ID {
+		if selected == nil {
+			t.Fatal("expected secondary node, got nil")
+		}
+		t.Fatalf("expected secondary node, got %s", selected.Name)
+	}
+
+	if ok := srv.nodeScorer.TryAcquireConn(secondary.ID, secondary.MaxConcurrency); !ok {
+		t.Fatal("expected to acquire first secondary connection")
+	}
+
+	selected = srv.selectHealthyNodeExcluding(acc, nil, "", "", "", true)
+	if selected != nil {
+		t.Fatalf("expected no selectable node when all nodes hit concurrency limit, got %s", selected.Name)
+	}
 }
 
 // TestUpdateNode tests the updateNode function
@@ -107,7 +166,7 @@ func TestUpdateNode(t *testing.T) {
 
 	t.Run("update node successfully", func(t *testing.T) {
 		newAPIKey := "new-key"
-		err := srv.updateNode(node.ID, "updated", "http://updated.com", &newAPIKey, 3, nil, nil, nil, nil, nil, nil)
+		err := srv.updateNode(node.ID, "updated", "http://updated.com", &newAPIKey, 3, nil, nil, nil, nil, nil, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("updateNode failed: %v", err)
 		}
@@ -128,21 +187,21 @@ func TestUpdateNode(t *testing.T) {
 	})
 
 	t.Run("update non-existent node fails", func(t *testing.T) {
-		err := srv.updateNode("non-existent", "test", "http://test.com", nil, 1, nil, nil, nil, nil, nil, nil)
+		err := srv.updateNode("non-existent", "test", "http://test.com", nil, 1, nil, nil, nil, nil, nil, nil, nil, nil)
 		if err == nil {
 			t.Fatal("expected error for non-existent node")
 		}
 	})
 
 	t.Run("update node with empty URL fails", func(t *testing.T) {
-		err := srv.updateNode(node.ID, "test", "", nil, 1, nil, nil, nil, nil, nil, nil)
+		err := srv.updateNode(node.ID, "test", "", nil, 1, nil, nil, nil, nil, nil, nil, nil, nil)
 		if err == nil {
 			t.Fatal("expected error for empty URL")
 		}
 	})
 
 	t.Run("update node with invalid URL fails", func(t *testing.T) {
-		err := srv.updateNode(node.ID, "test", "://invalid", nil, 1, nil, nil, nil, nil, nil, nil)
+		err := srv.updateNode(node.ID, "test", "://invalid", nil, 1, nil, nil, nil, nil, nil, nil, nil, nil)
 		if err == nil {
 			t.Fatal("expected error for invalid URL")
 		}
@@ -150,7 +209,7 @@ func TestUpdateNode(t *testing.T) {
 
 	t.Run("update node preserves API key when nil", func(t *testing.T) {
 		originalKey := srv.getNode(node.ID).APIKey
-		err := srv.updateNode(node.ID, "test", "http://test.com", nil, 1, nil, nil, nil, nil, nil, nil)
+		err := srv.updateNode(node.ID, "test", "http://test.com", nil, 1, nil, nil, nil, nil, nil, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("updateNode failed: %v", err)
 		}
@@ -160,7 +219,7 @@ func TestUpdateNode(t *testing.T) {
 	})
 
 	t.Run("update node with zero weight defaults to 1", func(t *testing.T) {
-		err := srv.updateNode(node.ID, "test", "http://test.com", nil, 0, nil, nil, nil, nil, nil, nil)
+		err := srv.updateNode(node.ID, "test", "http://test.com", nil, 0, nil, nil, nil, nil, nil, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("updateNode failed: %v", err)
 		}
@@ -169,15 +228,27 @@ func TestUpdateNode(t *testing.T) {
 		}
 	})
 
-	t.Run("update node protocol to openai forces api health method", func(t *testing.T) {
+	t.Run("update node protocol to openai converts cli health method to api", func(t *testing.T) {
 		method := HealthCheckMethodCLI
 		proto := SourceProtocolOpenAI
-		err := srv.updateNode(node.ID, "test", "http://test.com", nil, 1, &method, nil, nil, &proto, nil, nil)
+		err := srv.updateNode(node.ID, "test", "http://test.com", nil, 1, &method, nil, nil, &proto, nil, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("updateNode failed: %v", err)
 		}
 		if got := srv.getNode(node.ID).HealthCheckMethod; got != HealthCheckMethodAPI {
 			t.Fatalf("expected health method %s after protocol update, got %s", HealthCheckMethodAPI, got)
+		}
+	})
+
+	t.Run("update node protocol to openai keeps explicit head health method", func(t *testing.T) {
+		method := HealthCheckMethodHEAD
+		proto := SourceProtocolOpenAI
+		err := srv.updateNode(node.ID, "test", "http://test.com", nil, 1, &method, nil, nil, &proto, nil, nil, nil, nil)
+		if err != nil {
+			t.Fatalf("updateNode failed: %v", err)
+		}
+		if got := srv.getNode(node.ID).HealthCheckMethod; got != HealthCheckMethodHEAD {
+			t.Fatalf("expected health method %s after protocol update, got %s", HealthCheckMethodHEAD, got)
 		}
 	})
 }

@@ -15,13 +15,13 @@
 }
 
 .notifications-header {
-  margin-bottom: 12px;
+  margin-bottom: 24px;
 }
 
 .notifications-header h1 {
   font-size: var(--font-size-page-title);
   font-weight: var(--font-weight-semibold);
-  margin: 0 0 4px 0;
+  margin: 0 0 8px 0;
   color: var(--color-text-primary);
 }
 
@@ -35,14 +35,14 @@
 .inline-form {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 12px;
   align-items: flex-end;
 }
 
 .inline-form label {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-2);
+  gap: 8px;
   font-size: var(--font-size-small);
   color: var(--color-text-secondary);
   font-weight: 500;
@@ -61,9 +61,9 @@
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-border-default);
   color: var(--color-text-primary);
-  padding: var(--input-padding-y) var(--input-padding-x);
+  padding: 12px;
   height: var(--input-height);
-  border-radius: var(--input-radius);
+  border-radius: 12px;
   outline: none;
   font-size: var(--font-size-body);
   transition: all var(--transition-normal) cubic-bezier(0.4, 0, 0.2, 1);
@@ -92,13 +92,13 @@
 
 .form-actions {
   display: flex;
-  gap: var(--spacing-2);
+  gap: 12px;
   flex-wrap: wrap;
-  margin-top: var(--spacing-2);
+  margin-top: 12px;
 }
 
 .btn {
-  padding: 8px 12px;
+  padding: 12px;
   height: 36px;
   border-radius: var(--button-radius);
   font-size: 13px;
@@ -168,14 +168,14 @@
 .subscription-toolbar {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   flex-wrap: wrap;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
 }
 
 .toolbar .btn,
 .subscription-toolbar .btn {
-  padding: 10px 18px;
+  padding: 12px 18px;
 }
 
 .subscription-toolbar label {
@@ -204,7 +204,7 @@
 
 .channels-table th {
   text-align: left;
-  padding: 6px 8px;
+  padding: 12px;
   color: var(--color-text-muted);
   font-weight: 600;
   font-size: 12px;
@@ -213,15 +213,15 @@
   border-bottom: 1px solid var(--color-divider);
   background: var(--color-bg-card);
   white-space: nowrap;
-  height: 36px;
+  height: 44px;
 }
 
 .channels-table td {
-  padding: 6px 8px;
+  padding: 12px;
   color: var(--color-text-primary);
   border-bottom: 1px solid var(--color-divider);
   transition: all 0.2s ease;
-  height: 36px;
+  height: 44px;
   line-height: 1.3;
 }
 
@@ -236,12 +236,12 @@
 
 .table-actions {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
 .table-actions .btn {
-  padding: 6px 10px;
+  padding: 8px 12px;
   font-size: 12px;
 }
 
@@ -249,7 +249,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
+  padding: 4px 12px;
   border-radius: 999px;
   font-size: 12px;
   font-weight: 600;
@@ -276,7 +276,7 @@
   font-family: 'JetBrains Mono', 'Consolas', monospace;
   background: var(--color-bg-elevated);
   padding: 4px 8px;
-  border-radius: var(--radius-lg);
+  border-radius: 999px;
   display: inline-block;
 }
 
@@ -290,29 +290,29 @@
 .notifications-grid {
   display: grid;
   grid-template-columns: 1.4fr 1fr;
-  gap: 18px;
+  gap: 20px;
 }
 
 .event-groups {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 14px;
-  margin-top: 12px;
+  gap: 16px;
+  margin-top: 16px;
 }
 
 .event-group {
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-xl);
-  padding: 14px;
+  border-radius: 12px;
+  padding: 16px;
 }
 
 .group-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 10px;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 
 .group-head h4 {
@@ -324,13 +324,13 @@
 .group-head-left {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
 .group-checkbox {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   cursor: pointer;
   margin: 0;
 }
@@ -348,23 +348,23 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 14px;
+  padding: 12px 16px;
   margin-bottom: 16px;
   background: var(--color-bg-card);
   border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-lg);
+  border-radius: 12px;
 }
 
 .batch-left {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
 .batch-checkbox {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   cursor: pointer;
   font-size: 13px;
   font-weight: 500;
@@ -379,7 +379,7 @@
 }
 
 .btn-sm {
-  padding: 2px 10px !important;
+  padding: 4px 12px !important;
   font-size: 12px !important;
   line-height: 22px !important;
 }
@@ -402,17 +402,17 @@
 .event-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .event-item {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   align-items: flex-start;
-  padding: 8px 10px;
+  padding: 12px;
   background: var(--color-bg-card);
   border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-lg);
+  border-radius: 12px;
   cursor: pointer;
   transition: all 0.15s ease;
 }
@@ -453,7 +453,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
+  padding: 4px 12px;
   border-radius: 999px;
   font-size: 11px;
   font-weight: 600;
@@ -470,7 +470,7 @@
 .empty-box {
   background: var(--color-bg-elevated);
   border: 1px dashed var(--color-border-default);
-  border-radius: var(--radius-xl);
+  border-radius: 12px;
   padding: 16px;
   text-align: center;
   color: var(--color-text-muted);
@@ -484,20 +484,20 @@
 .test-card {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
 .test-card label {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   color: var(--color-text-secondary);
   font-size: 13px;
 }
 
 .skeleton {
   width: 100%;
-  border-radius: var(--radius-lg);
+  border-radius: 12px;
   background: linear-gradient(90deg, var(--color-bg-elevated), var(--color-hover), var(--color-bg-elevated));
   background-size: 200px 100%;
   animation: shimmer 1.2s infinite;

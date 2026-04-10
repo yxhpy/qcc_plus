@@ -31,7 +31,7 @@ func TestCheckModelRecoveryUsesMappedModel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create account: %v", err)
 	}
-	node, err := srv.addNodeWithMethod(acc, "mapped-node", upstream.URL, "k", 1, HealthCheckMethodAPI, "", map[string]string{"claude-sonnet-4-6": "claude-sonnet-4-7"}, "", "", "")
+	node, err := srv.addNodeWithMethod(acc, "mapped-node", upstream.URL, "k", 1, HealthCheckMethodAPI, "", map[string]string{"claude-sonnet-4-6": "claude-sonnet-4-7"}, "", "", "", "", 0)
 	if err != nil {
 		t.Fatalf("add node: %v", err)
 	}
@@ -67,7 +67,7 @@ func TestCheckModelRecovery_OpenAIProtocolUsesChatCompletionsPath(t *testing.T) 
 	if err != nil {
 		t.Fatalf("create account: %v", err)
 	}
-	node, err := srv.addNodeWithMethod(acc, "openai-node", upstream.URL, "k", 1, HealthCheckMethodAPI, "", map[string]string{"claude-haiku-4-5-20251001": "gpt-5.1-codex-mini"}, SourceProtocolOpenAI, "", "")
+	node, err := srv.addNodeWithMethod(acc, "openai-node", upstream.URL, "k", 1, HealthCheckMethodAPI, "", map[string]string{"claude-haiku-4-5-20251001": "gpt-5.1-codex-mini"}, SourceProtocolOpenAI, "", "", "", 0)
 	if err != nil {
 		t.Fatalf("add node: %v", err)
 	}

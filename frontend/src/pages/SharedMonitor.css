@@ -1,5 +1,5 @@
 .shared-monitor-page {
-  padding: 24px 24px;
+  padding: 24px;
   max-width: 1400px;
   margin: 0 auto;
   color: var(--color-text-primary);
@@ -7,7 +7,7 @@
 
 .shared-monitor-page header {
   text-align: center;
-  margin-bottom: 16px;
+  margin-bottom: 24px;
 }
 
 .shared-monitor-page h1 {
@@ -20,14 +20,14 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   margin-top: 12px;
 }
 
 .ws-status {
   font-size: 13px;
   padding: 4px 12px;
-  border-radius: 12px;
+  border-radius: 999px;
   font-weight: 500;
 }
 
@@ -55,7 +55,7 @@
   justify-content: center;
   align-items: center;
   text-align: center;
-  gap: 12px;
+  gap: 16px;
 }
 
 .shared-monitor-error h2 {

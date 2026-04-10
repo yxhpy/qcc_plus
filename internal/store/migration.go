@@ -94,10 +94,12 @@ func (s *Store) ensureNodesTable(ctx context.Context) error {
 			health_check_model TEXT DEFAULT '` + defaultHealthCheckModel + `',
 			model_mapping TEXT DEFAULT '',
 			source_protocol TEXT DEFAULT 'claude',
+			wire_api TEXT DEFAULT '',
 			auth_profile TEXT DEFAULT '',
 			capabilities TEXT DEFAULT '',
 			account_id TEXT NOT NULL DEFAULT '` + DefaultAccountID + `',
 			weight INTEGER DEFAULT 1,
+			max_concurrency INTEGER DEFAULT 0,
 			failed INTEGER DEFAULT 0,
 			disabled INTEGER DEFAULT 0,
 			last_error TEXT,
@@ -125,10 +127,12 @@ func (s *Store) ensureNodesTable(ctx context.Context) error {
 			health_check_model VARCHAR(128) DEFAULT '` + defaultHealthCheckModel + `',
 			model_mapping TEXT,
 			source_protocol VARCHAR(20) DEFAULT 'claude',
+			wire_api VARCHAR(32) DEFAULT '',
 			auth_profile TEXT,
 			capabilities TEXT,
 			account_id VARCHAR(64) NOT NULL DEFAULT '` + DefaultAccountID + `',
 			weight INT DEFAULT 1,
+			max_concurrency INT DEFAULT 0,
 			failed BOOLEAN DEFAULT FALSE,
 			disabled BOOLEAN DEFAULT FALSE,
 			last_error TEXT,
@@ -303,6 +307,24 @@ func (s *Store) ensureNodesTable(ctx context.Context) error {
 		}
 	}
 
+	hasWireAPI, err := s.columnExists(context.Background(), "nodes", "wire_api")
+	if err != nil {
+		return err
+	}
+	if !hasWireAPI {
+		alterCtx, cancel := withTimeout(context.Background())
+		defer cancel()
+		var alterStmt string
+		if s.IsSQLite() {
+			alterStmt = `ALTER TABLE nodes ADD COLUMN wire_api TEXT DEFAULT ''`
+		} else {
+			alterStmt = `ALTER TABLE nodes ADD COLUMN wire_api VARCHAR(32) DEFAULT '' AFTER source_protocol`
+		}
+		if _, err := s.db.ExecContext(alterCtx, alterStmt); err != nil {
+			return err
+		}
+	}
+
 	hasAuthProfile, err := s.columnExists(context.Background(), "nodes", "auth_profile")
 	if err != nil {
 		return err
@@ -333,6 +355,24 @@ func (s *Store) ensureNodesTable(ctx context.Context) error {
 			alterStmt = `ALTER TABLE nodes ADD COLUMN capabilities TEXT DEFAULT ''`
 		} else {
 			alterStmt = `ALTER TABLE nodes ADD COLUMN capabilities TEXT AFTER auth_profile`
+		}
+		if _, err := s.db.ExecContext(alterCtx, alterStmt); err != nil {
+			return err
+		}
+	}
+
+	hasMaxConcurrency, err := s.columnExists(context.Background(), "nodes", "max_concurrency")
+	if err != nil {
+		return err
+	}
+	if !hasMaxConcurrency {
+		alterCtx, cancel := withTimeout(context.Background())
+		defer cancel()
+		var alterStmt string
+		if s.IsSQLite() {
+			alterStmt = `ALTER TABLE nodes ADD COLUMN max_concurrency INTEGER DEFAULT 0`
+		} else {
+			alterStmt = `ALTER TABLE nodes ADD COLUMN max_concurrency INT DEFAULT 0 AFTER weight`
 		}
 		if _, err := s.db.ExecContext(alterCtx, alterStmt); err != nil {
 			return err

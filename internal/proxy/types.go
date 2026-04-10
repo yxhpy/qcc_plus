@@ -18,12 +18,14 @@ type Node struct {
 	HealthCheckModel  string            // CLI 健康检查使用的模型，默认为 claude-haiku-4-5-20251001
 	ModelMapping      map[string]string // 模型映射：请求中的模型 -> 转发给上游的模型
 	SourceProtocol    string            // 源协议：claude/openai/gemini
+	WireAPI           string            // OpenAI/Codex 上游接口：responses/chat_completions
 	AuthProfile       string            // JSON 格式鉴权配置
 	Capabilities      string            // JSON 格式能力声明
 	AccountID         string
 	CreatedAt         time.Time
 	Metrics           metrics
 	Weight            int
+	MaxConcurrency    int
 	Failed            bool
 	Disabled          bool // 用户手动禁用
 	LastError         string
@@ -38,6 +40,16 @@ func (n *Node) MapModel(model string) string {
 		return mapped
 	}
 	return model
+}
+
+func (n *Node) NormalizedWireAPI() string {
+	if n == nil {
+		return normalizeOpenAIWireAPI("")
+	}
+	if NormalizedSourceProtocol(n.SourceProtocol) != SourceProtocolOpenAI {
+		return ""
+	}
+	return normalizeOpenAIWireAPI(n.WireAPI)
 }
 
 type ActiveAPIKeyInfo struct {

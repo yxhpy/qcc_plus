@@ -396,14 +396,24 @@ func buildExportSettings(node store.NodeRecord, baseURL, apiKey string) (string,
 
 	switch protocol {
 	case "openai":
+		wireAPI := strings.TrimSpace(node.WireAPI)
+		switch strings.ToLower(wireAPI) {
+		case "chat/completions", "chat-completions", "chat_completions":
+			wireAPI = "chat_completions"
+		case "responses":
+			wireAPI = "responses"
+		default:
+			wireAPI = "responses"
+		}
 		auth := map[string]string{}
 		if apiKey != "" {
 			auth["OPENAI_API_KEY"] = apiKey
 		}
 		settings["auth"] = auth
 		settings["config"] = fmt.Sprintf(
-			"model_provider = \"custom\"\nmodel = %q\n\n[model_providers]\n[model_providers.custom]\nname = \"custom\"\nwire_api = \"responses\"\nrequires_openai_auth = true\nbase_url = %q\n",
+			"model_provider = \"custom\"\nmodel = %q\n\n[model_providers]\n[model_providers.custom]\nname = \"custom\"\nwire_api = %q\nrequires_openai_auth = true\nbase_url = %q\n",
 			chooseNonEmpty(node.HealthCheckModel, defaultOpenAIHealthModel),
+			wireAPI,
 			baseURL,
 		)
 	case "gemini":

@@ -189,10 +189,12 @@ async function createNode(payload: {
   api_key?: string
   api_keys?: Node['api_keys']
   weight?: number
+  max_concurrency?: number
   health_check_method?: Node['health_check_method']
   health_check_model?: string
   model_mapping?: Record<string, string>
   source_protocol?: Node['source_protocol']
+  wire_api?: Node['wire_api']
   auth_profile?: string
   capabilities?: string
 }, accountId?: string): Promise<string> {
@@ -204,7 +206,7 @@ async function createNode(payload: {
   return data.id
 }
 
-async function updateNode(id: string, payload: Partial<Pick<Node, 'name' | 'base_url' | 'weight' | 'health_check_method' | 'health_check_model' | 'model_mapping' | 'source_protocol' | 'auth_profile' | 'capabilities'>> & { api_key?: string; api_keys?: Node['api_keys'] }): Promise<void> {
+async function updateNode(id: string, payload: Partial<Pick<Node, 'name' | 'base_url' | 'weight' | 'max_concurrency' | 'health_check_method' | 'health_check_model' | 'model_mapping' | 'source_protocol' | 'wire_api' | 'auth_profile' | 'capabilities'>> & { api_key?: string; api_keys?: Node['api_keys'] }): Promise<void> {
   await request(`/admin/api/nodes?id=${encodeURIComponent(id)}`, {
     method: 'PUT',
     headers: defaultHeaders,

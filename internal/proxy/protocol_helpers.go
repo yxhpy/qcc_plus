@@ -18,6 +18,13 @@ func NormalizedSourceProtocol(raw string) string {
 	}
 }
 
+func normalizeNodeWireAPI(sourceProtocol, raw string) string {
+	if NormalizedSourceProtocol(sourceProtocol) != SourceProtocolOpenAI {
+		return ""
+	}
+	return normalizeOpenAIWireAPI(raw)
+}
+
 // ParsedCapabilities decodes node capability JSON with defaults.
 func (n *Node) ParsedCapabilities() protocol.Capabilities {
 	if n == nil {

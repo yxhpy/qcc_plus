@@ -1,5 +1,5 @@
 .health-timeline {
-	margin-top: 6px;
+	margin-top: 8px;
 }
 
 /* 紧凑模式 - 单行显示 */
@@ -14,7 +14,7 @@
 .health-timeline__status {
 	display: flex;
 	align-items: center;
-	gap: 6px;
+	gap: 8px;
 	font-size: 12px;
 }
 
@@ -26,11 +26,11 @@
 }
 
 .health-timeline__status .status-dot.online {
-	background: var(--color-success-500);
+	background: var(--color-success);
 }
 
 .health-timeline__status .status-dot.offline {
-	background: var(--color-danger-500);
+	background: var(--color-danger);
 }
 
 .health-timeline__status .status-text {
@@ -61,15 +61,15 @@
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	gap: 6px;
-	margin-bottom: 4px;
+	gap: 8px;
+	margin-bottom: 8px;
 	flex-wrap: wrap;
 }
 
 .health-timeline__left {
 	display: flex;
 	align-items: center;
-	gap: 6px;
+	gap: 8px;
 }
 
 .health-timeline__title {
@@ -80,7 +80,7 @@
 
 .health-timeline__chips {
 	display: flex;
-	gap: 4px;
+	gap: 6px;
 }
 
 .health-timeline .chip {
@@ -88,7 +88,7 @@
 	background: var(--color-bg-card);
 	color: var(--color-text-primary);
 	border-radius: 999px;
-	padding: 2px 8px;
+	padding: 4px 10px;
 	font-size: 11px;
 	cursor: pointer;
 	transition: all var(--transition-fast) ease;
@@ -102,14 +102,14 @@
 
 .health-timeline__stats {
 	display: flex;
-	gap: 6px;
+	gap: 8px;
 }
 
 .health-timeline__stats .pill {
 	display: inline-flex;
 	align-items: center;
 	gap: 4px;
-	padding: 2px 6px;
+	padding: 4px 8px;
 	border-radius: 999px;
 	font-weight: 600;
 	border: 1px solid transparent;
@@ -134,8 +134,8 @@
 	align-items: center;
 	gap: 3px;
 	overflow-x: auto;
-	padding: 4px 6px;
-	border-radius: 10px;
+	padding: 8px;
+	border-radius: 12px;
 	background: var(--color-bg-card);
 	border: 1px solid var(--color-divider);
 	min-height: 18px;
@@ -184,15 +184,15 @@
 }
 
 .health-dot.ok {
-	background: var(--color-success-500);
+	background: var(--color-success);
 }
 
 .health-dot.fail {
-	background: var(--color-danger-500);
+	background: var(--color-danger);
 }
 
 .health-error {
-	margin-top: 6px;
+	margin-top: 8px;
 	color: var(--color-danger-text);
 	font-size: 12px;
 }
@@ -204,8 +204,8 @@
 	max-width: 280px;
 	background: var(--color-bg-elevated);
 	color: var(--color-text-primary);
-	padding: 10px 12px;
-	border-radius: 10px;
+	padding: 12px;
+	border-radius: 12px;
 	border: 1px solid var(--color-border-default);
 	font-size: 12px;
 	line-height: 1.5;
@@ -213,7 +213,7 @@
 
 .health-tooltip__time {
 	font-weight: 700;
-	margin-bottom: 6px;
+	margin-bottom: 8px;
 }
 
 .health-tooltip__row {

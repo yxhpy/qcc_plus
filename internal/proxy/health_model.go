@@ -105,13 +105,26 @@ type HealthProbeSpec struct {
 	Body    []byte
 }
 
-func BuildHealthProbeSpec(sourceProtocol, model string) (HealthProbeSpec, error) {
+func BuildHealthProbeSpec(sourceProtocol, wireAPI, model string) (HealthProbeSpec, error) {
 	switch sourceProtocol {
 	case SourceProtocolOpenAI:
-		payload := map[string]any{
-			"model":      model,
-			"messages":   []map[string]string{{"role": "user", "content": "ping"}},
-			"max_tokens": 1,
+		var (
+			payload map[string]any
+			path    string
+		)
+		if normalizeOpenAIWireAPI(wireAPI) == openAIWireAPIChat {
+			payload = map[string]any{
+				"model":      model,
+				"messages":   []map[string]string{{"role": "user", "content": "ping"}},
+				"max_tokens": 1,
+			}
+			path = openAIChatCompletionsPath
+		} else {
+			payload = map[string]any{
+				"model": model,
+				"input": "ping",
+			}
+			path = openAIResponsesPath
 		}
 		body, err := json.Marshal(payload)
 		if err != nil {
@@ -119,7 +132,7 @@ func BuildHealthProbeSpec(sourceProtocol, model string) (HealthProbeSpec, error)
 		}
 		return HealthProbeSpec{
 			Method: "POST",
-			Path:   "/v1/chat/completions",
+			Path:   path,
 			Headers: map[string]string{
 				"Content-Type": "application/json",
 			},

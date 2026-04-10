@@ -555,7 +555,7 @@ func TestStrictRouteOpenAINodeUsesChatCompletions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create account: %v", err)
 	}
-	if _, err := srv.addNodeWithMethod(acc, "rc-codex", up.URL, "", 1, HealthCheckMethodAPI, "", nil, SourceProtocolOpenAI, "", ""); err != nil {
+	if _, err := srv.addNodeWithMethod(acc, "rc-codex", up.URL, "", 1, HealthCheckMethodAPI, "", nil, SourceProtocolOpenAI, "", "", "", 0); err != nil {
 		t.Fatalf("add rc-codex: %v", err)
 	}
 
@@ -616,7 +616,7 @@ func TestStrictRouteGeminiNodeUsesGenerateContent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create account: %v", err)
 	}
-	if _, err := srv.addNodeWithMethod(acc, "rc-gemini", up.URL, "", 1, HealthCheckMethodAPI, "", nil, SourceProtocolGemini, "", ""); err != nil {
+	if _, err := srv.addNodeWithMethod(acc, "rc-gemini", up.URL, "", 1, HealthCheckMethodAPI, "", nil, SourceProtocolGemini, "", "", "", 0); err != nil {
 		t.Fatalf("add rc-gemini: %v", err)
 	}
 
@@ -669,7 +669,7 @@ func TestStrictRouteBypassesOpenCircuitBreaker(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create account: %v", err)
 	}
-	node, err := srv.addNodeWithMethod(acc, "rc-codex", up.URL, "", 1, HealthCheckMethodAPI, "", nil, SourceProtocolOpenAI, "", "")
+	node, err := srv.addNodeWithMethod(acc, "rc-codex", up.URL, "", 1, HealthCheckMethodAPI, "", nil, SourceProtocolOpenAI, "", "", "", 0)
 	if err != nil {
 		t.Fatalf("add rc-codex: %v", err)
 	}
@@ -728,7 +728,7 @@ func TestClaudeIngressRejectsOpenAINodesWithoutClaudeNode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create account: %v", err)
 	}
-	if _, err := srv.addNodeWithMethod(acc, "rc-codex", up.URL, "", 1, HealthCheckMethodAPI, "", nil, SourceProtocolOpenAI, "", ""); err != nil {
+	if _, err := srv.addNodeWithMethod(acc, "rc-codex", up.URL, "", 1, HealthCheckMethodAPI, "", nil, SourceProtocolOpenAI, "", "", "", 0); err != nil {
 		t.Fatalf("add rc-codex: %v", err)
 	}
 
@@ -778,10 +778,10 @@ func TestClaudeIngressUsesClaudeNodeWhenMixedProtocolsExist(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create account: %v", err)
 	}
-	if _, err := srv.addNodeWithMethod(acc, "openai-node", up.URL, "", 10, HealthCheckMethodAPI, "", nil, SourceProtocolOpenAI, "", ""); err != nil {
+	if _, err := srv.addNodeWithMethod(acc, "openai-node", up.URL, "", 10, HealthCheckMethodAPI, "", nil, SourceProtocolOpenAI, "", "", "", 0); err != nil {
 		t.Fatalf("add openai node: %v", err)
 	}
-	if _, err := srv.addNodeWithMethod(acc, "claude-node", up.URL, "", 1, HealthCheckMethodAPI, "", nil, SourceProtocolClaude, "", ""); err != nil {
+	if _, err := srv.addNodeWithMethod(acc, "claude-node", up.URL, "", 1, HealthCheckMethodAPI, "", nil, SourceProtocolClaude, "", "", "", 0); err != nil {
 		t.Fatalf("add claude node: %v", err)
 	}
 
@@ -831,7 +831,7 @@ func TestOpenAIIngressPathIsAcceptedAndForwardedAsChatCompletions(t *testing.T) 
 	if err != nil {
 		t.Fatalf("create account: %v", err)
 	}
-	if _, err := srv.addNodeWithMethod(acc, "openai-node", up.URL, "", 1, HealthCheckMethodAPI, "", nil, SourceProtocolOpenAI, "", ""); err != nil {
+	if _, err := srv.addNodeWithMethod(acc, "openai-node", up.URL, "", 1, HealthCheckMethodAPI, "", nil, SourceProtocolOpenAI, "", "", "", 0); err != nil {
 		t.Fatalf("add openai node: %v", err)
 	}
 
@@ -881,7 +881,7 @@ func TestOpenAIV1PathIsAcceptedDirectlyAndRespectsBaseURL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create account: %v", err)
 	}
-	if _, err := srv.addNodeWithMethod(acc, "openai-node", up.URL+"/v1", "", 1, HealthCheckMethodAPI, "", nil, SourceProtocolOpenAI, "", ""); err != nil {
+	if _, err := srv.addNodeWithMethod(acc, "openai-node", up.URL+"/v1", "", 1, HealthCheckMethodAPI, "", nil, SourceProtocolOpenAI, "", "", "", 0); err != nil {
 		t.Fatalf("add openai node: %v", err)
 	}
 
@@ -931,7 +931,7 @@ func TestOpenAIResponsesIngressPathIsAcceptedAndForwarded(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create account: %v", err)
 	}
-	if _, err := srv.addNodeWithMethod(acc, "openai-node", up.URL+"/v1", "", 1, HealthCheckMethodAPI, "", nil, SourceProtocolOpenAI, "", ""); err != nil {
+	if _, err := srv.addNodeWithMethod(acc, "openai-node", up.URL+"/v1", "", 1, HealthCheckMethodAPI, "", nil, SourceProtocolOpenAI, "", "", "", 0); err != nil {
 		t.Fatalf("add openai node: %v", err)
 	}
 
@@ -981,7 +981,7 @@ func TestGeminiIngressPathIsAcceptedAndForwardedAsGenerateContent(t *testing.T) 
 	if err != nil {
 		t.Fatalf("create account: %v", err)
 	}
-	if _, err := srv.addNodeWithMethod(acc, "gemini-node", up.URL, "", 1, HealthCheckMethodAPI, "", nil, SourceProtocolGemini, "", ""); err != nil {
+	if _, err := srv.addNodeWithMethod(acc, "gemini-node", up.URL, "", 1, HealthCheckMethodAPI, "", nil, SourceProtocolGemini, "", "", "", 0); err != nil {
 		t.Fatalf("add gemini node: %v", err)
 	}
 
@@ -1035,7 +1035,7 @@ func TestGeminiV1BetaPathIsAcceptedDirectlyAndRespectsBaseURL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create account: %v", err)
 	}
-	if _, err := srv.addNodeWithMethod(acc, "gemini-node", up.URL+"/v1beta", "upstream-gemini-key", 1, HealthCheckMethodAPI, "", nil, SourceProtocolGemini, "", ""); err != nil {
+	if _, err := srv.addNodeWithMethod(acc, "gemini-node", up.URL+"/v1beta", "upstream-gemini-key", 1, HealthCheckMethodAPI, "", nil, SourceProtocolGemini, "", "", "", 0); err != nil {
 		t.Fatalf("add gemini node: %v", err)
 	}
 
@@ -1533,6 +1533,8 @@ func TestOpenAIModelsEndpoint(t *testing.T) {
 		"claude",
 		"",
 		"",
+		"",
+		0,
 	)
 	if err != nil {
 		t.Fatalf("add node with mapping: %v", err)

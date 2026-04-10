@@ -406,9 +406,14 @@ func (p *Server) handler() http.Handler {
 				proxy, streamState := p.newReverseProxy(node, usage, idleCfg, strictMode.enabled)
 				p.logger.Printf("%s %s via %s (account=%s, node %d/%d)", r.Method, r.URL.String(), node.Name, account.ID, attempt+1, len(account.Nodes))
 
-				// 追踪活跃连接数
+				acquiredConn := false
 				if p.nodeScorer != nil {
-					p.nodeScorer.IncrActiveConn(node.ID)
+					acquiredConn = p.nodeScorer.TryAcquireConn(node.ID, node.MaxConcurrency)
+					if !acquiredConn {
+						p.logger.Printf("node %s reached max concurrency %d, skipping", node.Name, node.MaxConcurrency)
+						skipNodes[node.ID] = true
+						continue
+					}
 					p.nodeScorer.IncrActiveModel(node.ID, requestModelID)
 				}
 
@@ -446,7 +451,7 @@ func (p *Server) handler() http.Handler {
 				cancel()
 
 				// 释放活跃连接计数
-				if p.nodeScorer != nil {
+				if p.nodeScorer != nil && acquiredConn {
 					p.nodeScorer.DecrActiveConn(node.ID)
 					p.nodeScorer.DecrActiveModel(node.ID, requestModelID)
 				}

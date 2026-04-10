@@ -6,9 +6,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: var(--spacing-3);
+  margin-bottom: 24px;
   flex-wrap: wrap;
-  gap: var(--spacing-2);
+  gap: 12px;
 }
 
 .model-recovery-header h1 {
@@ -19,15 +19,15 @@
 .model-recovery-toolbar {
   display: flex;
   align-items: center;
-  gap: var(--spacing-2);
+  gap: 12px;
 }
 
 .model-recovery-count {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 10px;
-  border-radius: 12px;
+  padding: 4px 12px;
+  border-radius: 999px;
   font-size: var(--font-size-caption);
   font-weight: var(--font-weight-semibold);
   background: var(--color-status-error-bg);
@@ -41,14 +41,14 @@
 
 .model-recovery-empty {
   text-align: center;
-  padding: var(--spacing-6) var(--spacing-3);
+  padding: 24px 12px;
   color: var(--color-text-muted);
   font-size: var(--font-size-body);
 }
 
 .model-recovery-empty .empty-icon {
   font-size: 48px;
-  margin-bottom: var(--spacing-2);
+  margin-bottom: 12px;
   opacity: 0.4;
 }
 
@@ -60,7 +60,7 @@
 
 .model-recovery-table th {
   text-align: left;
-  padding: 8px 10px;
+  padding: 12px;
   font-size: var(--font-size-caption);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-secondary);
@@ -69,7 +69,7 @@
 }
 
 .model-recovery-table td {
-  padding: 8px 10px;
+  padding: 12px;
   border-bottom: 1px solid var(--color-border-subtle);
   vertical-align: middle;
 }
@@ -80,19 +80,19 @@
 
 .model-tag {
   display: inline-block;
-  padding: 1px 8px;
-  border-radius: 4px;
+  padding: 2px 10px;
+  border-radius: 999px;
   font-size: var(--font-size-caption);
   font-weight: var(--font-weight-medium);
   background: var(--color-bg-badge);
   color: var(--color-text-primary);
-  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-family: var(--font-family-mono);
 }
 
 .node-tag {
   display: inline-block;
-  padding: 1px 8px;
-  border-radius: 4px;
+  padding: 2px 10px;
+  border-radius: 999px;
   font-size: var(--font-size-caption);
   background: var(--color-bg-subtle);
   color: var(--color-text-secondary);
@@ -117,13 +117,13 @@
 }
 
 .dismiss-btn {
-  padding: 2px 8px;
+  padding: 4px 12px;
   font-size: var(--font-size-caption);
   height: auto;
   border: 1px solid var(--color-border-default);
   background: var(--color-bg-card);
   color: var(--color-text-secondary);
-  border-radius: 4px;
+  border-radius: 12px;
   cursor: pointer;
 }
 
@@ -135,13 +135,13 @@
 .model-recovery-summary {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: var(--spacing-2);
-  margin-bottom: var(--spacing-3);
+  gap: 16px;
+  margin-bottom: 16px;
 }
 
 .summary-card {
-  padding: var(--spacing-2) var(--spacing-3);
-  border-radius: 8px;
+  padding: 12px 16px;
+  border-radius: 12px;
   border: 1px solid var(--color-border-subtle);
   background: var(--color-bg-card);
 }
@@ -149,7 +149,7 @@
 .summary-card .label {
   font-size: var(--font-size-caption);
   color: var(--color-text-muted);
-  margin-bottom: 2px;
+  margin-bottom: 4px;
 }
 
 .summary-card .value {

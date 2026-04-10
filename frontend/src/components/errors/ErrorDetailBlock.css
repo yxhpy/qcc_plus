@@ -1,20 +1,20 @@
 .error-detail-block {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
 }
 
 .error-detail-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
 }
 
 .error-detail-chip {
   display: inline-flex;
   align-items: center;
-  padding: 2px 8px;
+  padding: 4px 10px;
   border-radius: 999px;
   border: 1px solid var(--color-border-default);
   background: color-mix(in srgb, var(--color-bg-elevated) 82%, transparent);
@@ -36,7 +36,7 @@
 .error-detail-raw-section {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
 }
 
 .error-detail-raw-label {
@@ -48,8 +48,8 @@
 
 .error-detail-raw {
   margin: 0;
-  padding: 10px 12px;
-  border-radius: var(--radius-lg);
+  padding: 12px;
+  border-radius: 12px;
   border: 1px solid var(--color-border-default);
   background: var(--color-bg-elevated);
   color: var(--color-text-secondary);

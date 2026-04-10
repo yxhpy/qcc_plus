@@ -19,15 +19,15 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 16px;
+  margin-bottom: 24px;
   flex-wrap: wrap;
 }
 
 .monitor-shares-header h1 {
   font-size: var(--font-size-page-title);
   font-weight: var(--font-weight-semibold);
-  margin: 0 0 4px 0;
+  margin: 0 0 8px 0;
   color: var(--color-text-primary);
 }
 
@@ -40,7 +40,7 @@
 
 .monitor-shares-actions {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   align-items: center;
   flex-wrap: wrap;
 }
@@ -49,9 +49,9 @@
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-border-default);
   color: var(--color-text-primary);
-  padding: var(--input-padding-y) var(--input-padding-x);
+  padding: 12px;
   height: var(--input-height);
-  border-radius: var(--input-radius);
+  border-radius: 12px;
   min-width: 160px;
   outline: none;
   font-size: var(--font-size-body);
@@ -70,7 +70,7 @@
 
 /* Button Styles */
 .btn {
-  padding: 8px 12px;
+  padding: 12px;
   height: 36px;
   border-radius: var(--button-radius);
   font-size: 13px;
@@ -145,7 +145,7 @@
 
 .shares-table th {
   text-align: left;
-  padding: 6px 8px;
+  padding: 12px;
   color: var(--color-text-muted);
   font-weight: 600;
   font-size: 12px;
@@ -153,15 +153,15 @@
   letter-spacing: 0.8px;
   border-bottom: 1px solid var(--color-divider);
   background: var(--color-bg-card);
-  height: 36px;
+  height: 44px;
 }
 
 .shares-table td {
-  padding: 6px 8px;
+  padding: 12px;
   color: var(--color-text-primary);
   border-bottom: 1px solid var(--color-divider);
   transition: all 0.2s ease;
-  height: 36px;
+  height: 44px;
   line-height: 1.3;
 }
 
@@ -184,8 +184,8 @@
 .shares-table code {
   background: var(--color-bg-elevated);
   padding: 6px 8px;
-  border-radius: var(--radius-lg);
-  font-family: 'JetBrains Mono', 'Consolas', monospace;
+  border-radius: 999px;
+  font-family: var(--font-family-mono);
   font-size: 12px;
   color: var(--color-text-primary);
   border: 1px solid var(--color-border-default);
@@ -201,7 +201,7 @@
 
 /* Status Badge */
 .status-badge {
-  padding: 4px 10px;
+  padding: 4px 12px;
   border-radius: 999px;
   font-size: 12px;
   font-weight: 600;
@@ -226,12 +226,12 @@
 /* Table Actions */
 .table-actions {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
 .table-actions .btn {
-  padding: 6px 10px;
+  padding: 8px 12px;
   font-size: 12px;
   min-height: 32px;
   height: auto;
@@ -243,7 +243,7 @@
   width: 100%;
   background: linear-gradient(90deg, var(--color-bg-elevated), var(--color-hover), var(--color-bg-elevated));
   background-size: 200px 100%;
-  border-radius: 8px;
+  border-radius: 12px;
   animation: shimmer 1.2s infinite;
 }
 
@@ -261,8 +261,8 @@
   display: flex;
   justify-content: flex-end;
   align-items: center;
-  gap: 10px;
-  margin-top: 12px;
+  gap: 12px;
+  margin-top: 16px;
   color: var(--color-text-secondary);
   font-size: var(--font-size-body);
 }
@@ -277,7 +277,7 @@
 .share-form label {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-2);
+  gap: 8px;
   font-size: var(--font-size-small);
   color: var(--color-text-secondary);
   font-weight: 500;
@@ -287,9 +287,9 @@
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-border-default);
   color: var(--color-text-primary);
-  padding: var(--input-padding-y) var(--input-padding-x);
+  padding: 12px;
   height: var(--input-height);
-  border-radius: var(--input-radius);
+  border-radius: 12px;
   outline: none;
   font-size: var(--font-size-body);
   transition: all var(--transition-normal) cubic-bezier(0.4, 0, 0.2, 1);
@@ -308,8 +308,8 @@
 /* Form Actions */
 .form-actions {
   display: flex;
-  gap: var(--spacing-2);
-  margin-top: var(--spacing-2);
+  gap: 12px;
+  margin-top: 12px;
   flex-wrap: wrap;
   justify-content: flex-end;
 }
@@ -330,7 +330,7 @@
 
   .shares-table th,
   .shares-table td {
-    padding: 6px 8px;
+    padding: 8px;
     font-size: 12px;
   }
 

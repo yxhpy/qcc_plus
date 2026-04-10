@@ -4,15 +4,19 @@
   gap: 16px;
 }
 
+.error-policies-header {
+  margin-bottom: 24px;
+}
+
 .error-policies-header .sub {
   color: var(--color-text-muted);
-  margin-top: 6px;
+  margin-top: 8px;
 }
 
 .error-policies-toolbar {
   display: flex;
   justify-content: flex-end;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
 .error-policy-table {
@@ -24,9 +28,16 @@
 .error-policy-table th,
 .error-policy-table td {
   border-bottom: 1px solid var(--color-border);
-  padding: 8px 10px;
+  padding: 12px;
   text-align: left;
   font-size: 13px;
+}
+
+.error-policy-table th {
+  background: var(--color-bg-elevated);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
 }
 
 .error-policy-table .msg {
@@ -38,5 +49,5 @@
 
 .empty {
   color: var(--color-text-muted);
-  padding: 16px 8px;
+  padding: 24px 12px;
 }
